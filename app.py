@@ -1,0 +1,327 @@
+"""
+Streamlit Web Application for BlastOpt Botswana.
+Main Dashboard and Interactive Mining Analytics Suite.
+"""
+
+import os
+import glob
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from src.synthetic_data import generate_synthetic_blast_data
+from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, engineer_features
+from src.models import BlastMLPipeline
+from src.predict import predict_single_blast
+from src.optimize import BlastOptimizer
+from src.visualize import (
+    plot_kuz_ram_curve,
+    plot_ppv_attenuation,
+    plot_feature_importance,
+    plot_optimization_convergence,
+    plot_2d_blast_pattern,
+)
+
+# Page configuration
+st.set_page_config(
+    page_title="BlastOpt Botswana | AI Blast Optimization",
+    page_icon="💥",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Initialize Session State
+if "dataset" not in st.session_state:
+    # Default initial dataset
+    synth_df = generate_synthetic_blast_data(num_samples=300, seed=42)
+    st.session_state["dataset"] = engineer_features(synth_df)
+
+if "pipeline" not in st.session_state:
+    st.session_state["pipeline"] = None
+
+
+# Title and Header Banner
+st.title("🇧🇼 BlastOpt Botswana")
+st.markdown(
+    "**AI-Driven Drilling & Blasting Design, Fragmentation Modeling & Genetic Algorithm Optimizer**"
+)
+
+# Navigation Sidebar
+st.sidebar.image("https://img.icons8.com/color/96/diamond.png", width=64)
+st.sidebar.title("Navigation")
+page = st.sidebar.radio(
+    "Select Module",
+    [
+        "📊 Dashboard & Data Explorer",
+        "⚙️ Data Ingestion & Generator",
+        "🤖 ML Model Manager",
+        "🎯 Predictor & Kuz-Ram Curve",
+        "⚡ Genetic Algorithm Optimizer",
+        "📐 2D Blast Pattern & Delays",
+    ],
+)
+
+# --- MODULE 1: DASHBOARD & DATA EXPLORER ---
+if page == "📊 Dashboard & Data Explorer":
+    st.header("📊 Mining & Blasting Data Dashboard")
+
+    df = st.session_state["dataset"]
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Blast Records", len(df))
+    with col2:
+        st.metric("Avg d50 Fragmentation", f"{df['d50_mm'].mean():.1f} mm")
+    with col3:
+        st.metric("Avg Ground Vibration (PPV)", f"{df['ppv_mms'].mean():.2f} mm/s")
+    with col4:
+        st.metric("Avg D&B Cost", f"${df['cost_per_tonne_usd'].mean():.2f} / t")
+
+    st.markdown("---")
+    st.subheader("Historical Blast Logs")
+    st.dataframe(df.head(50), use_container_width=True)
+
+    st.subheader("Summary Statistics")
+    st.dataframe(df.describe().T, use_container_width=True)
+
+
+# --- MODULE 2: DATA INGESTION & GENERATOR ---
+elif page == "⚙️ Data Ingestion & Generator":
+    st.header("⚙️ Data Ingestion & Synthetic Generator")
+
+    tab1, tab2 = st.tabs(["⚡ Generate Synthetic Blast Logs", "📁 Upload Custom Blast CSV"])
+
+    with tab1:
+        st.subheader("Physics-Guided Synthetic Blast Data Generator")
+        col_gen1, col_gen2 = st.columns(2)
+
+        with col_gen1:
+            num_samples = st.slider("Number of Blast Logs", 50, 2000, 400, step=50)
+            seed_val = st.number_input("Random Seed", value=42)
+
+        with col_gen2:
+            rock_factor_min, rock_factor_max = st.slider(
+                "Rock Blastability Factor (A) Range", 4.0, 16.0, (6.0, 12.0)
+            )
+
+        if st.button("Generate Synthetic Dataset", type="primary"):
+            new_df = generate_synthetic_blast_data(
+                num_samples=num_samples,
+                seed=int(seed_val),
+                rock_factor_range=(rock_factor_min, rock_factor_max),
+            )
+            processed_df = engineer_features(clean_and_preprocess(new_df))
+            st.session_state["dataset"] = processed_df
+            st.success(f"Generated and loaded {len(processed_df)} synthetic blast records!")
+            st.dataframe(processed_df.head(10), use_container_width=True)
+
+    with tab2:
+        st.subheader("Upload Custom Mine Dataset")
+        uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+
+        if uploaded_file is not None:
+            try:
+                raw_df = pd.read_csv(uploaded_file)
+                st.write("Raw Input Preview:", raw_df.head(5))
+
+                if st.button("Process & Load Uploaded Data"):
+                    processed_df = prepare_ingested_dataset(
+                        raw_df, save_path="data/processed/uploaded_blast_data.csv"
+                    )
+                    st.session_state["dataset"] = processed_df
+                    st.success("Successfully cleaned, validated, and loaded uploaded dataset!")
+                    st.dataframe(processed_df.head(10), use_container_width=True)
+            except Exception as e:
+                st.error(f"Error processing uploaded file: {e}")
+
+
+# --- MODULE 3: ML MODEL MANAGER ---
+elif page == "🤖 ML Model Manager":
+    st.header("🤖 Machine Learning Model Training & Evaluation")
+
+    df = st.session_state["dataset"]
+
+    col_m1, col_m2 = st.columns([1, 2])
+
+    with col_m1:
+        model_type = st.selectbox(
+            "Select Algorithm", ["random_forest", "xgboost", "ridge"]
+        )
+        cv_folds = st.slider("Cross Validation Folds", 3, 10, 5)
+
+        if st.button("Train Models", type="primary"):
+            with st.spinner("Training models across all target metrics..."):
+                pipeline = BlastMLPipeline(model_type=model_type, seed=42)
+                metrics = pipeline.train_and_evaluate(df, cv_folds=cv_folds)
+                pipeline.save_models()
+                st.session_state["pipeline"] = pipeline
+                st.success(f"Successfully trained {model_type.upper()} models!")
+
+    with col_m2:
+        if st.session_state["pipeline"] is not None:
+            pipeline = st.session_state["pipeline"]
+            st.subheader("Model Evaluation Metrics (Cross Validation)")
+
+            metrics_df = pd.DataFrame(pipeline.metrics).T
+            st.dataframe(metrics_df.style.highlight_max(axis=0, color="#C8E6C9"), use_container_width=True)
+
+            # Feature Importances
+            st.subheader("Feature Importances")
+            importances = pipeline.get_feature_importances()
+            target_to_plot = st.selectbox(
+                "Select Target for Importance Plot",
+                ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+            )
+            fig_imp = plot_feature_importance(importances, target=target_to_plot)
+            st.plotly_chart(fig_imp, use_container_width=True)
+        else:
+            st.info("Train a model using the options on the left to view evaluation metrics.")
+
+
+# --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
+elif page == "🎯 Predictor & Kuz-Ram Curve":
+    st.header("🎯 Single Blast Design Predictor & Fragmentation Curve")
+
+    col_p1, col_p2 = st.columns([1, 2])
+
+    with col_p1:
+        st.subheader("Input Blast Parameters")
+
+        rock_A = st.number_input("Rock Factor (A)", 4.0, 16.0, 8.0, step=0.5)
+        bench_h = st.number_input("Bench Height (m)", 5.0, 30.0, 12.0, step=0.5)
+        hole_d = st.number_input("Hole Diameter (mm)", 80.0, 380.0, 250.0, step=10.0)
+        burden = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2)
+        spacing = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2)
+        stemming = st.number_input("Stemming (m)", 1.0, 10.0, 5.0, step=0.2)
+        pf = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05)
+        charge_per_hole = st.number_input("Charge Mass per Hole (kg)", 10.0, 1500.0, 320.0, step=10.0)
+        max_charge_delay = st.number_input("Max Charge per Delay (kg)", 10.0, 3000.0, 640.0, step=20.0)
+        dist = st.number_input("Distance to Structure (m)", 50.0, 3000.0, 450.0, step=25.0)
+
+        input_payload = {
+            "rock_factor_A": rock_A,
+            "bench_height_m": bench_h,
+            "hole_diameter_mm": hole_d,
+            "burden_m": burden,
+            "spacing_m": spacing,
+            "stemming_m": stemming,
+            "powder_factor_kg_m3": pf,
+            "charge_mass_per_hole_kg": charge_per_hole,
+            "max_charge_per_delay_kg": max_charge_delay,
+            "monitoring_distance_m": dist,
+            "explosive_rws": 100.0,
+        }
+
+    with col_p2:
+        st.subheader("Predicted Blast Outcomes")
+
+        pipeline = st.session_state.get("pipeline", None)
+        predictions = predict_single_blast(input_payload, model_pipeline=pipeline)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("d50 Fragment Size", f"{predictions['d50_mm']:.1f} mm")
+        m2.metric("Ground PPV", f"{predictions['ppv_mms']:.2f} mm/s")
+        m3.metric("Flyrock Distance", f"{predictions['flyrock_m']:.1f} m")
+        m4.metric("D&B Cost", f"${predictions['cost_per_tonne_usd']:.2f} / t")
+
+        st.markdown("---")
+        fig_kuz = plot_kuz_ram_curve(predictions["d50_mm"], n_uniformity=1.2)
+        st.plotly_chart(fig_kuz, use_container_width=True)
+
+        fig_ppv = plot_ppv_attenuation(max_charge_delay)
+        st.plotly_chart(fig_ppv, use_container_width=True)
+
+
+# --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
+elif page == "⚡ Genetic Algorithm Optimizer":
+    st.header("⚡ Genetic Algorithm Parameter Optimizer")
+
+    st.markdown("Find optimal **Burden**, **Spacing**, **Stemming**, and **Powder Factor** to minimize cost subject to vibration & flyrock safety limits.")
+
+    col_opt1, col_opt2 = st.columns([1, 2])
+
+    with col_opt1:
+        st.subheader("Optimization Constraints")
+        max_ppv = st.number_input("Max Allowed PPV (mm/s)", 1.0, 50.0, 10.0, step=1.0)
+        max_flyrock = st.number_input("Max Allowed Flyrock (m)", 20.0, 300.0, 120.0, step=10.0)
+        d50_min, d50_max = st.slider("Target d50 Fragmentation Range (mm)", 50, 600, (120, 320))
+
+        st.subheader("Fixed Site Conditions")
+        rock_A_opt = st.number_input("Site Rock Factor (A)", 4.0, 16.0, 8.0, key="opt_A")
+        bench_h_opt = st.number_input("Bench Height (m)", 5.0, 30.0, 12.0, key="opt_h")
+        hole_d_opt = st.number_input("Hole Diameter (mm)", 80.0, 380.0, 250.0, key="opt_d")
+        dist_opt = st.number_input("Distance to Structure (m)", 50.0, 3000.0, 400.0, key="opt_dist")
+
+        if st.button("Run GA Optimization", type="primary"):
+            fixed_params = {
+                "rock_factor_A": rock_A_opt,
+                "bench_height_m": bench_h_opt,
+                "hole_diameter_mm": hole_d_opt,
+                "monitoring_distance_m": dist_opt,
+            }
+
+            with st.spinner("Executing Differential Evolution optimization..."):
+                optimizer = BlastOptimizer(
+                    fixed_parameters=fixed_params,
+                    max_ppv_limit_mms=max_ppv,
+                    max_flyrock_limit_m=max_flyrock,
+                    target_d50_range_mm=(d50_min, d50_max),
+                    ml_pipeline=st.session_state.get("pipeline", None),
+                )
+                res = optimizer.optimize(popsize=12, maxiter=30)
+                st.session_state["opt_res"] = res
+
+    with col_opt2:
+        if "opt_res" in st.session_state:
+            res = st.session_state["opt_res"]
+            st.success("Optimization Completed!")
+
+            st.subheader("Optimal Blast Design Parameters")
+            opt_p = res["optimized_parameters"]
+            col_res1, col_res2, col_res3, col_res4 = st.columns(4)
+            col_res1.metric("Burden (m)", f"{opt_p['burden_m']:.2f}")
+            col_res2.metric("Spacing (m)", f"{opt_p['spacing_m']:.2f}")
+            col_res3.metric("Stemming (m)", f"{opt_p['stemming_m']:.2f}")
+            col_res4.metric("Powder Factor", f"{opt_p['powder_factor_kg_m3']:.3f} kg/m3")
+
+            st.subheader("Predicted Outcomes for Optimized Design")
+            out_p = res["predicted_outputs"]
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Predicted d50", f"{out_p['d50_mm']:.1f} mm")
+            c2.metric("Predicted PPV", f"{out_p['ppv_mms']:.2f} mm/s")
+            c3.metric("Predicted Flyrock", f"{out_p['flyrock_m']:.1f} m")
+            c4.metric("Optimized Cost", f"${out_p['cost_per_tonne_usd']:.2f} / t")
+
+            fig_conv = plot_optimization_convergence(res["convergence_history"])
+            st.plotly_chart(fig_conv, use_container_width=True)
+        else:
+            st.info("Click 'Run GA Optimization' to find the optimal blast geometry.")
+
+
+# --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
+elif page == "📐 2D Blast Pattern & Delays":
+    st.header("📐 2D Blast Pattern & Initiation Timing Layout")
+
+    col_pat1, col_pat2 = st.columns([1, 3])
+
+    with col_pat1:
+        st.subheader("Grid Parameters")
+        num_rows = st.slider("Number of Rows", 2, 10, 4)
+        holes_per_row = st.slider("Holes per Row", 4, 20, 8)
+        b_pat = st.number_input("Burden (m)", 2.0, 10.0, 6.0, key="pat_b")
+        s_pat = st.number_input("Spacing (m)", 2.0, 12.0, 7.0, key="pat_s")
+
+        st.subheader("Timing Sequence")
+        row_delay = st.number_input("Inter-Row Delay (ms)", 0, 100, 42)
+        hole_delay = st.number_input("Inter-Hole Delay (ms)", 0, 50, 17)
+
+    with col_pat2:
+        fig_pattern = plot_2d_blast_pattern(
+            num_rows=num_rows,
+            holes_per_row=holes_per_row,
+            burden_m=b_pat,
+            spacing_m=s_pat,
+            row_delay_ms=row_delay,
+            hole_delay_ms=hole_delay,
+        )
+        st.plotly_chart(fig_pattern, use_container_width=True)
