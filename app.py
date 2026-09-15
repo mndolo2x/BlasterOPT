@@ -22,6 +22,7 @@ from src.visualize import (
     plot_optimization_convergence,
     plot_2d_blast_pattern,
 )
+from src.explainability import get_feature_contributions, plot_feature_contributions_waterfall
 
 # Page configuration
 st.set_page_config(
@@ -249,6 +250,21 @@ elif page == "🎯 Predictor & Kuz-Ram Curve":
         m2.metric("Ground PPV", f"{predictions['ppv_mms']:.2f} mm/s")
         m3.metric("Flyrock Distance", f"{predictions['flyrock_m']:.1f} m")
         m4.metric("D&B Cost", f"${predictions['cost_per_tonne_usd']:.2f} / t")
+
+        st.markdown("---")
+        st.subheader("🔍 Certified Blaster Model Explainability")
+        target_explain = st.selectbox(
+            "Select Outcome to Explain",
+            ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+            key="explain_target_select",
+        )
+        contribs = get_feature_contributions(
+            model_pipeline=pipeline, input_payload=input_payload, target=target_explain
+        )
+        fig_waterfall = plot_feature_contributions_waterfall(
+            contribs, title=f"Feature Contribution Waterfall Impact on {target_explain}"
+        )
+        st.plotly_chart(fig_waterfall, use_container_width=True)
 
         st.markdown("---")
         fig_kuz = plot_kuz_ram_curve(predictions["d50_mm"], n_uniformity=1.2)
