@@ -287,25 +287,38 @@ MODEL_REGISTRY = {
         "optimizer": "genetic_algorithm",
         "outputs": ["fragmentation", "vibration", "airblast"],
         "source": "Jwaneng Mine, 120 blasts",
-        "performance": {"fragmentation": 0.910, "vibration": 0.925, "airblast": 0.967}
+        "performance": {"fragmentation": 0.910, "vibration": 0.925, "airblast": 0.967},
+        "inverse_design": True
     },
     "ann_rf_ensemble_jwaneng": {
         "architecture": "ensemble",
         "outputs": ["fragmentation", "vibration"],
         "source": "Jwaneng Mine, 120 blasts",
-        "performance": {"fragmentation": 0.956, "vibration": 0.930}
+        "performance": {"fragmentation": 0.956, "vibration": 0.930},
+        "explainability": "tree_shap",
+        "key_drivers": {
+            "fragmentation": ["powder_factor", "burden"],
+            "vibration": ["burden", "charge_per_delay", "distance"]
+        }
     },
     "pso_ann_orapa": {
         "architecture": "7-65-30-1",
         "optimizer": "particle_swarm",
         "outputs": ["fragmentation"],
         "source": "Orapa Mine, 120 blasts",
-        "performance": {"fragmentation": 0.86}
+        "performance": {"fragmentation": 0.86},
+        "optimal_fragmentation": 0.86,
+        "key_drivers": {
+            "rock_factor": 0.153,
+            "blastability_index": 0.147,
+            "spacing_to_burden_ratio": 0.147
+        }
     },
     "airblast_minimizer": {
         "architecture": "ANN",
         "outputs": ["airblast"],
-        "source": "Debswana open-pit",
+        "source": "Debswana open-pit, 94 blasts",
+        "min_airblast_db": 40,
         "key_sensitivity": {"stemming": "high", "spacing": "low"}
     }
 }
