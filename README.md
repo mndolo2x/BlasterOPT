@@ -1,87 +1,126 @@
 # BlastOpt Botswana 🇧🇼💥
 
-**BlastOpt Botswana** is an AI-powered blasting design, fragmentation modeling, ground vibration (PPV) prediction, and genetic algorithm optimization suite tailored for open-pit mining operations in Botswana (e.g., Jwaneng, Orapa, Karowe, Letlhakane).
+**BlastOpt Botswana** is an end-to-end, AI-powered blasting design, fragmentation modeling, ground vibration prediction, and genetic algorithm optimization software suite engineered for open-pit mining operations in Botswana (e.g., Jwaneng Mine, Orapa Mine, Karowe Mine, Letlhakane Mine).
 
 ---
 
-## 🌟 Key Features
+## 📖 Project Description
 
-1. **Synthetic & Historical Data Ingestion**:
-   - Generates high-fidelity physics-guided synthetic blasting data based on Kuz-Ram fragmentation, USBM ground vibration attenuation, empirical flyrock, and mining cost equations.
-   - Cleans, validates, and engineers domain features (Powder Factor, Energy Factor, Spacing/Burden Ratio).
+In open-pit diamond and hard-rock mining, drilling and blasting are critical primary operations. Suboptimal blast designs lead to coarse rock fragmentation (causing high secondary breaking and crushing costs), excessive ground vibration (Peak Particle Velocity / PPV posing environmental and structural risks), hazardous flyrock projections, and inflated drilling & explosives expenditure.
 
-2. **Machine Learning Predictive Engine**:
-   - Trains Multi-output ensemble ML models (Random Forest, XGBoost, Ridge/Linear Regression) to accurately predict mean fragment size ($d_{50}$), ground vibration (PPV), flyrock distance, and drilling & blasting cost per ton ($/t).
-   - Features cross-validation evaluation and model artifact persistence.
-
-3. **Genetic Algorithm Blast Parameter Optimization**:
-   - Differential Evolution & Genetic Optimization to find optimal blast geometry parameters (Burden, Spacing, Stemming, Powder Factor).
-   - Minimizes costs while adhering strictly to vibration and flyrock safety thresholds.
-
-4. **Interactive Streamlit Web Dashboard**:
-   - **Dashboard & Explorer**: Interactive data tables, summary KPIs, and distributions.
-   - **Data Ingestion**: Dataset generation and custom CSV upload pipeline.
-   - **Model Manager**: Train, evaluate, compare, and save ML models.
-   - **Predictor**: Real-time predictions with interactive Kuz-Ram size distribution curve viewer.
-   - **Optimizer**: Multi-objective and single-objective parameter optimization with convergence plots.
-   - **2D Blast Pattern Visualizer**: Interactive hole layout with initiation delay sequences and timing visualization.
+**BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
+- Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
+- Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.
+- Automatically optimize blast geometry (Burden, Spacing, Stemming, Powder Factor) to minimize total drilling & blasting costs while satisfying strict vibration, flyrock, and fragmentation constraints.
+- Generate and export professional downloadable PDF summary reports containing top recommended blast designs and embedded fragmentation curves.
+- Simulate 2D blast hole patterns with initiation delay timing sequences.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation & Setup
 
-### Installation
+### Prerequisites
+- Python 3.9+ installed on your system.
 
-```bash
-pip install -r requirements.txt
-```
+### Installation Steps
 
-### Running the Application
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-org/blastopt-botswana.git
+   cd blastopt-botswana
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Verify installation by running unit tests:**
+   ```bash
+   python3 -m pytest tests/
+   ```
+
+---
+
+## 🏃 Running the Application
+
+To launch the multi-module Streamlit interactive dashboard:
 
 ```bash
 streamlit run app.py
 ```
 
-### Running Tests
-
-```bash
-python3 -m pytest tests/
-```
+Once running, navigate to `http://localhost:8501` in your web browser.
 
 ---
 
-## 📁 Repository Structure
+## 📱 Application Modules & Pages
 
-```
-blastopt-botswana/
-├── app.py                    # Streamlit main dashboard application
-├── src/
-│   ├── __init__.py
-│   ├── data_ingestion.py     # Data loading, cleaning, validation & feature engineering
-│   ├── synthetic_data.py     # Physics-guided synthetic blast data generator
-│   ├── models.py             # Machine learning model training, evaluation & persistence
-│   ├── predict.py            # Prediction wrappers with physics fallbacks
-│   ├── optimize.py           # Genetic algorithm & differential evolution parameter optimizer
-│   └── visualize.py          # Interactive Plotly & Matplotlib visualization utilities
-├── data/
-│   ├── raw/                  # Original uploaded blast datasets
-│   └── processed/            # Cleaned, feature-engineered datasets
-├── models/                   # Saved ML model artifacts (.joblib)
-├── notebooks/                # Exploratory notebooks
-├── tests/                    # Unit testing suite
-├── requirements.txt          # Python dependencies
-└── README.md                 # Project documentation
-```
+The Streamlit web dashboard features **6 interactive modules** accessible via the sidebar navigation:
+
+1. **📊 Dashboard & Data Explorer (`Module 1`)**
+   - High-level KPI overview (Total Blast Events, Mean $d_{50}$, Average Powder Factor, Average PPV).
+   - Interactive data table viewer with filtering by mine site, rock type, and explosive type.
+   - Exploratory distribution histograms and correlation matrices for blasting variables.
+
+2. **⚙️ Data Ingestion & Synthetic Generator (`Module 2`)**
+   - Physics-guided synthetic blast dataset generator with customizable sample size ($N$).
+   - Custom CSV file upload pipeline with schema validation, missing value imputation, outlier clipping, and automated feature engineering.
+   - Cleaned dataset download export functionality.
+
+3. **🧠 ML Model Manager (`Module 3`)**
+   - Multi-output ML model training suite (Random Forest, XGBoost, Ridge Regression).
+   - 5-Fold Cross-Validation evaluation metrics ($R^2$, RMSE, MAE) across all 4 target variables.
+   - Model comparative analysis charts, feature importances ranking, and model artifact persistence (`models/best_fragmentation_model.pkl`).
+
+4. **🎯 Predictor & Kuz-Ram Curve (`Module 4`)**
+   - Single-blast performance prediction input interface with ML inference and physics-fallback logic.
+   - Interactive Plotly **Kuz-Ram Fragmentation Size Distribution Curve** viewer.
+   - Real-time sliders for Tuning Uniformity Index ($n$) and Characteristic Size ($x_c$) parameters.
+
+5. **⚡ Genetic Algorithm Optimizer (`Module 5`)**
+   - Differential Evolution optimization engine minimizing cost ($/t) subject to PPV, flyrock, and $d_{50}$ fragmentation constraints.
+   - Top 5 Recommended Blast Designs summary table.
+   - Objective function convergence history plot.
+   - One-click **Download Optimization PDF Report** button exporting clean PDF summaries with embedded Rosin-Rammler plots.
+
+6. **📐 2D Blast Pattern & Delays (`Module 6`)**
+   - Interactive 2D spatial layout generator for blast holes.
+   - Configurable row-by-row and hole-by-hole initiation delay timing sequence simulation.
 
 ---
 
-## 📊 Domain Physics & Models
-- **Fragmentation**: Kuz-Ram Model ($d_{50} = A \cdot K^{-0.8} \cdot Q^{1/6} \cdot (115/E)^{19/30}$)
-- **Vibration (PPV)**: USBM Scale Distance Law ($PPV = K_{vib} \cdot (SD)^{-\beta}$)
-- **Flyrock**: Empirical scaled charge equations ($L_{fly} = K_{fly} \cdot (Q^{2/3} / B)$)
-- **Cost**: Combined drilling, explosive product, initiation systems, and scaling cost per ton.
+## 📊 Synthetic Data Generator & ML Models
+
+### Physics-Guided Synthetic Data Generator (`src/synthetic_data.py`)
+Generates realistic Botswana mining datasets incorporating key empirical domain physics:
+- **Kuz-Ram Fragmentation Model**: Mean fragment size $d_{50} = A \cdot K^{-0.8} \cdot Q^{1/6} \cdot (115 / RWS)^{19/30}$
+- **Rosin-Rammler Uniformity Index**: $n = (2.2 - 14 \cdot B / d) \cdot (1 + (S/B - 1)/2) \cdot (L / H)$
+- **USBM Scaled Distance Ground Vibration**: $PPV = K_{vib} \cdot \left(\frac{D}{\sqrt{Q}}\right)^{-\beta}$
+- **Empirical Scaled Charge Flyrock Distance**: $L_{fly} = K_{fly} \cdot \frac{Q^{2/3}}{B} \cdot \left(\frac{h_{stem}}{B}\right)^{-0.5}$
+- **Operational Mining Cost Model**: Combined drilling, explosive product, initiation systems, and rock tonnage scaling.
+
+### Machine Learning Engine (`src/models.py` & `src/predict.py`)
+- **Algorithms**: Multi-output Random Forest, XGBoost Regressor, and Ridge Regression.
+- **Engineered Domain Features**:
+  - Spacing-to-Burden Ratio ($S/B$)
+  - Stiffness Ratio ($H/B$)
+  - Scaled Distance ($SD = D / \sqrt{Q}$)
+  - Energy Factor ($MJ/m^3$)
+  - Interaction Terms: Powder Factor $\times$ Burden (`pf_burden_interaction`), Spacing $\times$ Stemming (`spacing_stemming_interaction`).
+- **Hyperparameter Tuning**: `GridSearchCV` optimization for fragmentation prediction ($d_{50}$) persisted to `models/best_fragmentation_model.pkl`.
+
+---
+
+## 🔮 Future Work
+
+Potential future enhancements for BlastOpt Botswana include:
+- **3D Spatial Blast & Block Model Integration**: Import 3D block models (Grade, Rock Quality Designation RQD) for spatially variable blast design.
+- **Drone Aerial Image Fragmentation Analysis**: Computer vision integration (OpenCV) to measure post-blast fragmentation size distribution directly from drone orthomosaics.
+- **Seismograph IoT Telemetry Pipeline**: Real-time streaming ingestion of near-field seismograph PPV waveforms via MQTT/Kafka.
+- **Multi-Objective Pareto Frontier Optimization**: NSGA-II genetic algorithm to explicitly map the Pareto trade-off boundary between cost minimization and fragmentation fine-tuning.
 
 ---
 
 ## 📜 License
-MIT License. Developed for advanced mining analytics and blast optimization in Botswana.
+MIT License. Developed for advanced mining analytics, blast design optimization, and geotechnical safety in Botswana.

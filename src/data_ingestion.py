@@ -42,7 +42,24 @@ VALIDATION_RANGES = {
 
 
 def load_raw_data(filepath: str) -> pd.DataFrame:
-    """Loads raw data from CSV file."""
+    """
+    Loads raw blasting dataset from a CSV file.
+
+    Parameters:
+    -----------
+    filepath : str
+        Relative or absolute path to the raw CSV file.
+
+    Returns:
+    --------
+    pd.DataFrame
+        Loaded raw dataset as a Pandas DataFrame.
+
+    Raises:
+    -------
+    FileNotFoundError
+        If the specified file path does not exist.
+    """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Data file not found at path: {filepath}")
     df = pd.read_csv(filepath)
@@ -50,7 +67,19 @@ def load_raw_data(filepath: str) -> pd.DataFrame:
 
 
 def validate_data_schema(df: pd.DataFrame) -> Tuple[bool, list]:
-    """Validates if dataset contains required input features."""
+    """
+    Validates if input DataFrame contains all required blasting parameter columns.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Input DataFrame to validate.
+
+    Returns:
+    --------
+    Tuple[bool, list]
+        A tuple containing (is_valid boolean, list of missing column names).
+    """
     missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     is_valid = len(missing_cols) == 0
     return is_valid, missing_cols

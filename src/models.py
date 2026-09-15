@@ -41,7 +41,21 @@ TARGET_COLS = ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
 
 
 def get_model_instance(model_type: str = "random_forest", seed: int = 42):
-    """Factory function returning regressor instance."""
+    """
+    Factory function returning a configured machine learning regressor instance.
+
+    Parameters:
+    -----------
+    model_type : str, default="random_forest"
+        Type of algorithm: "random_forest", "xgboost", or "ridge".
+    seed : int, default=42
+        Random state seed for reproducibility.
+
+    Returns:
+    --------
+    BaseEstimator
+        Scikit-learn or XGBoost regressor instance.
+    """
     if model_type == "random_forest":
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
     elif model_type == "xgboost":
