@@ -90,6 +90,9 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     - Scaled Distance (monitoring_distance_m / sqrt(max_charge_per_delay_kg))
     - Powder Factor check / recalculation
     - Energy Factor estimate
+    - Interaction Terms:
+      1. Powder Factor * Burden (pf_burden_interaction)
+      2. Spacing * Stemming (spacing_stemming_interaction)
     """
     df_feat = df.copy()
 
@@ -114,6 +117,13 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Area per hole (Burden * Spacing)
     df_feat["hole_area_m2"] = df_feat["burden_m"] * df_feat["spacing_m"]
+
+    # Requested Interaction Features:
+    # 1. Interaction term between powder factor and burden
+    df_feat["pf_burden_interaction"] = df_feat["powder_factor_kg_m3"] * df_feat["burden_m"]
+
+    # 2. Interaction term between spacing and stemming length
+    df_feat["spacing_stemming_interaction"] = df_feat["spacing_m"] * df_feat["stemming_m"]
 
     return df_feat
 

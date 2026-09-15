@@ -2,7 +2,7 @@
 Machine Learning Models Module for BlastOpt Botswana.
 
 Handles model training, multi-output regression, cross-validation evaluation,
-feature importance extraction, and persistence.
+GridSearchCV hyperparameter tuning, feature importance extraction, and persistence.
 """
 
 import os
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple, Optional, List
 
-from sklearn.model_selection import KFold, cross_validate
+from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -33,6 +33,8 @@ FEATURE_COLS = [
     "stemming_burden_ratio",
     "scaled_distance",
     "energy_factor_mj_m3",
+    "pf_burden_interaction",
+    "spacing_stemming_interaction",
 ]
 
 TARGET_COLS = ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
@@ -144,6 +146,63 @@ class BlastMLPipeline:
 
         return pd.DataFrame(importance_dict)
 
+    def tune_and_save_fragmentation_model(
+        self,
+        df: pd.DataFrame,
+        save_filepath: str = "models/best_fragmentation_model.pkl",
+        cv_folds: int = 5,
+    ) -> Tuple[Any, Dict[str, float]]:
+        """
+        Executes GridSearchCV hyperparameter tuning on the best model for fragmentation prediction (d50_mm)
+        and saves the tuned model to disk.
+        """
+        X = df[[c for c in FEATURE_COLS if c in df.columns]].copy()
+        y = df["d50_mm"].values
+
+        if self.model_type == "xgboost":
+            base_model = XGBRegressor(random_state=self.seed, n_jobs=-1)
+            param_grid = {
+                "n_estimators": [50, 100, 150],
+                "max_depth": [4, 6, 8],
+                "learning_rate": [0.03, 0.08, 0.15],
+            }
+        else:
+            base_model = RandomForestRegressor(random_state=self.seed, n_jobs=-1)
+            param_grid = {
+                "n_estimators": [50, 100, 150],
+                "max_depth": [8, 12, 16],
+                "min_samples_split": [2, 5],
+            }
+
+        grid_search = GridSearchCV(
+            estimator=base_model,
+            param_grid=param_grid,
+            cv=cv_folds,
+            scoring="r2",
+            n_jobs=-1,
+        )
+        grid_search.fit(X, y)
+
+        best_estimator = grid_search.best_estimator_
+        preds = best_estimator.predict(X)
+
+        best_metrics = {
+            "R2": float(r2_score(y, preds)),
+            "RMSE": float(np.sqrt(mean_squared_error(y, preds))),
+            "MAE": float(mean_absolute_error(y, preds)),
+            "best_params": grid_search.best_params_,
+        }
+
+        # Update pipeline model for d50_mm
+        self.models["d50_mm"] = best_estimator
+        self.feature_names = list(X.columns)
+
+        # Save to specified path
+        os.makedirs(os.path.dirname(save_filepath), exist_ok=True)
+        joblib.dump(best_estimator, save_filepath)
+
+        return best_estimator, best_metrics
+
     def save_models(self, dir_path: str = "models/"):
         """Saves trained models and metadata to directory."""
         os.makedirs(dir_path, exist_ok=True)
@@ -156,6 +215,12 @@ class BlastMLPipeline:
         }
         filepath = os.path.join(dir_path, f"blast_models_{self.model_type}.joblib")
         joblib.dump(save_dict, filepath)
+
+        # Also save fragmentation model to models/best_fragmentation_model.pkl
+        if "d50_mm" in self.models:
+            pkl_path = os.path.join(dir_path, "best_fragmentation_model.pkl")
+            joblib.dump(self.models["d50_mm"], pkl_path)
+
         return filepath
 
     @classmethod

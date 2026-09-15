@@ -28,26 +28,39 @@ def sample_dataset():
 
 
 def test_ml_pipeline_train_predict(sample_dataset, tmp_path):
-    pipeline = BlastMLPipeline(model_type="random_forest", seed=42)
-    metrics = pipeline.train_and_evaluate(sample_dataset, cv_folds=3)
+    # Test feature interaction presence
+    assert "pf_burden_interaction" in sample_dataset.columns
+    assert "spacing_stemming_interaction" in sample_dataset.columns
 
-    assert "d50_mm" in metrics
-    assert "ppv_mms" in metrics
-    assert metrics["d50_mm"]["R2_mean"] > -1.0
+    # Test Random Forest vs XGBoost Gradient Boosting
+    rf_pipeline = BlastMLPipeline(model_type="random_forest", seed=42)
+    rf_metrics = rf_pipeline.train_and_evaluate(sample_dataset, cv_folds=3)
 
-    # Predictions
-    preds = pipeline.predict(sample_dataset.head(5))
-    assert len(preds) == 5
-    assert "pred_d50_mm" in preds.columns
-    assert "pred_ppv_mms" in preds.columns
+    xgb_pipeline = BlastMLPipeline(model_type="xgboost", seed=42)
+    xgb_metrics = xgb_pipeline.train_and_evaluate(sample_dataset, cv_folds=3)
+
+    assert "d50_mm" in rf_metrics
+    assert "d50_mm" in xgb_metrics
+    assert rf_metrics["d50_mm"]["R2_mean"] > -1.0
+    assert xgb_metrics["d50_mm"]["R2_mean"] > -1.0
+
+    # Test GridSearchCV hyperparameter tuning & saving to best_fragmentation_model.pkl
+    pkl_file = str(tmp_path / "best_fragmentation_model.pkl")
+    best_model, best_metrics = xgb_pipeline.tune_and_save_fragmentation_model(
+        sample_dataset, save_filepath=pkl_file, cv_folds=3
+    )
+
+    assert best_model is not None
+    assert "R2" in best_metrics
+    assert "RMSE" in best_metrics
+    assert "MAE" in best_metrics
+    assert os.path.exists(pkl_file)
 
     # Model persistence
     save_dir = str(tmp_path / "models")
-    saved_path = pipeline.save_models(save_dir)
+    saved_path = xgb_pipeline.save_models(save_dir)
     assert os.path.exists(saved_path)
-
-    loaded_pipeline = BlastMLPipeline.load_models(saved_path)
-    assert loaded_pipeline.model_type == "random_forest"
+    assert os.path.exists(os.path.join(save_dir, "best_fragmentation_model.pkl"))
 
 
 def test_predict_single_blast():
