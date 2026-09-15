@@ -188,6 +188,8 @@ def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:
     - Hauling cost (function of fragmentation)
     - Crushing cost (function of fragmentation)
     - Milling cost (function of fragmentation)
+
+    Returns: total_cost_per_tonne (USD or BWP) breakdown dictionary
     """
     pf = float(blast_params.get("powder_factor_kg_m3", 0.65))
     bench_h = float(blast_params.get("bench_height_m", 12.0))
