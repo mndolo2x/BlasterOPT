@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Optional, Union
+from sklearn.neighbors import NearestNeighbors
 from src.models import BlastMLPipeline, FEATURE_COLS
 from src.data_ingestion import engineer_features
 
@@ -130,6 +131,50 @@ def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline
             results[target] = fallback[target]
 
     return results
+
+
+def find_similar_blasts(new_blast_params: Union[Dict[str, float], pd.DataFrame], historical_blasts: pd.DataFrame, top_k: int = 5) -> pd.DataFrame:
+    """
+    Find the top_k most similar past blasts based on input parameters.
+    Return their outcomes so the blaster can learn from history.
+
+    Parameters:
+    -----------
+    new_blast_params : Dict[str, float] or pd.DataFrame
+        Input features for the target blast design.
+    historical_blasts : pd.DataFrame
+        Historical dataset of past blast logs.
+    top_k : int, default=5
+        Number of top similar past blasts to retrieve.
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame of top_k most similar historical blast records.
+    """
+    if isinstance(new_blast_params, dict):
+        df_new = pd.DataFrame([new_blast_params])
+    else:
+        df_new = new_blast_params.copy()
+
+    # Identify common numeric feature columns
+    num_cols = [c for c in FEATURE_COLS if c in historical_blasts.columns and c in df_new.columns]
+    if not num_cols:
+        num_cols = [c for c in historical_blasts.select_dtypes(include=[np.number]).columns if c in df_new.columns]
+
+    X_hist = historical_blasts[num_cols].fillna(historical_blasts[num_cols].median())
+    X_new = df_new[num_cols].fillna(X_hist.median())
+
+    # Fit NearestNeighbors
+    k = min(top_k, len(historical_blasts))
+    nn = NearestNeighbors(n_neighbors=k, algorithm="auto")
+    nn.fit(X_hist)
+
+    distances, indices = nn.kneighbors(X_new.iloc[[0]])
+    similar_df = historical_blasts.iloc[indices[0]].copy()
+    similar_df["similarity_distance"] = np.round(distances[0], 3)
+
+    return similar_df
 
 
 def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:

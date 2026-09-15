@@ -1,5 +1,29 @@
 import pytest
-from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput, total_cost_per_tonne
+import pandas as pd
+from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput, total_cost_per_tonne, find_similar_blasts
+from src.synthetic_data import generate_synthetic_blast_data
+
+
+def test_find_similar_blasts():
+    """Test find_similar_blasts function returning top_k similar records."""
+    hist_df = generate_synthetic_blast_data(num_samples=50, seed=42)
+    sample_blast = {
+        "rock_factor_A": 8.0,
+        "bench_height_m": 12.0,
+        "hole_diameter_mm": 250.0,
+        "burden_m": 6.0,
+        "spacing_m": 7.0,
+        "stemming_m": 5.0,
+        "charge_mass_per_hole_kg": 320.0,
+        "powder_factor_kg_m3": 0.65,
+        "max_charge_per_delay_kg": 640.0,
+        "monitoring_distance_m": 450.0,
+    }
+
+    similar_df = find_similar_blasts(sample_blast, hist_df, top_k=5)
+    assert isinstance(similar_df, pd.DataFrame)
+    assert len(similar_df) == 5
+    assert "similarity_distance" in similar_df.columns
 
 
 def test_total_cost_per_tonne():
