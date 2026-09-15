@@ -248,3 +248,33 @@ class BlastMLPipeline:
         instance.metrics = data["metrics"]
         instance.feature_names = data["feature_names"]
         return instance
+
+
+MODEL_REGISTRY = {
+    "ga_ann_jwaneng": {
+        "architecture": "10-70-25-3",
+        "optimizer": "genetic_algorithm",
+        "outputs": ["fragmentation", "vibration", "airblast"],
+        "source": "Jwaneng Mine, 120 blasts",
+        "performance": {"fragmentation": 0.910, "vibration": 0.925, "airblast": 0.967}
+    },
+    "ann_rf_ensemble_jwaneng": {
+        "architecture": "ensemble",
+        "outputs": ["fragmentation", "vibration"],
+        "source": "Jwaneng Mine, 120 blasts",
+        "performance": {"fragmentation": 0.956, "vibration": 0.930}
+    },
+    "pso_ann_orapa": {
+        "architecture": "7-65-30-1",
+        "optimizer": "particle_swarm",
+        "outputs": ["fragmentation"],
+        "source": "Orapa Mine, 120 blasts",
+        "performance": {"fragmentation": 0.86}
+    },
+    "airblast_minimizer": {
+        "architecture": "ANN",
+        "outputs": ["airblast"],
+        "source": "Debswana open-pit",
+        "key_sensitivity": {"stemming": "high", "spacing": "low"}
+    }
+}
