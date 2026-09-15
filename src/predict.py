@@ -132,6 +132,63 @@ def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline
     return results
 
 
+def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:
+    """
+    Calculate total cost per tonne from blast design through milling.
+
+    Components:
+    - Explosive cost (function of powder factor)
+    - Drilling cost (function of hole depth, diameter, spacing)
+    - Digging cost (function of fragmentation)
+    - Hauling cost (function of fragmentation)
+    - Crushing cost (function of fragmentation)
+    - Milling cost (function of fragmentation)
+    """
+    pf = float(blast_params.get("powder_factor_kg_m3", 0.65))
+    bench_h = float(blast_params.get("bench_height_m", 12.0))
+    hole_d = float(blast_params.get("hole_diameter_mm", 250.0))
+    burden = float(blast_params.get("burden_m", 6.0))
+    spacing = float(blast_params.get("spacing_m", 7.0))
+    d50 = float(blast_params.get("d50_mm", 220.0))
+
+    rock_vol = burden * spacing * bench_h
+    rock_mass_t = max(rock_vol * 2.65, 1.0)
+
+    # 1. Drilling Cost
+    drilling_rate_per_m = 12.0 + (hole_d / 100.0) * 8.0
+    drilling_cost = float(((bench_h + 1.0) * drilling_rate_per_m) / rock_mass_t)
+
+    # 2. Explosive Cost
+    rws = float(blast_params.get("explosive_rws", 100.0))
+    exp_price_per_kg = 1.2 + (rws / 100.0) * 0.8
+    charge_mass = pf * rock_vol
+    explosive_cost = float((charge_mass * exp_price_per_kg + 15.0) / rock_mass_t)
+
+    # 3. Digging Cost (muckpile diggability dependent on fragmentation size d50)
+    digging_cost = float(np.clip(0.40 + (d50 / 1000.0) * 0.60, 0.30, 2.50))
+
+    # 4. Hauling Cost (truck fill factor dependent on boulder/fine ratio)
+    hauling_cost = float(np.clip(0.80 + (d50 / 1000.0) * 0.40, 0.50, 3.00))
+
+    # 5. Crushing Cost (primary crushing energy requirement)
+    crushing_cost = float(np.clip(0.30 + (d50 / 500.0) * 0.50, 0.20, 2.00))
+
+    # 6. Milling Cost (SAG/ball mill specific energy consumption)
+    milling_cost = float(np.clip(2.50 + (d50 / 300.0) * 2.00, 1.50, 10.00))
+
+    total = drilling_cost + explosive_cost + digging_cost + hauling_cost + crushing_cost + milling_cost
+
+    return {
+        "drilling_cost_usd_t": round(drilling_cost, 2),
+        "explosive_cost_usd_t": round(explosive_cost, 2),
+        "digging_cost_usd_t": round(digging_cost, 2),
+        "hauling_cost_usd_t": round(hauling_cost, 2),
+        "crushing_cost_usd_t": round(crushing_cost, 2),
+        "milling_cost_usd_t": round(milling_cost, 2),
+        "total_cost_usd_t": round(total, 2),
+    }
+
+
 def predict_crusher_throughput(d80_cm: float, ore_hardness: float, crusher_settings: Optional[Dict[str, float]] = None) -> Dict[str, float]:
     """
     Predict crusher throughput (t/h) and specific energy (kWh/t)

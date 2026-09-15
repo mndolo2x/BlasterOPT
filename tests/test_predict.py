@@ -1,5 +1,27 @@
 import pytest
-from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput
+from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput, total_cost_per_tonne
+
+
+def test_total_cost_per_tonne():
+    """Test total_cost_per_tonne function return components and positive total cost."""
+    blast_params = {
+        "powder_factor_kg_m3": 0.65,
+        "bench_height_m": 12.0,
+        "hole_diameter_mm": 250.0,
+        "burden_m": 6.0,
+        "spacing_m": 7.0,
+        "d50_mm": 220.0,
+    }
+    cost_dict = total_cost_per_tonne(blast_params)
+    assert isinstance(cost_dict, dict)
+    assert "total_cost_usd_t" in cost_dict
+    assert cost_dict["total_cost_usd_t"] > 0
+    assert cost_dict["drilling_cost_usd_t"] > 0
+    assert cost_dict["explosive_cost_usd_t"] > 0
+    assert cost_dict["digging_cost_usd_t"] > 0
+    assert cost_dict["hauling_cost_usd_t"] > 0
+    assert cost_dict["crushing_cost_usd_t"] > 0
+    assert cost_dict["milling_cost_usd_t"] > 0
 
 
 def test_predict_crusher_throughput():
