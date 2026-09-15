@@ -62,9 +62,7 @@ class BlastOptimizer:
 
         # Derive required dependent features
         bench_h = inputs.get("bench_height_m", 12.0)
-        hole_diam = inputs.get("hole_diameter_mm", 250.0)
         hole_vol = burden * spacing * bench_h
-        rock_density = inputs.get("rock_density_t_m3", 2.65)
 
         # Charge per hole kg = pf * hole_vol
         charge_mass = pf * hole_vol
@@ -104,9 +102,10 @@ class BlastOptimizer:
         self, popsize: int = 15, maxiter: int = 50, seed: int = 42
     ) -> Dict[str, Any]:
         """
-        Executes Differential Evolution (GA) optimization.
+        Executes Differential Evolution (GA) optimization and extracts top 5 recommended designs.
         """
         convergence_history = []
+        evaluated_candidates = []
 
         def callback(xk, convergence):
             score = self._objective_function(xk)
@@ -121,28 +120,71 @@ class BlastOptimizer:
             callback=callback,
         )
 
-        opt_burden, opt_spacing, opt_stemming, opt_pf = result.x
+        # Generate a diverse population sample around the bounds to form the top 5 recommended designs
+        rng = np.random.RandomState(seed)
+        grid_burdens = np.linspace(self.bounds[0][0], self.bounds[0][1], 8)
+        grid_spacings = np.linspace(self.bounds[1][0], self.bounds[1][1], 8)
+        grid_stemmings = np.linspace(self.bounds[2][0], self.bounds[2][1], 6)
+        grid_pfs = np.linspace(self.bounds[3][0], self.bounds[3][1], 6)
 
-        # Re-run best vector
-        opt_inputs = self.fixed_params.copy()
-        opt_inputs["burden_m"] = round(opt_burden, 2)
-        opt_inputs["spacing_m"] = round(opt_spacing, 2)
-        opt_inputs["stemming_m"] = round(opt_stemming, 2)
-        opt_inputs["powder_factor_kg_m3"] = round(opt_pf, 3)
+        # Evaluate best vector first
+        candidate_vectors = [result.x]
 
-        bench_h = opt_inputs.get("bench_height_m", 12.0)
-        hole_vol = opt_burden * opt_spacing * bench_h
-        opt_inputs["charge_mass_per_hole_kg"] = round(opt_pf * hole_vol, 2)
-        if "max_charge_per_delay_kg" not in opt_inputs:
-            opt_inputs["max_charge_per_delay_kg"] = round(opt_inputs["charge_mass_per_hole_kg"] * 2.0, 2)
+        for _ in range(120):
+            vec = np.array([
+                rng.choice(grid_burdens),
+                rng.choice(grid_spacings),
+                rng.choice(grid_stemmings),
+                rng.choice(grid_pfs),
+            ])
+            candidate_vectors.append(vec)
 
-        final_preds = predict_single_blast(opt_inputs, model_pipeline=self.ml_pipeline)
+        for vec in candidate_vectors:
+            burden, spacing, stemming, pf = vec
+            opt_inputs = self.fixed_params.copy()
+            opt_inputs["burden_m"] = round(float(burden), 2)
+            opt_inputs["spacing_m"] = round(float(spacing), 2)
+            opt_inputs["stemming_m"] = round(float(stemming), 2)
+            opt_inputs["powder_factor_kg_m3"] = round(float(pf), 3)
+
+            bench_h = opt_inputs.get("bench_height_m", 12.0)
+            hole_vol = opt_inputs["burden_m"] * opt_inputs["spacing_m"] * bench_h
+            opt_inputs["charge_mass_per_hole_kg"] = round(opt_inputs["powder_factor_kg_m3"] * hole_vol, 2)
+            if "max_charge_per_delay_kg" not in opt_inputs:
+                opt_inputs["max_charge_per_delay_kg"] = round(opt_inputs["charge_mass_per_hole_kg"] * 2.0, 2)
+
+            preds = predict_single_blast(opt_inputs, model_pipeline=self.ml_pipeline)
+            obj_score = self._objective_function(vec)
+
+            evaluated_candidates.append({
+                "score": obj_score,
+                "parameters": opt_inputs,
+                "outputs": preds,
+            })
+
+        # Sort candidates by objective score (cost + penalties) and pick top 5 distinct designs
+        evaluated_candidates.sort(key=lambda x: x["score"])
+
+        top_designs = []
+        seen_keys = set()
+
+        for item in evaluated_candidates:
+            p = item["parameters"]
+            key = (p["burden_m"], p["spacing_m"], p["stemming_m"], p["powder_factor_kg_m3"])
+            if key not in seen_keys:
+                seen_keys.add(key)
+                top_designs.append(item)
+            if len(top_designs) >= 5:
+                break
+
+        best_design = top_designs[0]
 
         return {
             "success": bool(result.success),
-            "optimized_parameters": opt_inputs,
-            "predicted_outputs": final_preds,
-            "best_cost_usd_t": final_preds["cost_per_tonne_usd"],
+            "optimized_parameters": best_design["parameters"],
+            "predicted_outputs": best_design["outputs"],
+            "best_cost_usd_t": best_design["outputs"]["cost_per_tonne_usd"],
+            "top_5_designs": top_designs,
             "convergence_history": convergence_history,
             "optimization_message": str(result.message),
         }

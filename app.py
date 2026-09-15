@@ -14,6 +14,7 @@ from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, e
 from src.models import BlastMLPipeline
 from src.predict import predict_single_blast
 from src.optimize import BlastOptimizer
+from src.report import generate_pdf
 from src.visualize import (
     plot_kuz_ram_curve,
     plot_ppv_attenuation,
@@ -295,13 +296,18 @@ elif page == "⚡ Genetic Algorithm Optimizer":
                 )
                 res = optimizer.optimize(popsize=12, maxiter=30)
                 st.session_state["opt_res"] = res
+                st.session_state["opt_constraints"] = {
+                    "max_ppv": max_ppv,
+                    "max_flyrock": max_flyrock,
+                    "d50_range": (d50_min, d50_max),
+                }
 
     with col_opt2:
         if "opt_res" in st.session_state:
             res = st.session_state["opt_res"]
             st.success("Optimization Completed!")
 
-            st.subheader("Optimal Blast Design Parameters")
+            st.subheader("Top Recommended Blast Design (#1 Best)")
             opt_p = res["optimized_parameters"]
             col_res1, col_res2, col_res3, col_res4 = st.columns(4)
             col_res1.metric("Burden (m)", f"{opt_p['burden_m']:.2f}")
@@ -309,7 +315,7 @@ elif page == "⚡ Genetic Algorithm Optimizer":
             col_res3.metric("Stemming (m)", f"{opt_p['stemming_m']:.2f}")
             col_res4.metric("Powder Factor", f"{opt_p['powder_factor_kg_m3']:.3f} kg/m3")
 
-            st.subheader("Predicted Outcomes for Optimized Design")
+            st.subheader("Predicted Outcomes for Best Design")
             out_p = res["predicted_outputs"]
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Predicted d50", f"{out_p['d50_mm']:.1f} mm")
@@ -317,10 +323,50 @@ elif page == "⚡ Genetic Algorithm Optimizer":
             c3.metric("Predicted Flyrock", f"{out_p['flyrock_m']:.1f} m")
             c4.metric("Optimized Cost", f"${out_p['cost_per_tonne_usd']:.2f} / t")
 
+            st.markdown("---")
+            st.subheader("Top 5 Recommended Blast Designs")
+            top_5 = res.get("top_5_designs", [])
+
+            table_rows = []
+            for rank, item in enumerate(top_5, 1):
+                p = item["parameters"]
+                o = item["outputs"]
+                table_rows.append({
+                    "Rank": f"#{rank}",
+                    "Burden (m)": p["burden_m"],
+                    "Spacing (m)": p["spacing_m"],
+                    "Stemming (m)": p["stemming_m"],
+                    "Powder Factor (kg/m3)": p["powder_factor_kg_m3"],
+                    "d50 (mm)": o["d50_mm"],
+                    "PPV (mm/s)": o["ppv_mms"],
+                    "Flyrock (m)": o["flyrock_m"],
+                    "Cost ($/t)": o["cost_per_tonne_usd"],
+                })
+
+            st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
+
+            # Generate PDF Report Download Button
+            pdf_path = generate_pdf(
+                designs=top_5,
+                filename="data/processed/blast_optimization_report.pdf",
+                constraints_info=st.session_state.get("opt_constraints", {}),
+            )
+
+            with open(pdf_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
+
+            st.download_button(
+                label="📄 Download Optimization PDF Report",
+                data=pdf_bytes,
+                file_name="BlastOpt_Botswana_Optimization_Report.pdf",
+                mime="application/pdf",
+                type="primary",
+            )
+
             fig_conv = plot_optimization_convergence(res["convergence_history"])
             st.plotly_chart(fig_conv, use_container_width=True)
         else:
-            st.info("Click 'Run GA Optimization' to find the optimal blast geometry.")
+            st.info("Click 'Run GA Optimization' to find the optimal blast geometry and generate report.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

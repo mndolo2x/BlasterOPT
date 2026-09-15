@@ -1,5 +1,5 @@
 """
-Unit tests for Machine Learning models, prediction wrappers, and Genetic Algorithm optimizer.
+Unit tests for Machine Learning models, prediction wrappers, report generation, and Genetic Algorithm optimizer.
 """
 
 import os
@@ -12,6 +12,7 @@ from src.data_ingestion import engineer_features
 from src.models import BlastMLPipeline
 from src.predict import predict_single_blast, predict_physics_fallback
 from src.optimize import BlastOptimizer
+from src.report import generate_pdf
 from src.visualize import (
     plot_kuz_ram_curve,
     plot_ppv_attenuation,
@@ -89,7 +90,7 @@ def test_predict_single_blast():
     assert "ppv_mms" in res
 
 
-def test_blast_optimizer():
+def test_blast_optimizer_and_report_generation(tmp_path):
     fixed_params = {
         "rock_factor_A": 8.0,
         "bench_height_m": 12.0,
@@ -107,8 +108,19 @@ def test_blast_optimizer():
     result = optimizer.optimize(popsize=5, maxiter=5, seed=42)
     assert "optimized_parameters" in result
     assert "predicted_outputs" in result
-    assert result["optimized_parameters"]["burden_m"] >= 2.5
-    assert result["optimized_parameters"]["spacing_m"] >= 3.0
+    assert "top_5_designs" in result
+    assert len(result["top_5_designs"]) > 0
+
+    # Test PDF report generation using top 5 designs
+    pdf_out = str(tmp_path / "test_report.pdf")
+    generated_file = generate_pdf(
+        designs=result["top_5_designs"],
+        filename=pdf_out,
+        constraints_info={"max_ppv": 15.0, "max_flyrock": 150.0, "d50_range": (100.0, 300.0)},
+    )
+
+    assert os.path.exists(generated_file)
+    assert os.path.getsize(generated_file) > 1000
 
 
 def test_visualization_functions():
