@@ -1,5 +1,15 @@
 import pytest
-from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast
+from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput
+
+
+def test_predict_crusher_throughput():
+    """Test predict_crusher_throughput function return structure and positive values."""
+    res = predict_crusher_throughput(d80_cm=25.0, ore_hardness=14.0, crusher_settings={"css_mm": 150.0, "power_rating_kw": 400.0})
+    assert isinstance(res, dict)
+    assert "throughput_tph" in res
+    assert "specific_energy_kwh_t" in res
+    assert res["throughput_tph"] > 0
+    assert res["specific_energy_kwh_t"] > 0
 
 
 def test_predict_outcomes_five_targets():

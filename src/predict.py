@@ -132,6 +132,49 @@ def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline
     return results
 
 
+def predict_crusher_throughput(d80_cm: float, ore_hardness: float, crusher_settings: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+    """
+    Predict crusher throughput (t/h) and specific energy (kWh/t)
+    based on blast fragmentation.
+
+    This closes the loop between blast design and processing plant economics.
+
+    Parameters:
+    -----------
+    d80_cm : float
+        80% passing fragmentation diameter size in centimeters.
+    ore_hardness : float
+        Ore hardness index / Bond Work Index (kWh/t).
+    crusher_settings : Dict[str, float], optional
+        Crusher operational settings (e.g. css_mm: closed side setting mm).
+
+    Returns:
+    --------
+    Dict[str, float]
+        Dictionary containing throughput_tph (t/h) and specific_energy_kwh_t (kWh/t).
+    """
+    if crusher_settings is None:
+        crusher_settings = {"css_mm": 150.0, "power_rating_kw": 400.0}
+
+    css = float(crusher_settings.get("css_mm", 150.0))
+    power_kw = float(crusher_settings.get("power_rating_kw", 400.0))
+
+    # Bond Work Index equation for specific energy estimate: W = 10 * Wi * (1/sqrt(P80) - 1/sqrt(F80))
+    # F80 in microns = d80_cm * 10,000; P80 in microns = css_mm * 1000
+    f80_um = max(d80_cm * 10000.0, 1000.0)
+    p80_um = max(css * 1000.0, 1000.0)
+
+    specific_energy = 10.0 * max(ore_hardness, 5.0) * (1.0 / np.sqrt(p80_um) - 1.0 / np.sqrt(f80_um))
+    specific_energy = float(np.clip(specific_energy, 0.2, 15.0))
+
+    throughput_tph = float(np.clip(power_kw / max(specific_energy, 0.1), 50.0, 5000.0))
+
+    return {
+        "throughput_tph": round(throughput_tph, 2),
+        "specific_energy_kwh_t": round(specific_energy, 2),
+    }
+
+
 def predict_single_blast(
     inputs: Dict[str, float], model_pipeline: Optional[BlastMLPipeline] = None
 ) -> Dict[str, float]:
