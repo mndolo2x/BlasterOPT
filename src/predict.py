@@ -138,6 +138,8 @@ def find_similar_blasts(new_blast_params: Union[Dict[str, float], pd.DataFrame],
     Find the top_k most similar past blasts based on input parameters.
     Return their outcomes so the blaster can learn from history.
 
+    This addresses Debswana's skill shortage and staff rotation challenge.
+
     Parameters:
     -----------
     new_blast_params : Dict[str, float] or pd.DataFrame
