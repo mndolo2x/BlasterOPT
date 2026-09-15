@@ -37,6 +37,15 @@ def predict_physics_fallback(inputs: Dict[str, float]) -> Dict[str, float]:
     )
     d50_mm = float(np.clip(d50_cm * 10.0, 20.0, 1500.0))
 
+    # Kuz-Ram Uniformity Index n
+    spacing_burden_ratio = spacing_m / max(burden_m, 0.1)
+    hole_depth_m = bench_height_m + 0.3 * burden_m
+    charge_length_m = max(0.5, hole_depth_m - stemming_m)
+    n_uniformity = (2.2 - 14 * (burden_m / (hole_diameter_mm / 1000.0))) * (
+        1 + (spacing_burden_ratio - 1) / 2
+    ) * (charge_length_m / max(bench_height_m, 0.1))
+    n_uniformity = float(np.clip(np.abs(n_uniformity) + 0.8, 0.7, 2.2))
+
     # 2. USBM PPV (mm/s)
     # SD = Distance / sqrt(Q_delay)
     sd = monitoring_dist_m / np.sqrt(max(max_charge_per_delay_kg, 1.0))
@@ -56,10 +65,71 @@ def predict_physics_fallback(inputs: Dict[str, float]) -> Dict[str, float]:
 
     return {
         "d50_mm": round(d50_mm, 2),
+        "uniformity_index_n": round(n_uniformity, 2),
         "ppv_mms": round(ppv, 2),
         "flyrock_m": round(flyrock, 2),
         "cost_per_tonne_usd": round(cost_per_tonne, 2),
     }
+
+
+def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline] = None) -> Dict[str, Any]:
+    """
+    Validates input parameters and predicts outcomes for all five blast target variables.
+    Handles missing or out-of-range inputs gracefully by returning error messages.
+    """
+    if not isinstance(input_params, dict):
+        return {"error": "Invalid input: input_params must be a dictionary."}
+
+    required_keys = [
+        "rock_factor_A",
+        "bench_height_m",
+        "hole_diameter_mm",
+        "burden_m",
+        "spacing_m",
+        "stemming_m",
+        "charge_mass_per_hole_kg",
+        "powder_factor_kg_m3",
+        "max_charge_per_delay_kg",
+        "monitoring_distance_m",
+    ]
+
+    missing_keys = [k for k in required_keys if k not in input_params or input_params[k] is None]
+    if missing_keys:
+        return {"error": f"Missing required input parameter(s): {', '.join(missing_keys)}"}
+
+    # Define acceptable physical range validation rules
+    valid_ranges = {
+        "rock_factor_A": (1.0, 20.0),
+        "bench_height_m": (1.0, 50.0),
+        "hole_diameter_mm": (50.0, 500.0),
+        "burden_m": (0.5, 20.0),
+        "spacing_m": (0.5, 30.0),
+        "stemming_m": (0.1, 15.0),
+        "charge_mass_per_hole_kg": (1.0, 5000.0),
+        "powder_factor_kg_m3": (0.01, 5.0),
+        "max_charge_per_delay_kg": (1.0, 10000.0),
+        "monitoring_distance_m": (10.0, 10000.0),
+    }
+
+    out_of_range = []
+    for key, (min_val, max_val) in valid_ranges.items():
+        val = input_params[key]
+        if not isinstance(val, (int, float)) or not (min_val <= val <= max_val):
+            out_of_range.append(f"{key} (value: {val}, expected range: [{min_val}, {max_val}])")
+
+    if out_of_range:
+        return {"error": f"Out-of-range input parameter(s): {'; '.join(out_of_range)}"}
+
+    results = predict_single_blast(input_params, model_pipeline=model_pipeline)
+
+    # Ensure all five target keys are present in output
+    all_targets = ["d50_mm", "uniformity_index_n", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
+    fallback = predict_physics_fallback(input_params)
+    for target in all_targets:
+        if target not in results or results[target] is None or np.isnan(results[target]):
+            results[target] = fallback[target]
+
+    return results
 
 
 def predict_single_blast(

@@ -13,6 +13,25 @@ import pandas as pd
 from typing import Optional, Tuple
 
 
+def generate_synthetic_data(
+    n_samples: int = 100,
+    seed: Optional[int] = 42,
+    rock_factor_range: Tuple[float, float] = (6.0, 12.0),
+    bench_height_range: Tuple[float, float] = (10.0, 15.0),
+    hole_diameter_range: Tuple[float, float] = (150.0, 311.0), # mm
+) -> pd.DataFrame:
+    """
+    Wrapper alias for generating synthetic blast datasets with n_samples parameter.
+    """
+    return generate_synthetic_blast_data(
+        num_samples=n_samples,
+        seed=seed,
+        rock_factor_range=rock_factor_range,
+        bench_height_range=bench_height_range,
+        hole_diameter_range=hole_diameter_range,
+    )
+
+
 def generate_synthetic_blast_data(
     num_samples: int = 500,
     seed: Optional[int] = 42,
