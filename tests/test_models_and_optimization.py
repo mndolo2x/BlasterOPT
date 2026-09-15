@@ -99,8 +99,14 @@ def test_blast_optimizer():
 
 
 def test_visualization_functions():
+    # Test Kuz-Ram curve generation with default and custom characteristic size (x_c)
     fig1 = plot_kuz_ram_curve(d50_mm=220.0, n_uniformity=1.2)
     assert fig1 is not None
+    assert plot_kuz_ram_curve.__doc__ is not None
+    assert "Rosin-Rammler" in plot_kuz_ram_curve.__doc__
+
+    fig1_custom = plot_kuz_ram_curve(d50_mm=220.0, n_uniformity=1.5, xc_custom_mm=300.0)
+    assert fig1_custom is not None
 
     fig2 = plot_ppv_attenuation(max_charge_kg=500.0)
     assert fig2 is not None

@@ -39,6 +39,26 @@ if "dataset" not in st.session_state:
 if "pipeline" not in st.session_state:
     st.session_state["pipeline"] = None
 
+if "last_predict_inputs" not in st.session_state:
+    st.session_state["last_predict_inputs"] = {
+        "rock_factor_A": 8.0,
+        "bench_height_m": 12.0,
+        "hole_diameter_mm": 250.0,
+        "burden_m": 6.0,
+        "spacing_m": 7.0,
+        "stemming_m": 5.0,
+        "powder_factor_kg_m3": 0.65,
+        "charge_mass_per_hole_kg": 320.0,
+        "max_charge_per_delay_kg": 640.0,
+        "monitoring_distance_m": 450.0,
+        "explosive_rws": 100.0,
+    }
+
+if "last_predict_results" not in st.session_state:
+    st.session_state["last_predict_results"] = predict_single_blast(
+        st.session_state["last_predict_inputs"]
+    )
+
 
 # Title and Header Banner
 st.title("🇧🇼 BlastOpt Botswana")
@@ -58,6 +78,7 @@ page = st.sidebar.radio(
         "🎯 Predictor & Kuz-Ram Curve",
         "⚡ Genetic Algorithm Optimizer",
         "📐 2D Blast Pattern & Delays",
+        "📈 Visualize",
     ],
 )
 
@@ -187,16 +208,17 @@ elif page == "🎯 Predictor & Kuz-Ram Curve":
     with col_p1:
         st.subheader("Input Blast Parameters")
 
-        rock_A = st.number_input("Rock Factor (A)", 4.0, 16.0, 8.0, step=0.5)
-        bench_h = st.number_input("Bench Height (m)", 5.0, 30.0, 12.0, step=0.5)
-        hole_d = st.number_input("Hole Diameter (mm)", 80.0, 380.0, 250.0, step=10.0)
-        burden = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2)
-        spacing = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2)
-        stemming = st.number_input("Stemming (m)", 1.0, 10.0, 5.0, step=0.2)
-        pf = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05)
-        charge_per_hole = st.number_input("Charge Mass per Hole (kg)", 10.0, 1500.0, 320.0, step=10.0)
-        max_charge_delay = st.number_input("Max Charge per Delay (kg)", 10.0, 3000.0, 640.0, step=20.0)
-        dist = st.number_input("Distance to Structure (m)", 50.0, 3000.0, 450.0, step=25.0)
+        last_in = st.session_state["last_predict_inputs"]
+        rock_A = st.number_input("Rock Factor (A)", 4.0, 16.0, float(last_in["rock_factor_A"]), step=0.5)
+        bench_h = st.number_input("Bench Height (m)", 5.0, 30.0, float(last_in["bench_height_m"]), step=0.5)
+        hole_d = st.number_input("Hole Diameter (mm)", 80.0, 380.0, float(last_in["hole_diameter_mm"]), step=10.0)
+        burden = st.number_input("Burden (m)", 2.0, 12.0, float(last_in["burden_m"]), step=0.2)
+        spacing = st.number_input("Spacing (m)", 2.0, 15.0, float(last_in["spacing_m"]), step=0.2)
+        stemming = st.number_input("Stemming (m)", 1.0, 10.0, float(last_in["stemming_m"]), step=0.2)
+        pf = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in["powder_factor_kg_m3"]), step=0.05)
+        charge_per_hole = st.number_input("Charge Mass per Hole (kg)", 10.0, 1500.0, float(last_in["charge_mass_per_hole_kg"]), step=10.0)
+        max_charge_delay = st.number_input("Max Charge per Delay (kg)", 10.0, 3000.0, float(last_in["max_charge_per_delay_kg"]), step=20.0)
+        dist = st.number_input("Distance to Structure (m)", 50.0, 3000.0, float(last_in["monitoring_distance_m"]), step=25.0)
 
         input_payload = {
             "rock_factor_A": rock_A,
@@ -212,11 +234,14 @@ elif page == "🎯 Predictor & Kuz-Ram Curve":
             "explosive_rws": 100.0,
         }
 
+        st.session_state["last_predict_inputs"] = input_payload
+
     with col_p2:
         st.subheader("Predicted Blast Outcomes")
 
         pipeline = st.session_state.get("pipeline", None)
         predictions = predict_single_blast(input_payload, model_pipeline=pipeline)
+        st.session_state["last_predict_results"] = predictions
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("d50 Fragment Size", f"{predictions['d50_mm']:.1f} mm")
@@ -325,3 +350,54 @@ elif page == "📐 2D Blast Pattern & Delays":
             hole_delay_ms=hole_delay,
         )
         st.plotly_chart(fig_pattern, use_container_width=True)
+
+
+# --- MODULE 7: VISUALIZE ---
+elif page == "📈 Visualize":
+    st.header("📈 Interactive Fragmentation Curve & Sensitivity Visualizer")
+    st.markdown(
+        "Explore cumulative rock fragmentation size distributions ($P(x)$ vs. $x$) based on parameters from the Predictor module."
+    )
+
+    pred_res = st.session_state.get("last_predict_results", {"d50_mm": 220.0})
+    base_d50 = float(pred_res.get("d50_mm", 220.0))
+
+    # Base characteristic size calculation (d50 / (ln 2)^(1/n)) with default n=1.2
+    default_xc = base_d50 / (np.log(2.0) ** (1.0 / 1.2))
+
+    col_v1, col_v2 = st.columns([1, 2])
+
+    with col_v1:
+        st.subheader("Kuz-Ram Model Tuning Sliders")
+        st.info(f"**Base Predicted d50:** `{base_d50:.1f} mm`")
+
+        n_uniformity = st.slider(
+            "Uniformity Index (n)",
+            min_value=0.5,
+            max_value=2.5,
+            value=1.2,
+            step=0.05,
+            help="Higher n indicates a more uniform fragment size distribution (fewer boulders and fines).",
+        )
+
+        use_custom_xc = st.checkbox("Override Derived Characteristic Size (x_c)", value=False)
+        if use_custom_xc:
+            xc_val = st.slider(
+                "Characteristic Size x_c (mm)",
+                min_value=10.0,
+                max_value=1000.0,
+                value=float(np.round(default_xc, 1)),
+                step=5.0,
+                help="Sieve size through which 63.2% of blasted rock mass passes.",
+            )
+        else:
+            xc_val = None
+
+    with col_v2:
+        fig_frag = plot_kuz_ram_curve(
+            d50_mm=base_d50,
+            n_uniformity=n_uniformity,
+            xc_custom_mm=xc_val,
+            label="Current Blast Design",
+        )
+        st.plotly_chart(fig_frag, use_container_width=True)

@@ -18,22 +18,66 @@ from typing import Dict, Any, List, Optional, Tuple
 
 
 def plot_kuz_ram_curve(
-    d50_mm: float, n_uniformity: float = 1.2, label: str = "Predicted Blast Pattern"
+    d50_mm: float,
+    n_uniformity: float = 1.2,
+    xc_custom_mm: Optional[float] = None,
+    label: str = "Predicted Blast Pattern",
 ) -> go.Figure:
     """
-    Plots Kuz-Ram / Rosin-Rammler cumulative passing size distribution curve.
+    Generates a Plotly interactive Kuz-Ram / Rosin-Rammler fragmentation size distribution curve.
 
-    Rosin-Rammler Equation:
-    P(x) = 1 - exp( - (x / x_c)^n )
-    where x_c = d50 / (ln(2))^(1/n)
+    Mining Engineering Context & Mathematical Logic:
+    ------------------------------------------------
+    The Kuz-Ram model is an established empirical fragmentation model in mining engineering used
+    to estimate the particle size distribution of blasted rock mass. It combines Cunningham's
+    extended Kuz-Ram equation for mean fragment size (d50) with the Rosin-Rammler cumulative
+    distribution function.
+
+    Rosin-Rammler Cumulative Passing Formula:
+        P(x) = 1 - exp( - (x / x_c)^n )
+
+    Where:
+    - P(x): Cumulative fraction of rock mass passing through a sieve of aperture size x (in %).
+    - x: Sieve aperture size or fragment dimension (mm).
+    - x_c: Characteristic particle size parameter (mm), defined as the sieve aperture size
+           through which 63.2% (1 - 1/e) of the blasted rock mass passes.
+           Mathematically related to d50 (50% passing size) by:
+               x_c = d50 / (ln(2))^(1 / n)
+    - n: Uniformity index (typically 0.8 - 2.2 for rock blasting). Higher values of n indicate
+         a tightly grouped, uniform size distribution with fewer boulders or fines.
+
+    Parameters:
+    -----------
+    d50_mm : float
+        Mean fragment size (50% passing diameter) in millimeters.
+    n_uniformity : float, default=1.2
+        Rosin-Rammler uniformity index (n). Controls the slope of the passing curve.
+    xc_custom_mm : float, optional
+        Custom characteristic size x_c parameter in millimeters. If provided, overrides
+        the d50-derived characteristic size calculation.
+    label : str, default="Predicted Blast Pattern"
+        Legend label for the trace.
+
+    Returns:
+    --------
+    go.Figure
+        Plotly Figure displaying the logarithmic cumulative size distribution curve.
     """
-    x_sizes = np.logspace(0, 3.2, 200) # 1 mm to 1500 mm
+    x_sizes = np.logspace(0, 3.2, 250)  # Sieve size range from 1 mm to 1585 mm
 
-    # Characteristic size x_c
-    x_c = d50_mm / (np.log(2.0) ** (1.0 / max(n_uniformity, 0.1)))
+    # Derive or assign characteristic size x_c
+    n_val = max(float(n_uniformity), 0.1)
+    if xc_custom_mm is not None and xc_custom_mm > 0:
+        x_c = float(xc_custom_mm)
+    else:
+        # x_c derived from d50: x_c = d50 / (ln 2)^(1/n)
+        x_c = d50_mm / (np.log(2.0) ** (1.0 / n_val))
 
-    # Passing percentage P(x) in %
-    passing_pct = (1.0 - np.exp(-1.0 * ((x_sizes / x_c) ** n_uniformity))) * 100.0
+    # Calculate cumulative passing percentage P(x)
+    passing_pct = (1.0 - np.exp(-1.0 * ((x_sizes / x_c) ** n_val))) * 100.0
+
+    # Calculated d50 for reference annotation
+    effective_d50 = x_c * (np.log(2.0) ** (1.0 / n_val))
 
     fig = go.Figure()
 
@@ -42,24 +86,37 @@ def plot_kuz_ram_curve(
             x=x_sizes,
             y=passing_pct,
             mode="lines",
-            name=f"{label} (d50={d50_mm:.1f} mm, n={n_uniformity:.2f})",
+            name=f"{label} (x_c={x_c:.1f} mm, n={n_val:.2f})",
             line=dict(color="#2962FF", width=3),
-            hovertemplate="Size: %{x:.1f} mm<br>Passing: %{y:.1f}%<extra></extra>",
+            hovertemplate="Fragment Size: %{x:.1f} mm<br>Cumulative Passing: %{y:.1f}%<extra></extra>",
         )
     )
 
-    # Reference threshold lines (e.g., d50 and oversize > 500mm)
-    fig.add_hline(y=50, line_dash="dash", line_color="gray", annotation_text="50% Passing (d50)")
-    fig.add_vline(x=d50_mm, line_dash="dash", line_color="gray")
+    # Reference threshold indicator lines
+    fig.add_hline(
+        y=50,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text=f"d50 = {effective_d50:.1f} mm",
+        annotation_position="bottom right",
+    )
+    fig.add_hline(
+        y=63.2,
+        line_dash="dot",
+        line_color="darkblue",
+        annotation_text=f"x_c (63.2% Passing) = {x_c:.1f} mm",
+        annotation_position="top right",
+    )
+    fig.add_vline(x=effective_d50, line_dash="dash", line_color="gray")
 
     fig.update_layout(
-        title=f"<b>Kuz-Ram Size Distribution Curve</b>",
-        xaxis_title="Sieve Size / Fragment Size (mm) [Log Scale]",
-        yaxis_title="Cumulative Passing (%)",
+        title="<b>Kuz-Ram Fragmentation Curve (Percent Passing vs Size)</b>",
+        xaxis_title="Sieve / Fragment Size x (mm) [Log Scale]",
+        yaxis_title="Cumulative Percent Passing P(x) [%]",
         xaxis_type="log",
         yaxis=dict(range=[0, 105]),
         template="plotly_white",
-        height=450,
+        height=500,
     )
 
     return fig
