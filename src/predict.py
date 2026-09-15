@@ -236,9 +236,9 @@ def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:
 
 def predict_crusher_throughput(d80_cm: float, ore_hardness: float, crusher_settings: Optional[Dict[str, float]] = None) -> Dict[str, float]:
     """
-    Predict crusher throughput (t/h) and specific energy (kWh/t)
-    based on blast fragmentation.
+    Predict crusher throughput (t/h) and specific energy (kWh/t) based on blast fragmentation.
 
+    Train on historical data pairing blast fragmentation (D80) with crusher performance.
     This closes the loop between blast design and processing plant economics.
 
     Parameters:
