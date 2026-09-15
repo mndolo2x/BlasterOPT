@@ -1,5 +1,11 @@
 import pytest
-from src.explainability import get_feature_contributions, plot_feature_contributions_waterfall
+import pytest
+from src.explainability import get_feature_contributions, plot_feature_contributions_waterfall, explain_prediction, HAS_SHAP
+from src.models import HAS_TORCH
+
+if HAS_TORCH:
+    import torch
+    from src.models import GAANNModel
 
 
 def test_get_feature_contributions_structure():
@@ -32,6 +38,19 @@ def test_get_feature_contributions_invalid_input():
     res = get_feature_contributions(model_pipeline=None, input_payload="invalid string")
     assert isinstance(res, dict)
     assert "error" in res
+
+
+def test_explain_prediction_shap():
+    """Test explain_prediction function when shap and torch are available or missing."""
+    if not HAS_SHAP or not HAS_TORCH:
+        with pytest.raises(ImportError):
+            explain_prediction(None, None)
+    else:
+        model = GAANNModel(input_size=10)
+        x = torch.randn(1, 10)
+        bg = torch.zeros(10, 10)
+        shap_vals = explain_prediction(model, x, background_data=bg)
+        assert shap_vals is not None
 
 
 def test_plot_feature_contributions_waterfall():

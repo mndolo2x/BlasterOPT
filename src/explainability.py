@@ -9,6 +9,13 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from typing import Dict, Any, List, Optional
+
+try:
+    import shap
+    HAS_SHAP = True
+except ImportError:
+    HAS_SHAP = False
+
 from src.data_ingestion import engineer_features
 from src.models import BlastMLPipeline, FEATURE_COLS
 
@@ -159,3 +166,28 @@ def plot_feature_contributions_waterfall(
     )
 
     return fig
+
+
+def explain_prediction(model, input_data, feature_names=None, background_data=None):
+    """
+    Generate SHAP explanation for a single blast prediction.
+
+    Key drivers from Jwaneng research:
+    - Fragmentation: powder factor, burden
+    - Vibration: burden, charge per delay, distance
+    """
+    if not HAS_SHAP:
+        raise ImportError("shap package is required for explain_prediction function.")
+
+    if background_data is None:
+        if isinstance(input_data, pd.DataFrame):
+            background_data = input_data
+        elif hasattr(input_data, "numpy"):
+            import torch
+            background_data = torch.zeros_like(input_data)
+        else:
+            background_data = np.zeros_like(input_data)
+
+    explainer = shap.DeepExplainer(model, background_data)
+    shap_values = explainer.shap_values(input_data)
+    return shap_values

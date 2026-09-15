@@ -12,3 +12,4 @@ fpdf2>=2.7.0
 kaleido>=0.2.1
 pytest>=7.4.0
 torch>=2.0.0
+shap>=0.42.0
