@@ -17,6 +17,14 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from xgboost import XGBRegressor
 
+try:
+    import torch
+    import torch.nn as nn
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+    nn = object
+
 FEATURE_COLS = [
     "rock_factor_A",
     "bench_height_m",
@@ -248,6 +256,29 @@ class BlastMLPipeline:
         instance.metrics = data["metrics"]
         instance.feature_names = data["feature_names"]
         return instance
+
+
+if HAS_TORCH:
+    class GAANNModel(nn.Module):
+        """
+        Multi-output GA-ANN for simultaneous prediction of fragmentation,
+        ground vibration, and airblast at Jwaneng Mine.
+
+        Architecture: 10-70-25-3
+        Source: Jwaneng Mine, 120 production blasts
+        Performance: R² = 0.910 (frag), 0.925 (vib), 0.967 (airblast)
+        """
+        def __init__(self, input_size=10):
+            super().__init__()
+            self.hidden1 = nn.Linear(input_size, 70)
+            self.hidden2 = nn.Linear(70, 25)
+            self.output = nn.Linear(25, 3)  # fragmentation, vibration, airblast
+            self.relu = nn.ReLU()
+
+        def forward(self, x):
+            x = self.relu(self.hidden1(x))
+            x = self.relu(self.hidden2(x))
+            return self.output(x)
 
 
 MODEL_REGISTRY = {

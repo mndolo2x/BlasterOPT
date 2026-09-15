@@ -9,8 +9,12 @@ import numpy as np
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import engineer_features
-from src.models import BlastMLPipeline
+from src.models import BlastMLPipeline, HAS_TORCH
 from src.predict import predict_single_blast, predict_physics_fallback
+
+if HAS_TORCH:
+    import torch
+    from src.models import GAANNModel
 from src.optimize import BlastOptimizer
 from src.report import generate_pdf
 from src.visualize import (
@@ -62,6 +66,17 @@ def test_ml_pipeline_train_predict(sample_dataset, tmp_path):
     saved_path = xgb_pipeline.save_models(save_dir)
     assert os.path.exists(saved_path)
     assert os.path.exists(os.path.join(save_dir, "best_fragmentation_model.pkl"))
+
+
+def test_ga_ann_model():
+    """Test GAANNModel instantiation and forward pass tensor output shape."""
+    if not HAS_TORCH:
+        pytest.skip("PyTorch not installed")
+
+    model = GAANNModel(input_size=10)
+    x = torch.randn(5, 10)
+    out = model(x)
+    assert out.shape == (5, 3)
 
 
 def test_predict_single_blast():
