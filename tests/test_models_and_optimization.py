@@ -15,7 +15,7 @@ from src.predict import predict_single_blast, predict_physics_fallback
 if HAS_TORCH:
     import torch
     from src.models import GAANNModel
-from src.optimize import BlastOptimizer
+from src.optimize import BlastOptimizer, optimize_blast_design
 from src.report import generate_pdf
 from src.visualize import (
     plot_kuz_ram_curve,
@@ -77,6 +77,17 @@ def test_ga_ann_model():
     x = torch.randn(5, 10)
     out = model(x)
     assert out.shape == (5, 3)
+
+
+def test_optimize_blast_design_torch():
+    """Test PyTorch inverse gradient descent optimization function."""
+    if not HAS_TORCH:
+        pytest.skip("PyTorch not installed")
+
+    model = GAANNModel(input_size=10)
+    opt_params = optimize_blast_design(model, target_fragmentation=150.0, max_vibration=10.0, max_airblast=120.0)
+    assert isinstance(opt_params, torch.Tensor)
+    assert opt_params.shape == (10,)
 
 
 def test_predict_single_blast():

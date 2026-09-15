@@ -13,8 +13,11 @@ import pandas as pd
 from typing import Dict, Any, Callable, Optional, Tuple, List
 from scipy.optimize import differential_evolution
 
-from src.models import BlastMLPipeline
+from src.models import BlastMLPipeline, HAS_TORCH
 from src.predict import predict_single_blast
+
+if HAS_TORCH:
+    import torch
 
 
 class BlastOptimizer:
@@ -188,3 +191,31 @@ class BlastOptimizer:
             "convergence_history": convergence_history,
             "optimization_message": str(result.message),
         }
+
+
+def optimize_blast_design(model, target_fragmentation, max_vibration, max_airblast):
+    """
+    Use gradient descent to find blast parameters that achieve
+    target fragmentation while staying within vibration and airblast limits.
+
+    This implements the inverse design method from the GA-ANN research.
+    """
+    if not HAS_TORCH:
+        raise ImportError("PyTorch is required for gradient descent blast optimization.")
+
+    # Initialize parameters (burden, spacing, stemming, etc., size 10)
+    params = torch.ones(10, dtype=torch.float32, requires_grad=True)
+    optimizer = torch.optim.Adam([params], lr=0.01)
+
+    for step in range(1000):
+        optimizer.zero_grad()
+        out = model(params)
+        frag, vib, air = out[0], out[1], out[2]
+
+        # Loss: minimize fragmentation difference/maximize frag, minimize vibration/airblast violations
+        frag_loss = torch.abs(frag - target_fragmentation) if isinstance(target_fragmentation, (int, float, torch.Tensor)) else -frag
+        loss = frag_loss + 10 * torch.relu(vib - max_vibration) + 10 * torch.relu(air - max_airblast)
+        loss.backward()
+        optimizer.step()
+
+    return params.detach()
