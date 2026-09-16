@@ -1726,9 +1726,8 @@ elif active_module == "ensemble_uq":
 
         n_members = st.slider("Bagging Ensemble Members per Family", 3, 20, 5, step=1)
 
-        if st.button("Evaluate Ensemble UQ", type="primary"):
-            with st.spinner("Training multi-architecture bagging ensemble across bootstrap sub-samples..."):
-                # Use current dataset for bootstrap training
+        if st.button("Retrain Ensemble 🔄", type="primary"):
+            with st.spinner("Retraining multi-architecture bagging ensemble across bootstrap sub-samples..."):
                 df_curr = st.session_state["dataset"]
                 feature_cols_present = [c for c in FEATURE_COLS if c in df_curr.columns]
                 X_mat = df_curr[feature_cols_present].values if feature_cols_present else np.random.randn(100, 12)
@@ -1736,7 +1735,7 @@ elif active_module == "ensemble_uq":
 
                 ens_fitted = train_ensemble(X_mat, y_mat, n_models=n_members, seed=42)
                 st.session_state["active_ensemble_uq"] = ens_fitted
-                st.success("Ensemble UQ training & evaluation complete!")
+                st.success("Ensemble retraining complete!")
 
     with c_uq2:
         st.subheader("📊 Ensemble Predictions & 95% Confidence Intervals")
