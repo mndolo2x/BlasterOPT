@@ -33,7 +33,7 @@ def test_blast_design_input_pydantic_validation():
 
     # Invalid missing required field should raise ValidationError
     with pytest.raises(ValidationError):
-        BlastDesignInput(bench_id="BENCH_01")
+        BlastDesignInput()
 
 
 def test_tool_registry_registration_and_execution():
@@ -66,7 +66,7 @@ def test_tool_registry_openai_specs_generation():
     specs = TOOL_REGISTRY.get_openai_tools_specs()
 
     assert isinstance(specs, list)
-    assert len(specs) >= 2
+    assert len(specs) == 16
 
     for s in specs:
         assert s["type"] == "function"
@@ -75,22 +75,60 @@ def test_tool_registry_openai_specs_generation():
         assert "parameters" in s["function"]
 
 
-def test_default_tool_execution():
-    """Test executing default tools registered in global TOOL_REGISTRY."""
-    res_predict = TOOL_REGISTRY.execute_tool(
-        "predict_blast_outcomes",
-        {"bench_id": "BENCH_ORA_12N", "production_target_tonnes": 15000.0},
+def test_all_16_registered_tools_execution():
+    """Test executing all 16 registered tools in global TOOL_REGISTRY."""
+    expected_tools = [
+        "predict_fragmentation",
+        "predict_vibration",
+        "predict_airblast",
+        "predict_downstream",
+        "design_blast",
+        "optimize_blast",
+        "explain_prediction",
+        "get_mwd_data",
+        "get_geology",
+        "get_regulations",
+        "search_past_blasts",
+        "find_similar_blasts",
+        "generate_report",
+        "route_for_approval",
+        "log_decision",
+        "query_knowledge_graph",
+    ]
+
+    for tool_name in expected_tools:
+        assert tool_name in TOOL_REGISTRY, f"Tool '{tool_name}' missing from TOOL_REGISTRY"
+        spec = TOOL_REGISTRY.get_tool(tool_name)
+        assert spec is not None
+        assert spec.input_schema is not None
+        assert spec.description != ""
+
+    # Test executing representative tools
+    res_frag = TOOL_REGISTRY.execute_tool("predict_fragmentation", {"bench_id": "BENCH_01"})
+    assert "d80_cm" in res_frag
+    assert "d50_cm" in res_frag
+
+    res_vib = TOOL_REGISTRY.execute_tool("predict_vibration", {"bench_id": "BENCH_01"})
+    assert "ppv_mm_s" in res_vib
+
+    res_air = TOOL_REGISTRY.execute_tool("predict_airblast", {"bench_id": "BENCH_01"})
+    assert "airblast_db" in res_air
+
+    res_design = TOOL_REGISTRY.execute_tool("design_blast", {"bench_id": "BENCH_01"})
+    assert res_design["bench_id"] == "BENCH_01"
+
+    res_mwd = TOOL_REGISTRY.execute_tool(
+        "get_mwd_data",
+        {
+            "hole_id": "HOLE_01",
+            "depth_m": 15.0,
+            "penetration_rate_m_min": 0.6,
+            "torque_nm": 1200.0,
+            "vibration_mm_s": 3.2,
+            "timestamp": "2026-09-16T12:00:00",
+        },
     )
+    assert res_mwd["hole_id"] == "HOLE_01"
 
-    assert isinstance(res_predict, dict)
-    assert res_predict["bench_id"] == "BENCH_ORA_12N"
-    assert "predicted_fragmentation" in res_predict
-    assert "predicted_vibration" in res_predict
-
-    res_compliance = TOOL_REGISTRY.execute_tool(
-        "check_regulatory_compliance",
-        {"max_ppv_mm_s": 5.0, "max_airblast_db": 120.0},
-    )
-
-    assert isinstance(res_compliance, dict)
-    assert "is_compliant" in res_compliance
+    res_kg = TOOL_REGISTRY.execute_tool("query_knowledge_graph", {"question": "Optimal powder factor?"})
+    assert "Knowledge graph query answer" in res_kg
