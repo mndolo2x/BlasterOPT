@@ -7,7 +7,9 @@ from src.explainability import (
     plot_feature_contributions_waterfall,
     explain_prediction,
     get_shap_explanation,
+    get_lime_explanation,
     HAS_SHAP,
+    HAS_LIME,
 )
 from src.models import HAS_TORCH
 
@@ -79,6 +81,47 @@ def test_get_shap_explanation_rf():
     assert "waterfall_plot" in res
     assert "feature_contributions" in res
     assert len(res["feature_contributions"]) == 4
+
+
+def test_get_lime_explanation_rf():
+    """Test get_lime_explanation with a Random Forest model."""
+    X = np.random.randn(30, 4)
+    y = np.random.randn(30)
+    rf = RandomForestRegressor(n_estimators=5, random_state=42)
+    rf.fit(X, y)
+
+    feature_names = ["feat_a", "feat_b", "feat_c", "feat_d"]
+    input_df = pd.DataFrame(X[:1], columns=feature_names)
+    train_df = pd.DataFrame(X, columns=feature_names)
+
+    res = get_lime_explanation(rf, input_df, training_data=train_df, feature_names=feature_names)
+
+    assert isinstance(res, dict)
+    assert "lime_explanation" in res
+    assert "feature_weights" in res
+    assert len(res["feature_weights"]) > 0
+
+
+def test_get_lime_explanation_torch():
+    """Test get_lime_explanation with a PyTorch ANN model."""
+    if not HAS_TORCH:
+        pytest.skip("PyTorch not installed")
+
+    model = GAANNModel(input_size=5)
+    X = np.random.randn(20, 5)
+    feature_names = [f"f_{i}" for i in range(5)]
+
+    res = get_lime_explanation(
+        model,
+        X[:1],
+        training_data=X,
+        feature_names=feature_names,
+        model_type="ann",
+    )
+
+    assert isinstance(res, dict)
+    assert "lime_explanation" in res
+    assert "feature_weights" in res
 
 
 def test_plot_feature_contributions_waterfall():

@@ -1,8 +1,9 @@
 """
 Explainability Module for BlasterOPT / BlastOpt Botswana.
 
-Provides model explainability, feature contribution attributions, and visual waterfall charts
-to help certified blasters understand and trust ML predictions (d50, PPV, flyrock, cost).
+Provides model explainability, feature contribution attributions, visual waterfall charts,
+SHAP explanations, and LIME explanations to help certified blasters understand and trust
+ML predictions (d50, PPV, flyrock, cost).
 """
 
 import numpy as np
@@ -15,6 +16,13 @@ try:
     HAS_SHAP = True
 except ImportError:
     HAS_SHAP = False
+
+try:
+    import lime
+    import lime.lime_tabular
+    HAS_LIME = True
+except ImportError:
+    HAS_LIME = False
 
 try:
     import torch
@@ -292,7 +300,6 @@ def get_shap_explanation(
                     explainer = shap.DeepExplainer(target_model, bg)
                     shap_vals = explainer.shap_values(inp_tensor)
                 except Exception:
-                    # Fallback to KernelExplainer if DeepExplainer fails
                     def py_predict(x):
                         target_model.eval()
                         with torch.no_grad():
@@ -304,7 +311,6 @@ def get_shap_explanation(
                     shap_vals = explainer.shap_values(X_arr)
 
             else:
-                # Tree-SHAP or KernelExplainer for scikit-learn / XGBoost
                 try:
                     explainer = shap.TreeExplainer(target_model)
                     shap_vals = explainer.shap_values(X_arr)
@@ -313,7 +319,6 @@ def get_shap_explanation(
                     explainer = shap.KernelExplainer(target_model.predict, bg_np)
                     shap_vals = explainer.shap_values(X_arr)
 
-            # Extract base value
             if hasattr(explainer, "expected_value"):
                 bv = explainer.expected_value
                 base_value = float(bv[0]) if isinstance(bv, (list, np.ndarray)) else float(bv)
@@ -326,11 +331,9 @@ def get_shap_explanation(
                 shap_vec = np.array(shap_vals).flatten()
 
         except Exception:
-            # Fallback SHAP estimation if explainer execution hits exceptions
             shap_vec = np.zeros(len(feature_names))
             base_value = 0.0
     else:
-        # Fallback heuristic if SHAP package unavailable
         if hasattr(target_model, "feature_importances_"):
             importances = target_model.feature_importances_
         else:
@@ -360,6 +363,120 @@ def get_shap_explanation(
         "waterfall_plot": waterfall_fig,
         "feature_contributions": feat_contribs,
     }
+
+
+def get_lime_explanation(
+    model: Any,
+    input_data: Union[pd.DataFrame, np.ndarray, Any],
+    training_data: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+    feature_names: Optional[List[str]] = None,
+    model_type: str = "ann",
+) -> Dict[str, Any]:
+    """
+    Generate a LIME explanation for a single prediction.
+
+    Parameters:
+    -----------
+    model : Any
+        Trained model instance (scikit-learn model, PyTorch nn.Module, or ANN_RF_Ensemble).
+    input_data : Union[pd.DataFrame, np.ndarray, Any]
+        Single row input sample to explain.
+    training_data : Union[pd.DataFrame, np.ndarray], optional
+        Background training dataset used by LimeTabularExplainer.
+    feature_names : List[str], optional
+        List of feature column names.
+    model_type : str, default="ann"
+        Model architecture indicator ("ann", "tree", "ensemble").
+
+    Returns:
+    --------
+    Dict[str, Any]
+        Dictionary containing `lime_explanation` (LimeTabularExplainer object) and `feature_weights` (dict).
+    """
+    if isinstance(input_data, pd.DataFrame):
+        if feature_names is None:
+            feature_names = list(input_data.columns)
+        X_inst = input_data.values[0]
+    elif isinstance(input_data, np.ndarray):
+        X_inst = input_data[0] if input_data.ndim == 2 else input_data
+        if feature_names is None:
+            feature_names = [f"feature_{i}" for i in range(len(X_inst))]
+    elif HAS_TORCH and isinstance(input_data, torch.Tensor):
+        X_inst = input_data.detach().cpu().numpy().squeeze()
+        if feature_names is None:
+            feature_names = [f"feature_{i}" for i in range(len(X_inst))]
+    else:
+        X_inst = np.array(input_data).squeeze()
+        if feature_names is None:
+            feature_names = [f"feature_{i}" for i in range(len(X_inst))]
+
+    # Setup training background array
+    if training_data is not None:
+        if isinstance(training_data, pd.DataFrame):
+            train_arr = training_data.values
+        else:
+            train_arr = np.array(training_data)
+    else:
+        # Default synthetic background matrix if training_data not provided
+        train_arr = np.random.randn(100, len(X_inst)) * 0.1 + X_inst
+
+    # Predict wrapper function
+    is_torch_model = HAS_TORCH and isinstance(model, torch.nn.Module)
+
+    if is_torch_model:
+        def predict_fn(x_numpy):
+            model.eval()
+            with torch.no_grad():
+                tensor_in = torch.tensor(x_numpy, dtype=torch.float32)
+                out = model(tensor_in).detach().cpu().numpy()
+                if out.ndim == 1:
+                    out = out.reshape(-1, 1)
+                return out
+    elif hasattr(model, "predict"):
+        def predict_fn(x_numpy):
+            out = model.predict(x_numpy)
+            out = np.array(out)
+            if out.ndim == 1:
+                out = out.reshape(-1, 1)
+            return out
+    else:
+        def predict_fn(x_numpy):
+            return np.zeros((len(x_numpy), 1))
+
+    if HAS_LIME:
+        explainer = lime.lime_tabular.LimeTabularExplainer(
+            training_data=train_arr,
+            feature_names=feature_names,
+            class_names=["blast_outcome"],
+            mode="regression",
+        )
+        exp = explainer.explain_instance(
+            data_row=X_inst,
+            predict_fn=predict_fn,
+            num_features=len(feature_names),
+        )
+
+        weights = {}
+        for feat_desc, weight in exp.as_list():
+            # Match feature name from description string
+            matched_feat = feat_desc
+            for fn in feature_names:
+                if fn in feat_desc:
+                    matched_feat = fn
+                    break
+            weights[matched_feat] = float(weight)
+
+        return {
+            "lime_explanation": exp,
+            "feature_weights": weights,
+        }
+    else:
+        # Heuristic fallback if LIME package is unavailable
+        weights = {fn: 0.1 for fn in feature_names}
+        return {
+            "lime_explanation": None,
+            "feature_weights": weights,
+        }
 
 
 def explain_prediction(model, input_data, feature_names=None, background_data=None):
