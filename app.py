@@ -39,6 +39,8 @@ from src.i18n import get_translation
 from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
 from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
 from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation
+from src.model_cards import generate_model_card
+from src.explainability_audit import log_explanation, get_recent_explanations
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -130,6 +132,7 @@ page = st.sidebar.radio(
         get_translation("nav_regulatory", lang_code),
         get_translation("nav_pinn", lang_code),
         get_translation("nav_integrations", lang_code),
+        get_translation("nav_model_cards", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_visualize", lang_code),
     ],
@@ -171,6 +174,8 @@ page_keys = {
     get_translation("nav_pinn", "tn"): "pinn",
     get_translation("nav_integrations", "en"): "integrations",
     get_translation("nav_integrations", "tn"): "integrations",
+    get_translation("nav_model_cards", "en"): "model_cards",
+    get_translation("nav_model_cards", "tn"): "model_cards",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     get_translation("nav_visualize", "en"): "visualize",
@@ -1567,6 +1572,92 @@ elif active_module == "pareto":
             st.dataframe(df_p, use_container_width=True)
         else:
             st.info("Adjust objective weights and click 'Run Multi-Objective NSGA-II' to compute Pareto front.")
+
+
+# --- MODULE: MODEL CARDS & EXPLAINABILITY AUDIT ---
+elif active_module == "model_cards":
+    st.header("📋 Model Cards Governance & Explanation Audit Trail")
+    st.markdown(
+        "Standardized model documentation cards and immutable SQLite audit trail recording "
+        "every AI prediction explanation generated for regulatory compliance under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)**."
+    )
+
+    tab_mc1, tab_mc2 = st.tabs(["📄 Model Cards Viewer", "📜 Immutable Explanation Audit Log"])
+
+    with tab_mc1:
+        st.subheader("Select Model Card")
+
+        # Map of available models in registry & pipeline
+        available_models = {
+            "GA-ANN Jwaneng Multi-Output Model": "ga_ann_jwaneng",
+            "ANN-RF Ensemble Jwaneng Predictor": "ann_rf_ensemble_jwaneng",
+            "PSO-ANN Orapa Fragmentation Model": "pso_ann_orapa",
+            "Debswana Open-Pit Airblast Minimizer": "airblast_minimizer",
+        }
+
+        selected_card_label = st.selectbox("Select Model", list(available_models.keys()))
+        selected_key = available_models[selected_card_label]
+
+        model_meta = MODEL_REGISTRY.get(selected_key, {})
+
+        # Generate / ensure model card Markdown file exists
+        card_filepath = generate_model_card(
+            model_name=selected_card_label,
+            model=None,
+            training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
+            performance_metrics=model_meta.get("performance", {}),
+            output_dir="models/cards/",
+        )
+
+        if os.path.exists(card_filepath):
+            with open(card_filepath, "r", encoding="utf-8") as f:
+                card_md_content = f.read()
+
+            st.markdown(card_md_content)
+
+            st.download_button(
+                label="📄 Download Model Card (.md)",
+                data=card_md_content,
+                file_name=f"{selected_key}_model_card.md",
+                mime="text/markdown",
+            )
+        else:
+            st.error("Model card Markdown file could not be generated.")
+
+    with tab_mc2:
+        st.subheader("📜 Recent Logged Explanations (Immutable SQLite Audit Trail)")
+        st.markdown(
+            "Every prediction explanation (SHAP feature values, LIME weights, natural language summary, user ID, timestamp) "
+            "is automatically recorded in an append-only database table to ensure full post-blast forensic accountability."
+        )
+
+        col_aud1, col_aud2 = st.columns([1, 2])
+
+        with col_aud1:
+            st.markdown("### 🧪 Simulate Logging an Explanation")
+            sim_pred_id = st.text_input("Prediction / Blast ID", value="PRED_JWA_2026_08")
+            sim_user_id = st.text_input("Blaster / Engineer User ID", value="CHIEF_BLASTER_BOTSWANA_01")
+            sim_nl = st.text_area("Natural Language Summary", value="Ground PPV is predicted to meet safety constraints at 8.50 mm/s (limit: 10.0 mm/s). Primary driver is maximum charge per delay.")
+
+            if st.button("Log Explanation to Audit Database", type="primary"):
+                log_res = log_explanation(
+                    prediction_id=sim_pred_id,
+                    shap_values={"powder_factor_kg_m3": -12.4, "max_charge_per_delay_kg": 18.2, "burden_m": 4.1},
+                    lime_weights={"powder_factor_kg_m3": -0.15, "max_charge_per_delay_kg": 0.22},
+                    natural_language=sim_nl,
+                    user_id=sim_user_id,
+                )
+                st.success(f"Successfully logged explanation record! Row ID: {log_res['row_id']}")
+
+        with col_aud2:
+            st.markdown("### 📋 Audit Trail Log Records")
+            recent_audit = get_recent_explanations(limit=25)
+
+            if recent_audit:
+                df_audit = pd.DataFrame(recent_audit)
+                st.dataframe(df_audit, use_container_width=True)
+            else:
+                st.info("No audit logs recorded yet. Use the simulation tool on the left to record sample explanations.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
