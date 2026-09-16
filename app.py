@@ -12,7 +12,8 @@ import streamlit as st
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, engineer_features
 from src.models import BlastMLPipeline, MODEL_REGISTRY
-from src.predict import predict_single_blast
+from src.predict import predict_single_blast, total_cost_per_tonne
+import plotly.express as px
 from src.optimize import BlastOptimizer
 from src.report import generate_pdf
 from src.visualize import (
@@ -84,6 +85,7 @@ page = st.sidebar.radio(
         "🔬 Model Comparison",
         "🎯 Predictor & Kuz-Ram Curve",
         "⚡ Genetic Algorithm Optimizer",
+        "💰 Economic Dashboard",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -545,6 +547,109 @@ elif page == "⚡ Genetic Algorithm Optimizer":
             st.plotly_chart(fig_conv, use_container_width=True)
         else:
             st.info("Click 'Run GA Optimization' to find the optimal blast geometry and generate report.")
+
+
+# --- MODULE: ECONOMIC DASHBOARD ---
+elif page == "💰 Economic Dashboard":
+    st.header("💰 Economic & Mine-to-Mill Cost Breakdown Dashboard")
+    st.markdown(
+        "Real-time Mine-to-Mill total cost analysis per tonne ($/t) across drilling, explosives, loading/digging, hauling, crushing, and milling."
+    )
+
+    c_econ1, c_econ2 = st.columns([1, 2])
+
+    with c_econ1:
+        st.subheader("⚙️ Configurable Unit Cost Parameters")
+
+        drilling_rate = st.slider(
+            "Drilling Rate ($/m)", 5.0, 30.0, 12.0, step=0.5,
+            help="Base drilling rate per linear meter."
+        )
+        exp_price = st.slider(
+            "Explosive Price ($/kg)", 0.5, 4.0, 1.5, step=0.1,
+            help="Bulk explosive product unit price per kg."
+        )
+        dig_base = st.slider(
+            "Shovel Digging Base ($/t)", 0.1, 2.0, 0.40, step=0.05,
+            help="Excavator/shovel loading cost base rate per tonne."
+        )
+        haul_base = st.slider(
+            "Haulage Base ($/t)", 0.2, 3.0, 0.80, step=0.05,
+            help="Haul truck transport base rate per tonne."
+        )
+        crush_base = st.slider(
+            "Primary Crushing Base ($/t)", 0.1, 2.0, 0.30, step=0.05,
+            help="Primary gyratory/jaw crushing energy & liner wear rate."
+        )
+        mill_base = st.slider(
+            "Milling Grinding Base ($/t)", 0.5, 10.0, 2.50, step=0.25,
+            help="SAG/ball mill specific energy consumption base rate."
+        )
+
+        st.subheader("Blast Design Parameters")
+        last_in = st.session_state.get("last_predict_inputs", {})
+        last_out = st.session_state.get("last_predict_results", {})
+
+        pf_econ = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05)
+        d50_econ = st.number_input("Mean Fragment Size d50 (mm)", 20.0, 1000.0, float(last_out.get("d50_mm", 220.0)), step=10.0)
+
+        blast_params_econ = {
+            "powder_factor_kg_m3": pf_econ,
+            "bench_height_m": float(last_in.get("bench_height_m", 12.0)),
+            "hole_diameter_mm": float(last_in.get("hole_diameter_mm", 250.0)),
+            "burden_m": float(last_in.get("burden_m", 6.0)),
+            "spacing_m": float(last_in.get("spacing_m", 7.0)),
+            "d50_mm": d50_econ,
+        }
+
+        unit_costs_config = {
+            "drilling_rate_usd_m": drilling_rate,
+            "explosive_price_usd_kg": exp_price,
+            "digging_base_usd_t": dig_base,
+            "hauling_base_usd_t": haul_base,
+            "crushing_base_usd_t": crush_base,
+            "milling_base_usd_t": mill_base,
+        }
+
+    with c_econ2:
+        st.subheader("📊 Real-Time Mine-to-Mill Cost Breakdown")
+
+        # Compute cost breakdown in real time
+        cost_breakdown = total_cost_per_tonne(blast_params_econ, unit_costs=unit_costs_config)
+
+        m_c1, m_c2, m_c3, m_c4 = st.columns(4)
+        m_c1.metric("Total Mine-to-Mill Cost", f"${cost_breakdown['total_cost_usd_t']:.2f} / t")
+        m_c2.metric("Drill & Blast Share", f"${cost_breakdown['drilling_cost_usd_t'] + cost_breakdown['explosive_cost_usd_t']:.2f} / t")
+        m_c3.metric("Load & Haul Share", f"${cost_breakdown['digging_cost_usd_t'] + cost_breakdown['hauling_cost_usd_t']:.2f} / t")
+        m_c4.metric("Comminution Share", f"${cost_breakdown['crushing_cost_usd_t'] + cost_breakdown['milling_cost_usd_t']:.2f} / t")
+
+        st.markdown("---")
+
+        # Donut Chart Breakdown
+        df_costs = pd.DataFrame([
+            {"Stage": "Drilling", "Cost ($/t)": cost_breakdown["drilling_cost_usd_t"]},
+            {"Stage": "Explosives", "Cost ($/t)": cost_breakdown["explosive_cost_usd_t"]},
+            {"Stage": "Loading (Digging)", "Cost ($/t)": cost_breakdown["digging_cost_usd_t"]},
+            {"Stage": "Hauling", "Cost ($/t)": cost_breakdown["hauling_cost_usd_t"]},
+            {"Stage": "Crushing", "Cost ($/t)": cost_breakdown["crushing_cost_usd_t"]},
+            {"Stage": "Milling (Grinding)", "Cost ($/t)": cost_breakdown["milling_cost_usd_t"]},
+        ])
+
+        fig_pie = px.pie(
+            df_costs,
+            values="Cost ($/t)",
+            names="Stage",
+            title="<b>Mine-to-Mill Cost Distribution Breakdown ($/tonne)</b>",
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Set2,
+        )
+        fig_pie.update_traces(textinfo="label+percent+value")
+        fig_pie.update_layout(template="plotly_white", height=420)
+
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+        st.subheader("Detailed Cost Components Table")
+        st.dataframe(df_costs, use_container_width=True)
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

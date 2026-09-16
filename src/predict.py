@@ -179,20 +179,43 @@ def find_similar_blasts(new_blast_params: Union[Dict[str, float], pd.DataFrame],
     return similar_df
 
 
-def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:
+def total_cost_per_tonne(
+    blast_params: Dict[str, float],
+    unit_costs: Optional[Dict[str, float]] = None,
+) -> Dict[str, float]:
     """
-    Calculate total cost per tonne from blast design through milling.
+    Calculate total cost per tonne from blast design through milling using configurable unit cost parameters.
 
     Components:
-    - Explosive cost (function of powder factor)
-    - Drilling cost (function of hole depth, diameter, spacing)
-    - Digging cost (function of fragmentation)
-    - Hauling cost (function of fragmentation)
-    - Crushing cost (function of fragmentation)
-    - Milling cost (function of fragmentation)
+    - Drilling cost (function of hole depth, diameter, and drilling unit rate $/m)
+    - Explosive cost (function of powder factor, explosive price $/kg, and initiation accessories)
+    - Digging cost (muckpile diggability dependent on d50 fragmentation size)
+    - Hauling cost (truck loading fill factor dependent on boulder ratio)
+    - Crushing cost (primary crusher energy & liner wear dependent on d50 fragmentation)
+    - Milling cost (SAG/ball mill specific energy consumption dependent on d50)
 
-    Returns: total_cost_per_tonne (USD or BWP) breakdown dictionary
+    Parameters:
+    -----------
+    blast_params : Dict[str, float]
+        Dictionary of blast parameters (burden_m, spacing_m, bench_height_m, hole_diameter_mm, powder_factor_kg_m3, d50_mm).
+    unit_costs : Dict[str, float], optional
+        Configurable dictionary of unit costs overriding defaults:
+        - drilling_rate_usd_m: Base drilling cost rate ($/m). Default: 12.0
+        - explosive_price_usd_kg: Explosive unit price ($/kg). Default: 1.5
+        - digging_base_usd_t: Base shovel digging cost ($/t). Default: 0.40
+        - hauling_base_usd_t: Base haulage cost ($/t). Default: 0.80
+        - crushing_base_usd_t: Base primary crushing cost ($/t). Default: 0.30
+        - milling_base_usd_t: Base SAG/ball mill grinding cost ($/t). Default: 2.50
+
+    Returns:
+    --------
+    Dict[str, float]
+        Dictionary of cost breakdown metrics per tonne in USD/t (or local currency).
     """
+    if unit_costs is None:
+        unit_costs = {}
+
+    # Extract blast design inputs
     pf = float(blast_params.get("powder_factor_kg_m3", 0.65))
     bench_h = float(blast_params.get("bench_height_m", 12.0))
     hole_d = float(blast_params.get("hole_diameter_mm", 250.0))
@@ -203,27 +226,33 @@ def total_cost_per_tonne(blast_params: Dict[str, float]) -> Dict[str, float]:
     rock_vol = burden * spacing * bench_h
     rock_mass_t = max(rock_vol * 2.65, 1.0)
 
+    # Configurable Unit Costs
+    drilling_rate_usd_m = float(unit_costs.get("drilling_rate_usd_m", 12.0))
+    explosive_price_usd_kg = float(unit_costs.get("explosive_price_usd_kg", 1.50))
+    digging_base_usd_t = float(unit_costs.get("digging_base_usd_t", 0.40))
+    hauling_base_usd_t = float(unit_costs.get("hauling_base_usd_t", 0.80))
+    crushing_base_usd_t = float(unit_costs.get("crushing_base_usd_t", 0.30))
+    milling_base_usd_t = float(unit_costs.get("milling_base_usd_t", 2.50))
+
     # 1. Drilling Cost
-    drilling_rate_per_m = 12.0 + (hole_d / 100.0) * 8.0
+    drilling_rate_per_m = drilling_rate_usd_m + (hole_d / 100.0) * 8.0
     drilling_cost = float(((bench_h + 1.0) * drilling_rate_per_m) / rock_mass_t)
 
     # 2. Explosive Cost
-    rws = float(blast_params.get("explosive_rws", 100.0))
-    exp_price_per_kg = 1.2 + (rws / 100.0) * 0.8
     charge_mass = pf * rock_vol
-    explosive_cost = float((charge_mass * exp_price_per_kg + 15.0) / rock_mass_t)
+    explosive_cost = float((charge_mass * explosive_price_usd_kg + 15.0) / rock_mass_t)
 
     # 3. Digging Cost (muckpile diggability dependent on fragmentation size d50)
-    digging_cost = float(np.clip(0.40 + (d50 / 1000.0) * 0.60, 0.30, 2.50))
+    digging_cost = float(np.clip(digging_base_usd_t + (d50 / 1000.0) * 0.60, 0.20, 5.00))
 
     # 4. Hauling Cost (truck fill factor dependent on boulder/fine ratio)
-    hauling_cost = float(np.clip(0.80 + (d50 / 1000.0) * 0.40, 0.50, 3.00))
+    hauling_cost = float(np.clip(hauling_base_usd_t + (d50 / 1000.0) * 0.40, 0.30, 6.00))
 
-    # 5. Crushing Cost (primary crushing energy requirement)
-    crushing_cost = float(np.clip(0.30 + (d50 / 500.0) * 0.50, 0.20, 2.00))
+    # 5. Crushing Cost (primary crushing energy requirement & quadratic penalty)
+    crushing_cost = float(np.clip(crushing_base_usd_t + (d50 / 500.0) * 0.50, 0.10, 5.00))
 
     # 6. Milling Cost (SAG/ball mill specific energy consumption)
-    milling_cost = float(np.clip(2.50 + (d50 / 300.0) * 2.00, 1.50, 10.00))
+    milling_cost = float(np.clip(milling_base_usd_t + (d50 / 300.0) * 2.00, 1.00, 20.00))
 
     total = drilling_cost + explosive_cost + digging_cost + hauling_cost + crushing_cost + milling_cost
 
