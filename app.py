@@ -22,7 +22,11 @@ from src.visualize import (
     plot_optimization_convergence,
     plot_2d_blast_pattern,
 )
-from src.explainability import get_feature_contributions, plot_feature_contributions_waterfall
+from src.explainability import (
+    get_feature_contributions,
+    plot_feature_contributions_waterfall,
+    create_explanation_panel,
+)
 
 # Page configuration
 st.set_page_config(
@@ -311,19 +315,67 @@ elif page == "🎯 Predictor & Kuz-Ram Curve":
         m4.metric("D&B Cost", f"${predictions['cost_per_tonne_usd']:.2f} / t")
 
         st.markdown("---")
-        st.subheader("🔍 Certified Blaster Model Explainability")
-        target_explain = st.selectbox(
-            "Select Outcome to Explain",
-            ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
-            key="explain_target_select",
-        )
-        contribs = get_feature_contributions(
-            model_pipeline=pipeline, input_payload=input_payload, target=target_explain
-        )
-        fig_waterfall = plot_feature_contributions_waterfall(
-            contribs, title=f"Feature Contribution Waterfall Impact on {target_explain}"
-        )
-        st.plotly_chart(fig_waterfall, use_container_width=True)
+        with st.expander("🔍 Why this prediction?", expanded=True):
+            target_explain = st.selectbox(
+                "Select Outcome to Explain",
+                ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+                key="explain_target_select",
+            )
+
+            # Generate full explanation panel (SHAP, LIME, Natural Language, Top 5)
+            target_model = None
+            if pipeline is not None and target_explain in pipeline.models:
+                target_model = pipeline.models[target_explain]
+
+            target_units = {
+                "d50_mm": "mm",
+                "ppv_mms": "mm/s",
+                "flyrock_m": "m",
+                "cost_per_tonne_usd": "$/t",
+            }
+            constraints_info = {
+                "metric": target_explain,
+                "limit": 10.0 if target_explain == "ppv_mms" else (250.0 if target_explain == "d50_mm" else 150.0),
+                "unit": target_units.get(target_explain, ""),
+            }
+
+            exp_panel = create_explanation_panel(
+                model=target_model if target_model is not None else None,
+                input_data=pd.DataFrame([input_payload]),
+                prediction=predictions.get(target_explain, 10.0),
+                constraints=constraints_info,
+            )
+
+            st.subheader("💬 Natural Language Summary")
+            st.info(exp_panel.get("natural_language", "Explanation summary generated."))
+
+            st.subheader("🔝 Top 5 Feature Contributions")
+            shap_dict = exp_panel.get("shap", {}).get("feature_contributions", {})
+            sorted_feats = sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+
+            top5_rows = []
+            for fn, sv in sorted_feats:
+                direction = "Pushes Higher ⬆️" if sv >= 0 else "Pushes Lower ⬇️"
+                top5_rows.append({
+                    "Feature Name": fn,
+                    "SHAP Impact Value": f"{sv:+.2f}",
+                    "Direction": direction,
+                })
+            st.dataframe(pd.DataFrame(top5_rows), use_container_width=True)
+
+            st.subheader("📊 Interactive SHAP Force Plot")
+            force_fig = exp_panel.get("shap", {}).get("force_plot")
+            if force_fig is not None:
+                st.plotly_chart(force_fig, use_container_width=True)
+
+            st.subheader("📉 Interactive SHAP Waterfall Plot")
+            waterfall_fig = exp_panel.get("shap", {}).get("waterfall_plot")
+            if waterfall_fig is not None:
+                st.plotly_chart(waterfall_fig, use_container_width=True)
+
+            st.subheader("🍋 LIME Local Explanation Weights")
+            lime_weights = exp_panel.get("lime", {}).get("feature_weights", {})
+            st.json(lime_weights)
 
         st.markdown("---")
         fig_kuz = plot_kuz_ram_curve(predictions["d50_mm"], n_uniformity=1.2)
