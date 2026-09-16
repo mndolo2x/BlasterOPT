@@ -2,7 +2,7 @@
 Physics-Informed Neural Network (PINN) Module for BlastOpt Botswana.
 
 Implements Model 2 (Physics-Informed Neural Network) blending data-driven deep learning with fundamental
-rock fracture mechanics and wave propagation equations (Kuz-Ram d50 and USBM PPV attenuation) as soft loss terms.
+rock fracture mechanics and wave propagation equations (Kuz-Ram d80 and USBM PPV attenuation) as soft loss terms.
 Includes Monte Carlo Dropout uncertainty estimation for epistemic and aleatoric confidence quantification.
 """
 
@@ -15,6 +15,7 @@ try:
     import torch
     import torch.nn as nn
     import torch.optim as optim
+    from torch.optim.lr_scheduler import ReduceLROnPlateau
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
@@ -40,21 +41,22 @@ PINN_INPUT_COLS = [
 if HAS_TORCH:
     class BlastPINN(nn.Module):
         """
-        Physics-Informed Neural Network (PINN) for simultaneous prediction of fragmentation (d50),
-        ground vibration (PPV), and airblast overpressure (dBL).
+        Physics-Informed Neural Network (PINN) for simultaneous prediction of fragmentation (D80),
+        ground vibration (PPV), and airblast overpressure (dB).
 
         Architecture:
-        - 12 input features
-        - 4 hidden layers (128, 256, 256, 128 neurons) with ReLU activations and Dropout(0.1)
+        - 12 input features: burden, spacing, hole diameter, hole depth, stemming, sub-drill,
+          powder factor, max charge per delay, rock strength (UCS), RMR, distance, blastability index.
+        - 4 hidden layers: 128, 256, 256, 128 neurons with ReLU activations and Dropout(p=0.1).
         - 3 output heads:
-            1. head_frag: fragmentation d50 (mm)
+            1. head_frag: fragmentation D80 (mm)
             2. head_ppv: ground vibration PPV (mm/s)
-            3. head_air: airblast overpressure (dBL)
+            3. head_air: airblast overpressure (dB)
 
         Physics Loss Embedding:
         Soft loss regularization penalizes deviations from:
-        - Kuz-Ram equation: X50 = A * (V0 / Q)^0.8 * Q^(1/6) * (115 / E)^(19/30)
-        - USBM PPV attenuation: PPV = K * (D / sqrt(W))^(-B)
+        - Kuz-Ram fragmentation equation: X50 = A * (V0 / Q)^0.8 * Q^(1/6) * (115 / E)^(19/30)
+        - USBM PPV attenuation equation: PPV = K * (D / sqrt(W))^(-B)
         L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm
         """
 
@@ -76,9 +78,9 @@ if HAS_TORCH:
             )
 
             # Output heads
-            self.head_frag = nn.Linear(128, 1)  # d50 mm
+            self.head_frag = nn.Linear(128, 1)  # D80 mm
             self.head_ppv = nn.Linear(128, 1)   # PPV mm/s
-            self.head_air = nn.Linear(128, 1)   # Airblast dBL
+            self.head_air = nn.Linear(128, 1)   # Airblast dB
 
         def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
             """
@@ -111,7 +113,7 @@ if HAS_TORCH:
             x : torch.Tensor
                 Input batch tensor (columns match PINN_INPUT_COLS).
             pred_frag : torch.Tensor
-                Predicted fragmentation d50 (mm).
+                Predicted fragmentation D80 (mm).
             pred_ppv : torch.Tensor
                 Predicted ground vibration PPV (mm/s).
 
@@ -121,18 +123,21 @@ if HAS_TORCH:
                 (loss_kuzram, loss_usbm) soft physics losses.
             """
             # Extract relevant columns from batch tensor
-            # Index 6: powder_factor_kg_m3, Index 7: max_charge_per_delay_kg, Index 10: monitoring_distance_m
+            # Index 6: powder_factor_kg_m3 (Q/V0 = pf), Index 7: max_charge_per_delay_kg (W), Index 10: monitoring_distance_m (D)
+            # Index 11: blastability_index / rock factor A
             pf = torch.clamp(x[:, 6:7], min=0.05)
             w_delay = torch.clamp(x[:, 7:8], min=1.0)
             dist = torch.clamp(x[:, 10:11], min=10.0)
+            rock_a = torch.clamp(x[:, 11:12], min=1.0)
 
-            # 1. Physics Kuz-Ram d50 (cm -> mm)
-            # d50 = 8.0 * (1 / pf)^0.8 * w_delay^(1/6) * (115/100)^(19/30) * 10
-            kuzram_d50_mm = 8.0 * (pf ** (-0.8)) * (w_delay ** (1.0 / 6.0)) * 1.09 * 10.0
-            loss_kuzram = torch.mean((pred_frag - kuzram_d50_mm) ** 2)
+            # 1. Kuz-Ram fragmentation equation: X50 = A * (V0 / Q)^0.8 * Q^(1/6) * (115 / E)^(19/30)
+            # D80 ~ 1.5 * X50 (in mm)
+            kuzram_x50_cm = rock_a * ((1.0 / pf) ** 0.8) * (w_delay ** (1.0 / 6.0)) * ((115.0 / 100.0) ** (19.0 / 30.0))
+            kuzram_d80_mm = kuzram_x50_cm * 10.0 * 1.5
+            loss_kuzram = torch.mean((pred_frag - kuzram_d80_mm) ** 2)
 
-            # 2. Physics USBM PPV attenuation
-            # SD = dist / sqrt(w_delay); PPV = 1140 * (SD)^(-1.6)
+            # 2. USBM PPV attenuation equation: PPV = K * (D / sqrt(W))^(-B)
+            # Default K = 1140, B = 1.6
             sd = dist / torch.sqrt(w_delay)
             usbm_ppv = 1140.0 * (sd ** (-1.6))
             loss_usbm = torch.mean((pred_ppv - usbm_ppv) ** 2)
@@ -153,12 +158,12 @@ def train_pinn(
     y_val: Optional[Union[np.ndarray, torch.Tensor]] = None,
     epochs: int = 500,
     lr: float = 0.001,
-    lambda_kuzram: float = 0.01,
-    lambda_usbm: float = 0.01,
-    patience: int = 30,
+    lambda_1: float = 0.1,
+    lambda_2: float = 0.1,
+    patience: int = 50,
 ) -> Tuple[Any, Dict[str, List[float]]]:
     """
-    Trains BlastPINN with Adam optimizer, soft physics loss terms, and early stopping.
+    Trains BlastPINN with Adam optimizer, ReduceLROnPlateau scheduler, soft physics loss terms, and early stopping.
 
     Parameters:
     -----------
@@ -167,7 +172,7 @@ def train_pinn(
     X_train : Union[np.ndarray, torch.Tensor]
         Training input features matrix (N, 12).
     y_train : Union[np.ndarray, torch.Tensor]
-        Training target matrix (N, 3) for [d50_mm, ppv_mms, airblast_dbl].
+        Training target matrix (N, 3) for [fragmentation, ppv, airblast].
     X_val : Union[np.ndarray, torch.Tensor], optional
         Validation input features.
     y_val : Union[np.ndarray, torch.Tensor], optional
@@ -176,11 +181,11 @@ def train_pinn(
         Maximum training epochs.
     lr : float, default=0.001
         Adam learning rate.
-    lambda_kuzram : float, default=0.01
-        Soft loss weight lambda_1 for Kuz-Ram equation penalty.
-    lambda_usbm : float, default=0.01
-        Soft loss weight lambda_2 for USBM equation penalty.
-    patience : int, default=30
+    lambda_1 : float, default=0.1
+        Tunable weight for Kuz-Ram equation soft loss (lambda_1).
+    lambda_2 : float, default=0.1
+        Tunable weight for USBM equation soft loss (lambda_2).
+    patience : int, default=50
         Early stopping patience epochs.
 
     Returns:
@@ -208,6 +213,7 @@ def train_pinn(
         X_v, y_v = X_tr, y_tr
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=10)
     mse_loss = nn.MSELoss()
 
     history = {"train_loss": [], "val_loss": [], "physics_loss": []}
@@ -222,13 +228,14 @@ def train_pinn(
         pred_f, pred_p, pred_a = model(X_tr)
         preds_all = torch.cat([pred_f, pred_p, pred_a], dim=1)
 
-        # 1. Empirical Data Loss
+        # 1. Empirical Data Loss (L_data)
         l_data = mse_loss(preds_all, y_tr)
 
         # 2. Physics Soft Losses
         l_kuz, l_usbm = model.compute_physics_loss(X_tr, pred_f, pred_p)
-        l_phys = lambda_kuzram * l_kuz + lambda_usbm * l_usbm
+        l_phys = lambda_1 * l_kuz + lambda_2 * l_usbm
 
+        # L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm
         l_total = l_data + l_phys
         l_total.backward()
         optimizer.step()
@@ -240,6 +247,8 @@ def train_pinn(
             v_all = torch.cat([v_f, v_p, v_a], dim=1)
             v_loss = mse_loss(v_all, y_v).item()
         model.train()
+
+        scheduler.step(v_loss)
 
         history["train_loss"].append(float(l_total.item()))
         history["val_loss"].append(float(v_loss))
@@ -265,14 +274,7 @@ def predict_with_uncertainty(
     n_samples: int = 100,
 ) -> Dict[str, Any]:
     """
-    Estimates epistemic prediction uncertainty using Monte Carlo Dropout.
-
-    Uncertainty Quantification Domain Context:
-    -------------------------------------------
-    - Epistemic Uncertainty (Model / OOD Uncertainty): Arises from limited training data in specific geological zones.
-      Using Monte Carlo dropout (keeping dropout active during inference across `n_samples` passes) measures variance.
-      High variance alerts blasters when predictions are Out-Of-Distribution (OOD).
-    - Aleatoric Uncertainty (Data Noise): Inherent physical noise in seismograph waveforms and rock mass jointing.
+    Estimates uncertainty using Monte Carlo Dropout.
 
     Parameters:
     -----------
@@ -286,7 +288,15 @@ def predict_with_uncertainty(
     Returns:
     --------
     Dict[str, Any]
-        Dictionary containing mean predictions, standard deviations, 95% confidence intervals, and OOD alert flag.
+        Dictionary with keys:
+        {
+            "mean": {"fragmentation": float, "ppv": float, "airblast": float},
+            "std": {"fragmentation": float, "ppv": float, "airblast": float},
+            "ci_95": {"fragmentation": (lower, upper), "ppv": (lower, upper), "airblast": (lower, upper)},
+            "aleatoric": {"fragmentation": float, "ppv": float, "airblast": float},
+            "epistemic": {"fragmentation": float, "ppv": float, "airblast": float},
+            "high_uncertainty": bool
+        }
     """
     if isinstance(X, pd.DataFrame):
         X_arr = X.values
@@ -304,14 +314,16 @@ def predict_with_uncertainty(
         base_ppv = 8.0
         base_air = 115.0
         return {
-            "mean": {"fragmentation_d50_mm": base_frag, "ppv_mms": base_ppv, "airblast_dbl": base_air},
-            "std": {"fragmentation_d50_mm": 12.0, "ppv_mms": 0.8, "airblast_dbl": 2.5},
-            "confidence_interval_95": {
-                "fragmentation_d50_mm": (base_frag - 23.5, base_frag + 23.5),
-                "ppv_mms": (base_ppv - 1.57, base_ppv + 1.57),
-                "airblast_dbl": (base_air - 4.9, base_air + 4.9),
+            "mean": {"fragmentation": base_frag, "ppv": base_ppv, "airblast": base_air},
+            "std": {"fragmentation": 12.0, "ppv": 0.8, "airblast": 2.5},
+            "ci_95": {
+                "fragmentation": (base_frag - 23.5, base_frag + 23.5),
+                "ppv": (base_ppv - 1.57, base_ppv + 1.57),
+                "airblast": (base_air - 4.9, base_air + 4.9),
             },
-            "is_out_of_distribution": False,
+            "aleatoric": {"fragmentation": 15.0, "ppv": 0.5, "airblast": 1.2},
+            "epistemic": {"fragmentation": 120.0, "ppv": 0.64, "airblast": 5.0},
+            "high_uncertainty": False,
         }
 
     # Enable dropout during inference for Monte Carlo sampling
@@ -346,24 +358,44 @@ def predict_with_uncertainty(
     ppv_ci = (round(ppv_mean - 1.96 * ppv_std, 2), round(ppv_mean + 1.96 * ppv_std, 2))
     air_ci = (round(air_mean - 1.96 * air_std, 2), round(air_mean + 1.96 * air_std, 2))
 
-    # High relative standard deviation (> 25%) indicates Out-Of-Distribution (OOD)
-    is_ood = (frag_std / max(abs(frag_mean), 1.0)) > 0.25 or (ppv_std / max(abs(ppv_mean), 0.1)) > 0.35
+    # Epistemic uncertainty = variance of predictions across MC passes
+    frag_epistemic = float(np.var(frag_arr[:, 0]))
+    ppv_epistemic = float(np.var(ppv_arr[:, 0]))
+    air_epistemic = float(np.var(air_arr[:, 0]))
+
+    # Aleatoric uncertainty = baseline data noise variance
+    frag_aleatoric = float(round(0.05 * frag_mean, 2))
+    ppv_aleatoric = float(round(0.05 * ppv_mean, 2))
+    air_aleatoric = float(round(0.02 * air_mean, 2))
+
+    # High uncertainty flag when relative std > 25% or PPV relative std > 35%
+    high_unc = (frag_std / max(abs(frag_mean), 1.0)) > 0.25 or (ppv_std / max(abs(ppv_mean), 0.1)) > 0.35
 
     return {
         "mean": {
-            "fragmentation_d50_mm": round(frag_mean, 2),
-            "ppv_mms": round(ppv_mean, 2),
-            "airblast_dbl": round(air_mean, 2),
+            "fragmentation": round(frag_mean, 2),
+            "ppv": round(ppv_mean, 2),
+            "airblast": round(air_mean, 2),
         },
         "std": {
-            "fragmentation_d50_mm": round(frag_std, 2),
-            "ppv_mms": round(ppv_std, 2),
-            "airblast_dbl": round(air_std, 2),
+            "fragmentation": round(frag_std, 2),
+            "ppv": round(ppv_std, 2),
+            "airblast": round(air_std, 2),
         },
-        "confidence_interval_95": {
-            "fragmentation_d50_mm": frag_ci,
-            "ppv_mms": ppv_ci,
-            "airblast_dbl": air_ci,
+        "ci_95": {
+            "fragmentation": frag_ci,
+            "ppv": ppv_ci,
+            "airblast": air_ci,
         },
-        "is_out_of_distribution": is_ood,
+        "aleatoric": {
+            "fragmentation": frag_aleatoric,
+            "ppv": ppv_aleatoric,
+            "airblast": air_aleatoric,
+        },
+        "epistemic": {
+            "fragmentation": round(frag_epistemic, 2),
+            "ppv": round(ppv_epistemic, 2),
+            "airblast": round(air_epistemic, 2),
+        },
+        "high_uncertainty": high_unc,
     }
