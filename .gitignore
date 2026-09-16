@@ -40,3 +40,7 @@ models/*.joblib
 .idea/
 .DS_Store
 *.swp
+
+# Runtime logs and generated PDFs
+*.log
+*.pdf

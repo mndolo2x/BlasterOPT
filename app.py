@@ -221,9 +221,9 @@ elif page == "🔬 Model Comparison":
             "Architecture": meta.get("architecture", "N/A"),
             "Optimizer": meta.get("optimizer", "N/A"),
             "Source Data": meta.get("source", "N/A"),
-            "Fragmentation Performance (R²)": r2_frag,
-            "Vibration Performance (R²)": r2_vib,
-            "Airblast Performance (R²)": r2_air,
+            "Fragmentation Performance (R²)": f"{r2_frag:.3f}" if isinstance(r2_frag, (float, int)) else str(r2_frag),
+            "Vibration Performance (R²)": f"{r2_vib:.3f}" if isinstance(r2_vib, (float, int)) else str(r2_vib),
+            "Airblast Performance (R²)": f"{r2_air:.3f}" if isinstance(r2_air, (float, int)) else str(r2_air),
             "Reference Citation": meta.get("reference", "N/A"),
         })
 
