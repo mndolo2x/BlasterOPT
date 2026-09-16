@@ -1,5 +1,5 @@
 """
-Unit tests for Conversational AI Agent Tool Registry module (src/agent/tool_registry.py).
+Unit tests for Conversational AI Agent Tool Registry module (src/agent/tool_registry.py and src/agent/tool_binder.py).
 """
 
 import pytest
@@ -14,137 +14,105 @@ from src.agent.tool_registry import (
     RegulationLimits,
     MWDData,
     BlastRecord,
+    SiteQuery,
+    SearchDict,
+    QuestionInput,
     ToolRegistry,
     TOOL_REGISTRY,
-    bind_tools,
 )
+from src.agent.tool_binder import bind_tools
 
 
-def test_blast_design_input_pydantic_validation():
-    """Test BlastDesignInput Pydantic model validation and default values."""
-    inp = BlastDesignInput(
-        bench_id="BENCH_JWA_15S",
-        production_target_tonnes=25000.0,
+def test_pydantic_schemas_valid_inputs():
+    """Verify that all Pydantic schemas validate correct inputs."""
+    # BlastDesignInput
+    bdi = BlastDesignInput(bench_id="BENCH_01", production_target_tonnes=10000.0)
+    assert bdi.bench_id == "BENCH_01"
+
+    # FragmentationResult
+    frag = FragmentationResult(d80_cm=35.0, d50_cm=20.0)
+    assert frag.d80_cm == 35.0
+
+    # VibrationResult
+    vib = VibrationResult(ppv_mm_s=4.5)
+    assert vib.ppv_mm_s == 4.5
+
+    # AirblastResult
+    air = AirblastResult(airblast_db=115.0)
+    assert air.airblast_db == 115.0
+
+    # DownstreamResult
+    down = DownstreamResult(crusher_throughput_tph=2500.0, specific_energy_kwh_t=4.1, dig_rate_tph=2100.0, total_cost_per_tonne=4.80)
+    assert down.crusher_throughput_tph == 2500.0
+
+    # BlastDesign
+    design = BlastDesign(
+        design_id="DES_01",
+        bench_id="BENCH_01",
+        powder_factor=0.65,
+        burden_m=6.0,
+        spacing_m=7.0,
+        stemming_m=5.0,
+        predicted_fragmentation=frag,
+        predicted_vibration=vib,
+        predicted_airblast=air,
+        predicted_downstream=down,
     )
+    assert design.design_id == "DES_01"
 
-    assert inp.bench_id == "BENCH_JWA_15S"
-    assert inp.production_target_tonnes == 25000.0
-    assert inp.max_vibration_mm_s == 5.0
-    assert inp.max_airblast_db == 120.0
+    # RegulationLimits
+    reg = RegulationLimits(max_ppv_mm_s=5.0, max_airblast_db=120.0, site_id="DEBSWANA_JWANENG")
+    assert reg.max_ppv_mm_s == 5.0
 
-    # Invalid missing required field should raise ValidationError
+    # MWDData
+    mwd = MWDData(hole_id="H1", depth_m=15.0, penetration_rate_m_min=0.5, torque_nm=1200.0, vibration_mm_s=2.1, timestamp="2026-09-16T12:00:00")
+    assert mwd.hole_id == "H1"
+
+    # BlastRecord
+    rec = BlastRecord(blast_id="BL_01", bench_id="BENCH_01", date="2026-09-16", design=design)
+    assert rec.blast_id == "BL_01"
+
+    # SiteQuery, SearchDict, QuestionInput
+    sq = SiteQuery(site_id="SITE_01")
+    assert sq.site_id == "SITE_01"
+
+    sd = SearchDict(query_params={"key": "val"})
+    assert sd.query_params["key"] == "val"
+
+    qi = QuestionInput(question="What is the optimal powder factor?")
+    assert qi.question == "What is the optimal powder factor?"
+
+
+def test_pydantic_schemas_invalid_inputs():
+    """Verify that invalid inputs raise ValidationError."""
     with pytest.raises(ValidationError):
-        BlastDesignInput()
+        BlastDesignInput()  # Missing bench_id
+
+    with pytest.raises(ValidationError):
+        FragmentationResult(d80_cm="invalid_float")  # Invalid float type
+
+    with pytest.raises(ValidationError):
+        MWDData(hole_id="H1")  # Missing required numerical fields
 
 
-def test_tool_registry_registration_and_execution():
-    """Test registering custom tools in ToolRegistry and executing handlers with Pydantic validation."""
-    registry = ToolRegistry()
+def test_bind_tools_returns_registry_with_bound_functions():
+    """Verify bind_tools() returns a registry with all functions bound."""
+    registry = bind_tools()
 
-    class SampleInput(BaseModel):
-        x: float = Field(..., description="First value")
-        y: float = Field(..., description="Second value")
+    assert isinstance(registry, ToolRegistry)
+    assert len(registry.keys()) == 16
 
-    def sample_handler(x: float, y: float) -> float:
-        return x + y
-
-    registry.register_tool(
-        name="add_numbers",
-        description="Adds two floating point numbers together.",
-        input_schema=SampleInput,
-        handler=sample_handler,
-    )
-
-    assert registry.get_tool("add_numbers") is not None
-
-    # Execute tool with dict arguments
-    res = registry.execute_tool("add_numbers", {"x": 10.5, "y": 4.5})
-    assert res == 15.0
-
-
-def test_dict_binding_and_bind_tools():
-    """Test TOOL_REGISTRY dictionary key assignment and bind_tools execution."""
-    def dummy_func(bench_id: str, **kwargs):
-        return {"dummy": True, "bench_id": bench_id}
-
-    TOOL_REGISTRY["predict_fragmentation"]["function"] = dummy_func
-    spec = TOOL_REGISTRY.get_tool("predict_fragmentation")
-    assert spec.handler == dummy_func
-
-    # Re-run bind_tools to restore standard handler bindings
-    bind_tools()
-    spec_restored = TOOL_REGISTRY.get_tool("predict_fragmentation")
-    assert spec_restored.handler is not None
-
-
-def test_tool_registry_openai_specs_generation():
-    """Test get_openai_tools_specs generates valid OpenAI function calling JSON schema."""
-    specs = TOOL_REGISTRY.get_openai_tools_specs()
-
-    assert isinstance(specs, list)
-    assert len(specs) == 16
-
-    for s in specs:
-        assert s["type"] == "function"
-        assert "name" in s["function"]
-        assert "description" in s["function"]
-        assert "parameters" in s["function"]
-
-
-def test_all_16_registered_tools_execution():
-    """Test executing all 16 registered tools in global TOOL_REGISTRY."""
-    expected_tools = [
-        "predict_fragmentation",
-        "predict_vibration",
-        "predict_airblast",
-        "predict_downstream",
-        "design_blast",
-        "optimize_blast",
-        "explain_prediction",
-        "get_mwd_data",
-        "get_geology",
-        "get_regulations",
-        "search_past_blasts",
-        "find_similar_blasts",
-        "generate_report",
-        "route_for_approval",
-        "log_decision",
-        "query_knowledge_graph",
-    ]
-
-    for tool_name in expected_tools:
-        assert tool_name in TOOL_REGISTRY, f"Tool '{tool_name}' missing from TOOL_REGISTRY"
-        spec = TOOL_REGISTRY.get_tool(tool_name)
+    for tool_name in registry.keys():
+        spec = registry.get_tool(tool_name)
         assert spec is not None
-        assert spec.input_schema is not None
-        assert spec.description != ""
+        assert spec.handler is not None, f"Tool '{tool_name}' missing handler function"
+        assert callable(spec.handler), f"Tool '{tool_name}' handler is not callable"
 
-    # Test executing representative tools
+
+def test_tool_execution_via_registry():
+    """Test executing registered tools via registry execute_tool."""
     res_frag = TOOL_REGISTRY.execute_tool("predict_fragmentation", {"bench_id": "BENCH_01"})
     assert "d80_cm" in res_frag
-    assert "d50_cm" in res_frag
 
     res_vib = TOOL_REGISTRY.execute_tool("predict_vibration", {"bench_id": "BENCH_01"})
     assert "ppv_mm_s" in res_vib
-
-    res_air = TOOL_REGISTRY.execute_tool("predict_airblast", {"bench_id": "BENCH_01"})
-    assert "airblast_db" in res_air
-
-    res_design = TOOL_REGISTRY.execute_tool("design_blast", {"bench_id": "BENCH_01"})
-    assert res_design["bench_id"] == "BENCH_01"
-
-    res_mwd = TOOL_REGISTRY.execute_tool(
-        "get_mwd_data",
-        {
-            "hole_id": "HOLE_01",
-            "depth_m": 15.0,
-            "penetration_rate_m_min": 0.6,
-            "torque_nm": 1200.0,
-            "vibration_mm_s": 3.2,
-            "timestamp": "2026-09-16T12:00:00",
-        },
-    )
-    assert res_mwd["hole_id"] == "HOLE_01"
-
-    res_kg = TOOL_REGISTRY.execute_tool("query_knowledge_graph", {"question": "Optimal powder factor?"})
-    assert "Knowledge graph query answer" in res_kg

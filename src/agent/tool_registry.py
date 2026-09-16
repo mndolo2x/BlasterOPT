@@ -480,24 +480,26 @@ def _query_knowledge_graph_handler(question: str) -> str:
     return f"Knowledge graph query answer for '{question}': Historical blast logs in Jwaneng Cut 8 show optimal digging rates when powder factor is between 0.62 and 0.68 kg/m3."
 
 
-def bind_tools():
+def bind_tools(registry: Optional[ToolRegistry] = None) -> ToolRegistry:
     """Bind registry entries to actual execution functions."""
-    TOOL_REGISTRY["predict_fragmentation"]["function"] = _predict_fragmentation_handler
-    TOOL_REGISTRY["predict_vibration"]["function"] = _predict_vibration_handler
-    TOOL_REGISTRY["predict_airblast"]["function"] = _predict_airblast_handler
-    TOOL_REGISTRY["predict_downstream"]["function"] = _predict_downstream_handler
-    TOOL_REGISTRY["design_blast"]["function"] = _design_blast_handler
-    TOOL_REGISTRY["optimize_blast"]["function"] = _optimize_blast_handler
-    TOOL_REGISTRY["explain_prediction"]["function"] = _explain_prediction_handler
-    TOOL_REGISTRY["get_mwd_data"]["function"] = _get_mwd_data_handler
-    TOOL_REGISTRY["get_geology"]["function"] = _get_geology_handler
-    TOOL_REGISTRY["get_regulations"]["function"] = _get_regulations_handler
-    TOOL_REGISTRY["search_past_blasts"]["function"] = _search_past_blasts_handler
-    TOOL_REGISTRY["find_similar_blasts"]["function"] = _find_similar_blasts_handler
-    TOOL_REGISTRY["generate_report"]["function"] = _generate_report_handler
-    TOOL_REGISTRY["route_for_approval"]["function"] = _route_for_approval_handler
-    TOOL_REGISTRY["log_decision"]["function"] = _log_decision_handler
-    TOOL_REGISTRY["query_knowledge_graph"]["function"] = _query_knowledge_graph_handler
+    target = registry if registry is not None else TOOL_REGISTRY
+    target["predict_fragmentation"]["function"] = _predict_fragmentation_handler
+    target["predict_vibration"]["function"] = _predict_vibration_handler
+    target["predict_airblast"]["function"] = _predict_airblast_handler
+    target["predict_downstream"]["function"] = _predict_downstream_handler
+    target["design_blast"]["function"] = _design_blast_handler
+    target["optimize_blast"]["function"] = _optimize_blast_handler
+    target["explain_prediction"]["function"] = _explain_prediction_handler
+    target["get_mwd_data"]["function"] = _get_mwd_data_handler
+    target["get_geology"]["function"] = _get_geology_handler
+    target["get_regulations"]["function"] = _get_regulations_handler
+    target["search_past_blasts"]["function"] = _search_past_blasts_handler
+    target["find_similar_blasts"]["function"] = _find_similar_blasts_handler
+    target["generate_report"]["function"] = _generate_report_handler
+    target["route_for_approval"]["function"] = _route_for_approval_handler
+    target["log_decision"]["function"] = _log_decision_handler
+    target["query_knowledge_graph"]["function"] = _query_knowledge_graph_handler
+    return target
 
 
 # --- Global Default Registry & Tool Declarations ---
