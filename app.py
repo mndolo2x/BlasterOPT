@@ -26,6 +26,7 @@ from src.detonator_integration import (
 from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
 from src.regulatory import load_regulatory_limits, check_compliance, generate_compliance_report
 from src.i18n import get_translation
+from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -114,6 +115,7 @@ page = st.sidebar.radio(
         get_translation("nav_detonator", lang_code),
         get_translation("nav_sync", lang_code),
         get_translation("nav_regulatory", lang_code),
+        get_translation("nav_integrations", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_visualize", lang_code),
     ],
@@ -149,6 +151,8 @@ page_keys = {
     get_translation("nav_sync", "tn"): "sync",
     get_translation("nav_regulatory", "en"): "regulatory",
     get_translation("nav_regulatory", "tn"): "regulatory",
+    get_translation("nav_integrations", "en"): "integrations",
+    get_translation("nav_integrations", "tn"): "integrations",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     get_translation("nav_visualize", "en"): "visualize",
@@ -1259,6 +1263,58 @@ elif active_module == "regulatory":
             mime="application/pdf",
             type="primary",
         )
+
+
+# --- MODULE: DEBSWANA ENTERPRISE INTEGRATIONS ---
+elif active_module == "integrations":
+    st.header("🔗 Debswana Enterprise Systems Integration")
+    st.markdown(
+        "Direct API integration with Debswana's core enterprise systems (**SAP ERP**, **Deswik CAD**, **GEOVIA Surpac**) "
+        "to eliminate manual spreadsheet exports and data silos across procurement, mine planning, and geology."
+    )
+
+    c_int1, c_int2 = st.columns([1, 2])
+
+    with c_int1:
+        st.subheader("⚙️ System API Status & Verification")
+
+        st.markdown("### 🏢 1. SAP ERP (Procurement & Costing)")
+        if st.button("Test SAP Connection", type="primary"):
+            sap_res = connect_to_sap()
+            st.success(f"Status: {sap_res['status'].upper()} | Sync: {sap_res['last_sync']}")
+            st.json(sap_res["retrieved_costs"])
+
+        st.markdown("### 📐 2. Deswik CAD (Mine Planning)")
+        if st.button("Test Deswik Connection"):
+            deswik_res = connect_to_deswik()
+            st.success(f"Status: {deswik_res['status'].upper()} | Sync: {deswik_res['last_sync']}")
+            st.json(deswik_res["retrieved_mine_plan"])
+
+        st.markdown("### 🪨 3. GEOVIA Surpac (Geology Block Model)")
+        if st.button("Test Surpac Connection"):
+            surpac_res = connect_to_surpac()
+            st.success(f"Status: {surpac_res['status'].upper()} | Sync: {surpac_res['last_sync']}")
+            st.json(surpac_res["retrieved_geology"])
+
+    with c_int2:
+        st.subheader("📊 Enterprise Data Flow Summary")
+
+        df_flow = pd.DataFrame([
+            {"System": "SAP ERP", "Inbound Data": "Explosive $/kg, Drilling $/m, Budget Limits", "Outbound Data": "Actual post-blast $/t expenditure", "Protocol": "REST / OData"},
+            {"System": "Deswik CAD", "Inbound Data": "Bench boundaries, 3D collar targets", "Outbound Data": "Optimized pattern geometry", "Protocol": "REST / API"},
+            {"System": "GEOVIA Surpac", "Inbound Data": "3D Block model, RQD, Bond Work Index", "Outbound Data": "Predicted d50 size overlays", "Protocol": "API / File Exchange"},
+        ])
+        st.dataframe(df_flow, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📤 Push Actual Blast Costs to SAP")
+
+        blast_id_push = st.text_input("Blast ID for SAP Cost Accounting", value="BLAST_JWA_2024_08")
+        cost_push_val = st.number_input("Actual Calculated Cost ($/t)", 0.1, 100.0, 5.25)
+
+        if st.button("Push Cost Record to SAP Cost Center"):
+            push_res = push_to_sap({"blast_id": blast_id_push, "total_cost_per_tonne_usd": cost_push_val})
+            st.success(push_res["message"])
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

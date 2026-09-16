@@ -86,5 +86,11 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
   - *Ground Vibration (PPV):* "Tshikinyego ya Mmu"
   - *Flyrock:* "Mabopo a a Fofang"
 
+### Debswana Enterprise Systems Integration (SAP, Deswik, Surpac)
+- **Data Silo Elimination:** Direct API integration (`src/integrations.py`) connects BlastOpt with Debswana's core enterprise systems to eliminate manual spreadsheet exports:
+  - **SAP ERP:** Ingests explosives $/kg and drilling rates $/m; pushes actual post-blast costs per tonne ($/t) back to cost centers.
+  - **Deswik CAD:** Ingests 3D bench polygons and 3D hole collar locations; pushes optimized pattern geometries.
+  - **GEOVIA Surpac:** Ingests 3D geological block models (rock types, Kimberlite pipe contacts, Bond Work Index hardness); pushes predicted $d_{50}$ fragmentation overlays.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

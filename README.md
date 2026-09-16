@@ -49,6 +49,9 @@ Automates legal compliance audits under the Mines, Quarries, Works and Machinery
 ### 🇧🇼 Setswana Language Support & i18n (`src/i18n.py` & `mobile/src/i18n.js`)
 Full dual-language interface support (English 🇬🇧 & Setswana 🇧🇼) for both the Streamlit web dashboard and mobile field app, translating technical mining terminology ("Tshikinyego ya Mmu", "Sekala sa Dithunyane", "Mabopo a a Fofang") for local pit operators.
 
+### 🔗 Debswana Enterprise Integrations (`src/integrations.py`)
+Eliminates data silos by integrating with SAP ERP (cost/procurement), Deswik CAD (mine planning & pattern design), and GEOVIA Surpac (3D geological block models & Bond Work Index).
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 
