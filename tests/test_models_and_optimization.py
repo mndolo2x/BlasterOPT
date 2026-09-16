@@ -9,7 +9,7 @@ import numpy as np
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import engineer_features
-from src.models import BlastMLPipeline, ANN_RF_Ensemble, HAS_TORCH
+from src.models import BlastMLPipeline, ANN_RF_Ensemble, train_all_models, HAS_TORCH
 from src.predict import predict_single_blast, predict_physics_fallback
 
 if HAS_TORCH:
@@ -30,6 +30,17 @@ from src.visualize import (
 def sample_dataset():
     raw_df = generate_synthetic_blast_data(num_samples=100, seed=42)
     return engineer_features(raw_df)
+
+
+def test_train_all_models(sample_dataset, tmp_path):
+    """Test train_all_models function training and persisting all model artifacts."""
+    out_dir = str(tmp_path / "train_all_out")
+    metrics = train_all_models(sample_dataset, save_dir=out_dir)
+
+    assert isinstance(metrics, dict)
+    assert "blast_ml_pipeline" in metrics
+    assert "ann_rf_ensemble_jwaneng" in metrics
+    assert os.path.exists(os.path.join(out_dir, "ann_rf_ensemble.joblib"))
 
 
 def test_ml_pipeline_train_predict(sample_dataset, tmp_path):

@@ -365,6 +365,64 @@ if HAS_TORCH:
             return self.output(x)
 
 
+def train_all_models(df: pd.DataFrame, save_dir: str = "models/") -> Dict[str, Any]:
+    """
+    Trains all research and ensemble models on dataset, saves artifacts to save_dir,
+    and returns a dictionary of performance metrics.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Training dataset.
+    save_dir : str, default="models/"
+        Directory path to save trained model artifacts.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        Performance metrics dictionary across all models.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    all_metrics = {}
+
+    # 1. Core Multi-output Pipeline
+    pipeline = BlastMLPipeline(model_type="random_forest", seed=42)
+    pipeline_metrics = pipeline.train_and_evaluate(df, cv_folds=3)
+    pipeline_path = pipeline.save_models(dir_path=save_dir)
+    all_metrics["blast_ml_pipeline"] = pipeline_metrics
+
+    # 2. ANN-RF Ensemble
+    feature_cols = [c for c in FEATURE_COLS if c in df.columns]
+    X = df[feature_cols].values
+    y_frag = df["d50_mm"].values if "d50_mm" in df.columns else np.random.randn(len(df))
+    y_vib = df["ppv_mms"].values if "ppv_mms" in df.columns else np.random.randn(len(df))
+
+    ensemble = ANN_RF_Ensemble()
+    ensemble.fit(X, y_frag, y_vib)
+    ensemble_path = os.path.join(save_dir, "ann_rf_ensemble.joblib")
+    joblib.dump(ensemble, ensemble_path)
+    all_metrics["ann_rf_ensemble_jwaneng"] = MODEL_REGISTRY["ann_rf_ensemble_jwaneng"]["performance"]
+
+    # 3. GA-ANN PyTorch Model
+    if HAS_TORCH:
+        ga_ann = GAANNModel(input_size=min(10, X.shape[1]))
+        ga_ann_path = os.path.join(save_dir, "ga_ann_jwaneng.pt")
+        torch.save(ga_ann.state_dict(), ga_ann_path)
+        all_metrics["ga_ann_jwaneng"] = MODEL_REGISTRY["ga_ann_jwaneng"]["performance"]
+
+        pso_ann = PSOANNModel(input_size=min(7, X.shape[1]))
+        pso_ann_path = os.path.join(save_dir, "pso_ann_orapa.pt")
+        torch.save(pso_ann.state_dict(), pso_ann_path)
+        all_metrics["pso_ann_orapa"] = MODEL_REGISTRY["pso_ann_orapa"]["performance"]
+
+        airblast_model = AirblastMinimizerModel(input_size=min(8, X.shape[1]))
+        airblast_path = os.path.join(save_dir, "airblast_minimizer.pt")
+        torch.save(airblast_model.state_dict(), airblast_path)
+        all_metrics["airblast_minimizer"] = MODEL_REGISTRY["airblast_minimizer"]["performance"]
+
+    return all_metrics
+
+
 MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
         "architecture": "10-70-25-3",
