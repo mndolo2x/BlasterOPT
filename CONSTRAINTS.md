@@ -78,5 +78,13 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
   - **Mining Engineer:** Approves/edits pattern designs, reviews field logs, and configures optimization constraints.
   - **Supervisor / Manager:** Reviews shift summaries, oversees fleet status, and monitors real-time safety alerts.
 
+### Setswana Language Support & Internationalization (i18n)
+- **Local Accessibility:** Setswana is the national language of Botswana, spoken natively by over 90% of the population. Internationalization (`src/i18n.py` and `mobile/src/i18n.js`) allows blasters and pit operators to toggle between English and Setswana interfaces.
+- **Mining Terminology Adaptations:**
+  - *Drilling & Blasting:* "Thunyako le Go Tlhaba Garane"
+  - *Powder Factor:* "Sekala sa Dithunyane"
+  - *Ground Vibration (PPV):* "Tshikinyego ya Mmu"
+  - *Flyrock:* "Mabopo a a Fofang"
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

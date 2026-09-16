@@ -25,6 +25,7 @@ from src.detonator_integration import (
 )
 from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
 from src.regulatory import load_regulatory_limits, check_compliance, generate_compliance_report
+from src.i18n import get_translation
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -86,33 +87,78 @@ st.markdown(
     "**AI-Driven Drilling & Blasting Design, Fragmentation Modeling & Genetic Algorithm Optimizer**"
 )
 
-# Navigation Sidebar
+# Language Selector Sidebar
 st.sidebar.image("https://img.icons8.com/color/96/diamond.png", width=64)
+selected_lang_label = st.sidebar.selectbox(
+    "🌐 Language / Puo",
+    ["English 🇬🇧", "Setswana 🇧🇼"],
+    index=0,
+)
+lang_code = "tn" if "Setswana" in selected_lang_label else "en"
+
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select Module",
     [
-        "📊 Dashboard & Data Explorer",
-        "⚙️ Data Ingestion & Generator",
-        "🤖 ML Model Manager",
-        "🔬 Model Comparison",
-        "🎯 Predictor & Kuz-Ram Curve",
-        "⚡ Genetic Algorithm Optimizer",
-        "💰 Economic Dashboard",
-        "👥 Similar Blasts Recommender",
-        "📡 Real-Time MWD Monitoring",
-        "💎 Digital Twin of Bench",
-        "🚜 Drill Connectivity",
-        "⚡ Electronic Detonator Integration",
-        "🔄 Sync Status & Write-Ahead Log",
-        "📜 Regulatory Compliance",
-        "📐 2D Blast Pattern & Delays",
-        "📈 Visualize",
+        get_translation("nav_dashboard", lang_code),
+        get_translation("nav_ingestion", lang_code),
+        get_translation("nav_ml_manager", lang_code),
+        get_translation("nav_comparison", lang_code),
+        get_translation("nav_predictor", lang_code),
+        get_translation("nav_optimizer", lang_code),
+        get_translation("nav_economic", lang_code),
+        get_translation("nav_recommender", lang_code),
+        get_translation("nav_mwd", lang_code),
+        get_translation("nav_digital_twin", lang_code),
+        get_translation("nav_connectivity", lang_code),
+        get_translation("nav_detonator", lang_code),
+        get_translation("nav_sync", lang_code),
+        get_translation("nav_regulatory", lang_code),
+        get_translation("nav_pattern", lang_code),
+        get_translation("nav_visualize", lang_code),
     ],
 )
 
+# Normalize page string matching across languages
+page_keys = {
+    get_translation("nav_dashboard", "en"): "dashboard",
+    get_translation("nav_dashboard", "tn"): "dashboard",
+    get_translation("nav_ingestion", "en"): "ingestion",
+    get_translation("nav_ingestion", "tn"): "ingestion",
+    get_translation("nav_ml_manager", "en"): "ml_manager",
+    get_translation("nav_ml_manager", "tn"): "ml_manager",
+    get_translation("nav_comparison", "en"): "comparison",
+    get_translation("nav_comparison", "tn"): "comparison",
+    get_translation("nav_predictor", "en"): "predictor",
+    get_translation("nav_predictor", "tn"): "predictor",
+    get_translation("nav_optimizer", "en"): "optimizer",
+    get_translation("nav_optimizer", "tn"): "optimizer",
+    get_translation("nav_economic", "en"): "economic",
+    get_translation("nav_economic", "tn"): "economic",
+    get_translation("nav_recommender", "en"): "recommender",
+    get_translation("nav_recommender", "tn"): "recommender",
+    get_translation("nav_mwd", "en"): "mwd",
+    get_translation("nav_mwd", "tn"): "mwd",
+    get_translation("nav_digital_twin", "en"): "digital_twin",
+    get_translation("nav_digital_twin", "tn"): "digital_twin",
+    get_translation("nav_connectivity", "en"): "connectivity",
+    get_translation("nav_connectivity", "tn"): "connectivity",
+    get_translation("nav_detonator", "en"): "detonator",
+    get_translation("nav_detonator", "tn"): "detonator",
+    get_translation("nav_sync", "en"): "sync",
+    get_translation("nav_sync", "tn"): "sync",
+    get_translation("nav_regulatory", "en"): "regulatory",
+    get_translation("nav_regulatory", "tn"): "regulatory",
+    get_translation("nav_pattern", "en"): "pattern",
+    get_translation("nav_pattern", "tn"): "pattern",
+    get_translation("nav_visualize", "en"): "visualize",
+    get_translation("nav_visualize", "tn"): "visualize",
+}
+
+active_module = page_keys.get(page, "dashboard")
+
 # --- MODULE 1: DASHBOARD & DATA EXPLORER ---
-if page == "📊 Dashboard & Data Explorer":
+if active_module == "dashboard":
     st.header("📊 Mining & Blasting Data Dashboard")
 
     df = st.session_state["dataset"]
@@ -136,7 +182,7 @@ if page == "📊 Dashboard & Data Explorer":
 
 
 # --- MODULE 2: DATA INGESTION & GENERATOR ---
-elif page == "⚙️ Data Ingestion & Generator":
+elif active_module == "ingestion":
     st.header("⚙️ Data Ingestion & Synthetic Generator")
 
     tab1, tab2 = st.tabs(["⚡ Generate Synthetic Blast Logs", "📁 Upload Custom Blast CSV"])
@@ -209,7 +255,7 @@ elif page == "⚙️ Data Ingestion & Generator":
 
 
 # --- MODULE 3: ML MODEL MANAGER ---
-elif page == "🤖 ML Model Manager":
+elif active_module == "ml_manager":
     st.header("🤖 Machine Learning Model Training & Evaluation")
 
     df = st.session_state["dataset"]
@@ -252,7 +298,7 @@ elif page == "🤖 ML Model Manager":
 
 
 # --- MODULE: MODEL COMPARISON ---
-elif page == "🔬 Model Comparison":
+elif active_module == "comparison":
     st.header("🔬 Debswana Research Models Comparison")
     st.markdown(
         "Benchmarking production-validated research models trained on **Jwaneng** and **Orapa** mine datasets."
@@ -310,7 +356,7 @@ elif page == "🔬 Model Comparison":
 
 
 # --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
-elif page == "🎯 Predictor & Kuz-Ram Curve":
+elif active_module == "predictor":
     st.header("🎯 Single Blast Design Predictor & Fragmentation Curve")
 
     col_p1, col_p2 = st.columns([1, 2])
@@ -431,7 +477,7 @@ elif page == "🎯 Predictor & Kuz-Ram Curve":
 
 
 # --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
-elif page == "⚡ Genetic Algorithm Optimizer":
+elif active_module == "optimizer":
     st.header("⚡ Genetic Algorithm Parameter Optimizer")
 
     st.markdown("Find optimal **Burden**, **Spacing**, **Stemming**, and **Powder Factor** to minimize cost subject to vibration & flyrock safety limits.")
@@ -593,7 +639,7 @@ elif page == "⚡ Genetic Algorithm Optimizer":
 
 
 # --- MODULE: ECONOMIC DASHBOARD ---
-elif page == "💰 Economic Dashboard":
+elif active_module == "economic":
     st.header("💰 Economic & Mine-to-Mill Cost Breakdown Dashboard")
     st.markdown(
         "Real-time Mine-to-Mill total cost analysis per tonne ($/t) across drilling, explosives, loading/digging, hauling, crushing, and milling."
@@ -696,7 +742,7 @@ elif page == "💰 Economic Dashboard":
 
 
 # --- MODULE: SIMILAR BLASTS RECOMMENDER ---
-elif page == "👥 Similar Blasts Recommender":
+elif active_module == "recommender":
     st.header("👥 Similar Blast Recommender & Knowledge Transfer")
     st.markdown(
         "Empowers junior blasters and newly rotated mining engineers to query historical blast logs, "
@@ -793,7 +839,7 @@ elif page == "👥 Similar Blasts Recommender":
 
 
 # --- MODULE: REAL-TIME MWD MONITORING ---
-elif page == "📡 Real-Time MWD Monitoring":
+elif active_module == "mwd":
     st.header("📡 Real-Time Measure-While-Drilling (MWD) Telemetry & Closed-Loop Control")
     st.markdown(
         "Live MQTT stream ingestion of drill rig telemetry (penetration rate, torque, weight-on-bit, vibration). "
@@ -867,7 +913,7 @@ elif page == "📡 Real-Time MWD Monitoring":
 
 
 # --- MODULE: DIGITAL TWIN OF THE BENCH ---
-elif page == "💎 Digital Twin of Bench":
+elif active_module == "digital_twin":
     st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
     st.markdown(
         "Interactive 3D spatial digital twin connecting geological block models, as-drilled geometry, "
@@ -962,7 +1008,7 @@ elif page == "💎 Digital Twin of Bench":
 
 
 # --- MODULE: DRILL CONNECTIVITY ---
-elif page == "🚜 Drill Connectivity":
+elif active_module == "connectivity":
     st.header("🚜 Direct-to-Drill Telematics & ISO 15143-3 Integration")
     st.markdown(
         "Direct API connectivity to **Sandvik (My Sandvik)** and **Epiroc (Certiq)** smart drill rigs via ISO 15143-3 (AEMP 2.0). "
@@ -1021,7 +1067,7 @@ elif page == "🚜 Drill Connectivity":
 
 
 # --- MODULE: ELECTRONIC DETONATOR INTEGRATION ---
-elif page == "⚡ Electronic Detonator Integration":
+elif active_module == "detonator":
     st.header("⚡ Electronic Detonator Field-to-Cloud Integration")
     st.markdown(
         "Direct integration with major electronic initiation systems in Botswana (**AEL IntelliShot**, **BME AXXIS**, **Orica i-kon III**). "
@@ -1087,7 +1133,7 @@ elif page == "⚡ Electronic Detonator Integration":
 
 
 # --- MODULE: SYNC STATUS & WRITE-AHEAD LOG ---
-elif page == "🔄 Sync Status & Write-Ahead Log":
+elif active_module == "sync":
     st.header("🔄 Offline-First Sync Status & Write-Ahead Log (WAL) Manager")
     st.markdown(
         "Ensures zero data loss in remote Botswana open-pit benches (Jwaneng, Orapa, Karowe) "
@@ -1154,7 +1200,7 @@ elif page == "🔄 Sync Status & Write-Ahead Log":
 
 
 # --- MODULE: REGULATORY COMPLIANCE ---
-elif page == "📜 Regulatory Compliance":
+elif active_module == "regulatory":
     st.header("📜 Botswana Mining Regulatory Compliance & Audit Module")
     st.markdown(
         "Automated compliance evaluation under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)** "
@@ -1216,7 +1262,7 @@ elif page == "📜 Regulatory Compliance":
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
-elif page == "📐 2D Blast Pattern & Delays":
+elif active_module == "pattern":
     st.header("📐 2D Blast Pattern & Initiation Timing Layout")
 
     col_pat1, col_pat2 = st.columns([1, 3])
@@ -1245,7 +1291,7 @@ elif page == "📐 2D Blast Pattern & Delays":
 
 
 # --- MODULE 7: VISUALIZE ---
-elif page == "📈 Visualize":
+elif active_module == "visualize":
     st.header("📈 Interactive Fragmentation Curve & Sensitivity Visualizer")
     st.markdown(
         "Explore cumulative rock fragmentation size distributions ($P(x)$ vs. $x$) based on parameters from the Predictor module."

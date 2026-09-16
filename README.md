@@ -46,6 +46,9 @@ Ensures zero field data loss in remote pit locations. Action modifications write
 ### 📜 Botswana Regulatory Compliance Module (`src/regulatory.py`)
 Automates legal compliance audits under the Mines, Quarries, Works and Machinery Act (Cap. 44:02) and Data Protection Act of Botswana. Configurable via `data/processed/regulatory_limits.json` to evaluate PPV ($\le 10.0$ mm/s), airblast ($\le 120$ dBL), flyrock ($\le 250$ m), and generate official PDF submission reports.
 
+### 🇧🇼 Setswana Language Support & i18n (`src/i18n.py` & `mobile/src/i18n.js`)
+Full dual-language interface support (English 🇬🇧 & Setswana 🇧🇼) for both the Streamlit web dashboard and mobile field app, translating technical mining terminology ("Tshikinyego ya Mmu", "Sekala sa Dithunyane", "Mabopo a a Fofang") for local pit operators.
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 
