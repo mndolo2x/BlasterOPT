@@ -66,6 +66,30 @@ def test_explain_prediction_shap():
         assert "shap_values" in res
 
 
+def test_get_shap_explanation_keys():
+    """Test get_shap_explanation returns a dict with the correct required keys."""
+    X = np.random.randn(20, 4)
+    y = np.random.randn(20)
+    rf = RandomForestRegressor(n_estimators=5, random_state=42)
+    rf.fit(X, y)
+
+    input_df = pd.DataFrame(X[:1], columns=["feat_a", "feat_b", "feat_c", "feat_d"])
+    res = get_shap_explanation(rf, input_df)
+
+    assert isinstance(res, dict)
+    expected_keys = [
+        "shap_values",
+        "base_value",
+        "feature_names",
+        "force_plot",
+        "waterfall_plot",
+        "feature_contributions",
+    ]
+    for key in expected_keys:
+        assert key in res, f"Expected key '{key}' in get_shap_explanation result"
+    assert len(res["feature_contributions"]) == 4
+
+
 def test_get_shap_explanation_rf():
     """Test get_shap_explanation with a Random Forest model."""
     X = np.random.randn(20, 4)
@@ -136,10 +160,36 @@ def test_generate_natural_language_explanation():
     explanation = generate_natural_language_explanation(shap_vals, feature_names, prediction, constraints)
 
     assert isinstance(explanation, str)
+    assert len(explanation) > 0, "Explanation string should be non-empty"
     assert "Vibration is predicted to exceed the limit" in explanation
     assert "5.0 mm/s" in explanation
     assert "5.8" in explanation
     assert len(explanation.split()) <= 150
+
+
+def test_generate_natural_language_explanation_features_and_direction():
+    """Test that generate_natural_language_explanation contains at least one feature name and one direction word."""
+    shap_vals = [0.15, -0.10]
+    feature_names = ["powder_factor_kg_m3", "stemming_m"]
+    prediction = 8.5
+    constraints = {"metric": "PPV", "limit": 10.0, "unit": "mm/s"}
+
+    explanation = generate_natural_language_explanation(shap_vals, feature_names, prediction, constraints)
+
+    assert isinstance(explanation, str)
+    assert len(explanation.strip()) > 0, "Expected non-empty string"
+
+    # Check for feature names (either raw or formatted)
+    has_feature_name = any(
+        fn in explanation or fn.replace("_", " ") in explanation or "powder factor" in explanation or "stemming length" in explanation
+        for fn in feature_names
+    )
+    assert has_feature_name, f"Expected at least one feature name in explanation: {explanation}"
+
+    # Check for direction words ("increase", "decrease", "reduced", "increased", "increasing", "reducing")
+    direction_words = ["increase", "decrease", "reduced", "increased", "increasing", "reducing"]
+    has_direction_word = any(dw in explanation.lower() for dw in direction_words)
+    assert has_direction_word, f"Expected at least one direction word in explanation: {explanation}"
 
 
 def test_create_explanation_panel():
