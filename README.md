@@ -6,7 +6,21 @@
 
 ## 📖 Project Description
 
-In open-pit diamond and hard-rock mining, drilling and blasting are critical primary operations. Suboptimal blast designs lead to coarse rock fragmentation (causing high secondary breaking and crushing costs), excessive ground vibration (Peak Particle Velocity / PPV posing environmental and structural risks), hazardous flyrock projections, and inflated drilling & explosives expenditure.
+In open-pit diamond and hard-rock mining, drilling and blasting are critical primary operations. Drilling and blasting activities account for up to **20% of total mining costs per tonne**, making Mine-to-Mill optimization economically crucial. Suboptimal blast designs lead to coarse rock fragmentation, excessive ground vibration (Peak Particle Velocity / PPV posing environmental and structural risks), hazardous flyrock projections, and inflated operational expenditure.
+
+### 🏭 Downstream Mining & Processing Impact
+- **Crusher Throughput:** Coarse fragmentation causes bridging, mechanical jamming, and unexpected downtime in primary gyratory/jaw crushers.
+- **Energy Consumption:** Suboptimal fragment size distribution drastically increases electrical kWh/tonne energy consumption in downstream SAG and ball mills.
+- **Liner & Equipment Wear:** Large boulders accelerate abrasive wear on crusher liners, conveyor belts, and grinding media.
+
+### 📐 Quadratic Penalty Model for Crusher Performance
+Crusher performance and operational cost penalties are modeled quadratically relative to target mean fragment size ($d_{50, \text{target}}$):
+$$\text{Penalty}_{crusher} = k \cdot (d_{50} - d_{50, \text{target}})^2$$
+Deviations above target cause severe physical jamming and liner wear, while extreme fine deviations increase packing and screen blinding.
+
+### 💨 Airblast Sensitivity Hierarchy
+- **Stemming Length ($T$) — Most Sensitive Parameter:** Stemming length directly confines explosive detonation gases within the blast hole. Inadequate stemming results in premature gas venting to atmosphere, triggering high-intensity airblast overpressure shockwaves ($dBL$).
+- **Spacing ($S$) — Least Sensitive Parameter:** Hole spacing governs stress wave superposition in the rock mass rather than direct gas venting into atmosphere, making it the least sensitive parameter for airblast overpressure generation.
 
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
