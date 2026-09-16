@@ -28,6 +28,9 @@ Botswana's mining industry faces periodic engineering skill shortages and staff 
 ### 📊 Real Mine Data Ingestion vs. Synthetic Physics Data
 Production blast deployment requires real mine production logs (`load_real_blast_data()` in `src/data_ingestion.py`). Synthetic physics datasets provide idealized empirical baseline estimates, whereas real mine production logs capture site-specific geological heterogeneity, structural joint orientations ($JWF$), bench water conditions, and actual measured seismograph waveforms.
 
+### 📡 Real-Time MWD Telemetry & Closed-Loop Control
+Drill rig MWD sensors (`src/mwd_ingestion.py`) capture real-time ROP, torque, WOB, and Specific Energy of Drilling ($SED$). Ingested via MQTT, MWD data enables closed-loop adaptation of charging plans (variable bulk explosive density and deck charges) based on as-drilled geometry and rock hardness transitions.
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.

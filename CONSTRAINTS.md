@@ -46,5 +46,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Synthetic Data Limitations:** Synthetic datasets generated from empirical equations (e.g. Kuz-Ram, USBM) rely on idealized assumptions and uniform rock mass properties.
 - **Real Production Data Necessity:** Production blast logs from mine operations capture site-specific geological heterogeneity, structural discontinuities (joints, faults, bedding planes), Joint Wall Factor ($JWF$), bench groundwater saturation, explosive product degradation, and actual measured seismograph waveforms. Ingesting real mine data when data-sharing agreements are active is critical to calibrate ML models for production deployment and minimize generalization error on site.
 
+### Measure-While-Drilling (MWD) & Closed-Loop Charging Adaptation
+- **MWD Sensor Ingestion:** MWD telemetry from smart drill rigs (Epiroc, Sandvik) measures penetration rate (ROP, m/hr), torque (N·m), weight-on-bit (WOB, kg), air pressure (bar), and Specific Energy of Drilling ($SED$).
+- **Closed-Loop Charging Adaptation:** Real-time MWD streaming via MQTT/OPC-UA (`src/mwd_ingestion.py`) feeds as-drilled geometry and rock hardness variations directly back into BlastOpt. When MWD identifies unexpected voids or weak strata at depth, the charging plan automatically adapts bulk explosive density or decks charges to mitigate flyrock and vibration risks.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

@@ -15,3 +15,5 @@ torch>=2.0
 shap>=0.44
 lime>=0.2
 deap>=1.4
+paho-mqtt>=2.1
+influxdb-client>=1.40
