@@ -8,6 +8,7 @@ from src.explainability import (
     explain_prediction,
     get_shap_explanation,
     get_lime_explanation,
+    generate_natural_language_explanation,
     HAS_SHAP,
     HAS_LIME,
 )
@@ -122,6 +123,22 @@ def test_get_lime_explanation_torch():
     assert isinstance(res, dict)
     assert "lime_explanation" in res
     assert "feature_weights" in res
+
+
+def test_generate_natural_language_explanation():
+    """Test generate_natural_language_explanation plain English text generation and word count."""
+    shap_vals = [0.12, 0.08, 0.05, -0.05, -0.02]
+    feature_names = ["spacing_m", "rock_factor_A", "powder_factor_kg_m3", "stemming_m", "burden_m"]
+    prediction = 5.8
+    constraints = {"metric": "vibration", "limit": 5.0, "unit": "mm/s"}
+
+    explanation = generate_natural_language_explanation(shap_vals, feature_names, prediction, constraints)
+
+    assert isinstance(explanation, str)
+    assert "Vibration is predicted to exceed the limit" in explanation
+    assert "5.0 mm/s" in explanation
+    assert "5.8" in explanation
+    assert len(explanation.split()) <= 150
 
 
 def test_plot_feature_contributions_waterfall():

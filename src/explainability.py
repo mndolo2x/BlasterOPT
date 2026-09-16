@@ -2,8 +2,8 @@
 Explainability Module for BlasterOPT / BlastOpt Botswana.
 
 Provides model explainability, feature contribution attributions, visual waterfall charts,
-SHAP explanations, and LIME explanations to help certified blasters understand and trust
-ML predictions (d50, PPV, flyrock, cost).
+SHAP explanations, LIME explanations, and plain-English natural language summaries to help
+certified blasters understand and trust ML predictions (d50, PPV, flyrock, cost).
 """
 
 import numpy as np
@@ -458,7 +458,6 @@ def get_lime_explanation(
 
         weights = {}
         for feat_desc, weight in exp.as_list():
-            # Match feature name from description string
             matched_feat = feat_desc
             for fn in feature_names:
                 if fn in feat_desc:
@@ -471,12 +470,116 @@ def get_lime_explanation(
             "feature_weights": weights,
         }
     else:
-        # Heuristic fallback if LIME package is unavailable
         weights = {fn: 0.1 for fn in feature_names}
         return {
             "lime_explanation": None,
             "feature_weights": weights,
         }
+
+
+def _format_feature_name(name: str) -> str:
+    """Helper to convert feature variable names to readable domain terminology."""
+    clean_map = {
+        "powder_factor_kg_m3": "powder factor",
+        "burden_m": "burden",
+        "spacing_m": "spacing",
+        "stemming_m": "stemming length",
+        "charge_mass_per_hole_kg": "charge mass per hole",
+        "max_charge_per_delay_kg": "maximum charge per delay",
+        "monitoring_distance_m": "monitoring distance",
+        "rock_factor_A": "rock blastability factor A",
+        "bench_height_m": "bench height",
+        "hole_diameter_mm": "hole diameter",
+        "pf_burden_interaction": "powder factor-burden interaction",
+        "spacing_stemming_interaction": "spacing-stemming interaction",
+    }
+    return clean_map.get(name, name.replace("_", " "))
+
+
+def generate_natural_language_explanation(
+    shap_values: Union[np.ndarray, List[float]],
+    feature_names: List[str],
+    prediction: float,
+    constraints: Dict[str, float],
+) -> str:
+    """
+    Translates SHAP values and predictions into a concise plain-English natural language summary for certified blasters.
+
+    Parameters:
+    -----------
+    shap_values : Union[np.ndarray, List[float]]
+        Array or list of SHAP values corresponding to features.
+    feature_names : List[str]
+        List of feature column names.
+    prediction : float
+        Model predicted outcome value.
+    constraints : Dict[str, float]
+        Dictionary of target/safety constraint thresholds (e.g. {"limit": 10.0, "metric": "vibration"}).
+
+    Returns:
+    --------
+    str
+        Plain English explanation paragraph (<150 words).
+    """
+    sv = np.array(shap_values).flatten()
+    if len(sv) != len(feature_names):
+        fn = [f"feature_{i}" for i in range(len(sv))]
+    else:
+        fn = feature_names
+
+    pairs = list(zip(fn, sv))
+
+    # Sort positive and negative contributors
+    pos_contribs = sorted([p for p in pairs if p[1] > 0], key=lambda x: x[1], reverse=True)[:3]
+    neg_contribs = sorted([p for p in pairs if p[1] < 0], key=lambda x: x[1])[:2]
+
+    target_name = str(constraints.get("metric", "outcome")).lower()
+    limit_val = constraints.get("limit", None)
+    unit = constraints.get("unit", "")
+
+    # Header sentence based on limit evaluation
+    if limit_val is not None:
+        if prediction > limit_val:
+            header = f"{target_name.capitalize()} is predicted to exceed the limit of {limit_val:.1f} {unit} at {prediction:.2f} {unit}."
+        else:
+            header = f"{target_name.capitalize()} is predicted to meet safety constraints at {prediction:.2f} {unit} (limit: {limit_val:.1f} {unit})."
+    else:
+        header = f"Predicted {target_name} is {prediction:.2f} {unit}."
+
+    # Construct positive contributor statement
+    pos_strs = []
+    for name, val in pos_contribs:
+        domain_term = _format_feature_name(name)
+        pos_strs.append(f"{domain_term} (contributing +{val:.2f} {unit})")
+
+    pos_text = ""
+    if pos_strs:
+        if len(pos_strs) == 1:
+            pos_text = f" The primary driver increasing {target_name} is {pos_strs[0]}."
+        else:
+            pos_text = f" The main drivers increasing {target_name} are {', '.join(pos_strs[:-1])}, and {pos_strs[-1]}."
+
+    # Construct negative contributor statement
+    neg_strs = []
+    for name, val in neg_contribs:
+        domain_term = _format_feature_name(name)
+        neg_strs.append(f"{domain_term} (reducing by {abs(val):.2f} {unit})")
+
+    neg_text = ""
+    if neg_strs:
+        if len(neg_strs) == 1:
+            neg_text = f" The largest mitigating factor is {neg_strs[0]}."
+        else:
+            neg_text = f" Key mitigating factors include {', '.join(neg_strs[:-1])} and {neg_strs[-1]}."
+
+    summary = f"{header}{pos_text}{neg_text}".strip()
+
+    # Enforce strict 150-word upper limit
+    words = summary.split()
+    if len(words) > 150:
+        summary = " ".join(words[:147]) + "..."
+
+    return summary
 
 
 def explain_prediction(model, input_data, feature_names=None, background_data=None):
