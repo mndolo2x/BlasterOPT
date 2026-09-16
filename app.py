@@ -43,6 +43,7 @@ from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 from src.agent.guardrails import get_guardrail_trips
+from src.agent.voice_interface import process_voice_turn, start_voice_session
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -113,6 +114,28 @@ selected_lang_label = st.sidebar.selectbox(
     index=0,
 )
 lang_code = "tn" if "Setswana" in selected_lang_label else "en"
+
+# Voice Mode Toggle Sidebar
+st.sidebar.markdown("---")
+voice_mode_active = st.sidebar.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+
+if voice_mode_active:
+    st.sidebar.subheader("🎙️ Voice Agent Assistant")
+    voice_audio_input = st.sidebar.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
+
+    if voice_audio_input is not None:
+        audio_bytes = voice_audio_input.read()
+        st.sidebar.audio(audio_bytes, format="audio/wav")
+
+        if st.sidebar.button("Process Voice Command 🚀", type="primary"):
+            with st.spinner("Processing speech-to-text and agent reasoning..."):
+                voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
+
+                st.sidebar.success(f"**Recognized ({voice_res['language'].upper()}):** {voice_res['transcription']}")
+                st.sidebar.info(f"**Agent Response:** {voice_res['text']}")
+
+                # Play synthesized speech response
+                st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
