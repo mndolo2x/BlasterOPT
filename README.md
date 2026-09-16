@@ -40,6 +40,9 @@ Connects BlastOpt directly to Sandvik (My Sandvik) and Epiroc (Certiq) drill rig
 ### ⚡ Electronic Detonator Integration (AEL / BME / Orica)
 Integrates field-to-cloud initiation workflows (`src/detonator_integration.py`) for AEL IntelliShot, BME AXXIS, and Orica i-kon III systems. Validates timing sequences against regulatory vibration ($PPV \le 10.0$ mm/s) and airblast ($dBL \le 120$ dB) limits, and logs downloadable post-blast firing confirmations.
 
+### 🔄 Offline-First Write-Ahead Log (WAL) & SyncManager (`src/offline_sync.py`)
+Ensures zero field data loss in remote pit locations. Action modifications write to persistent disk storage (`WriteAheadLog`) before transmission, while `SyncManager` executes queue replays with exponential backoff retries and timestamp conflict resolution (`resolve_conflicts`).
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 

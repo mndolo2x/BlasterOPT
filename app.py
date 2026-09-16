@@ -23,6 +23,7 @@ from src.detonator_integration import (
     validate_sequence,
     FIRING_CONFIRMATIONS_DB,
 )
+from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -102,6 +103,7 @@ page = st.sidebar.radio(
         "💎 Digital Twin of Bench",
         "🚜 Drill Connectivity",
         "⚡ Electronic Detonator Integration",
+        "🔄 Sync Status & Write-Ahead Log",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -1080,6 +1082,73 @@ elif page == "⚡ Electronic Detonator Integration":
         st.info("**AEL IntelliShot:** Uses Commander control boxes and Tagger handheld devices with smart lead wire auto-tagging.")
         st.info("**BME AXXIS:** AXXIS Titanium / Gii dual-capacitor architecture with sub-millisecond firing window accuracy.")
         st.info("**Orica i-kon III:** High-capacity Logger/Blaster suite supporting up to 4,800 caps per blast with encrypted telemetry.")
+
+
+# --- MODULE: SYNC STATUS & WRITE-AHEAD LOG ---
+elif page == "🔄 Sync Status & Write-Ahead Log":
+    st.header("🔄 Offline-First Sync Status & Write-Ahead Log (WAL) Manager")
+    st.markdown(
+        "Ensures zero data loss in remote Botswana open-pit benches (Jwaneng, Orapa, Karowe) "
+        "by queuing field actions in a persistent **Write-Ahead Log (WAL)** and replaying queue with exponential backoff retries upon connection."
+    )
+
+    c_sync1, c_sync2 = st.columns([1, 2])
+
+    # Instantiate persistent WriteAheadLog & SyncManager
+    wal_instance = WriteAheadLog("data/processed/write_ahead_log.json")
+    sync_manager = SyncManager(wal=wal_instance)
+
+    with c_sync1:
+        st.subheader("⚙️ Connection & Queue Status")
+        is_online_sim = st.toggle("Simulate Network Connection", value=True, help="Toggle between Online and Offline pit floor connection.")
+
+        pending_wal = wal_instance.get_pending()
+
+        status_color = "green" if is_online_sim else "red"
+        st.markdown(f"**Network Connectivity:** :{status_color}[{'ONLINE (Connected)' if is_online_sim else 'OFFLINE (Remote Pit)'}]")
+        st.metric("Pending WAL Actions", len(pending_wal))
+        st.metric("Last Sync Timestamp", sync_manager.last_sync_timestamp if sync_manager.last_sync_timestamp else "Not Synced Yet")
+
+        st.markdown("---")
+        st.subheader("Simulate Offline Action Entry")
+        sim_action_type = st.selectbox("Action Type", ["FIELD_LOG", "DESIGN_UPDATE", "MWD_TELEMETRY"])
+        sim_hole = st.text_input("Hole ID", value="HOLE_WAL_101")
+        sim_val = st.number_input("Measured Depth / Value", 1.0, 50.0, 15.2)
+
+        if st.button("Enqueue Action into WAL", type="primary"):
+            entry = wal_instance.append(sim_action_type, {"hole_id": sim_hole, "measured_value": sim_val, "role": "blaster"})
+            st.success(f"Action enqueued to WAL! ID: {entry['wal_id']}")
+
+        if st.button("Force Sync Now 🚀"):
+            sync_res = sync_manager.sync_all(online_check_fn=lambda: is_online_sim)
+            if sync_res["status"] == "offline":
+                st.error("Cannot sync: Network device is currently offline.")
+            else:
+                st.success(f"Sync Execution Complete! Processed {sync_res['synced_count']} WAL items with exponential backoff retry support.")
+
+    with c_sync2:
+        st.subheader("📋 Persistent Write-Ahead Log (WAL) Pending Queue")
+
+        pending_items = wal_instance.get_pending()
+        if pending_items:
+            df_wal = pd.DataFrame(pending_items)
+            st.dataframe(df_wal, use_container_width=True)
+        else:
+            st.info("Write-Ahead Log (WAL) is empty. All field actions are synchronized with cloud server.")
+
+        st.markdown("---")
+        st.subheader("⚔️ Conflict Resolution Engine Test")
+        st.markdown("Tests timestamp-based `last_write_wins` or `merge_conservative` conflict resolution for simultaneous field/cloud edits.")
+
+        loc_depth = st.number_input("Local Field Depth Edit (m)", 1.0, 30.0, 15.5)
+        rem_depth = st.number_input("Remote Server Depth (m)", 1.0, 30.0, 15.0)
+        strategy_sel = st.selectbox("Conflict Resolution Strategy", ["last_write_wins", "remote_wins", "local_wins", "merge_conservative"])
+
+        if st.button("Resolve Conflict Example"):
+            loc_rec = {"hole_id": "HOLE_01", "depth_m": loc_depth, "timestamp": "2026-09-16T12:00:00"}
+            rem_rec = {"hole_id": "HOLE_01", "depth_m": rem_depth, "timestamp": "2026-09-16T10:00:00"}
+            res_rec = resolve_conflicts(loc_rec, rem_rec, strategy=strategy_sel)
+            st.json(res_rec)
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

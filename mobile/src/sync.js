@@ -1,7 +1,8 @@
 /**
- * Offline Sync Queue & Validation Module for BlastOpt Mobile.
+ * Offline Sync Queue, Write-Ahead Log (WAL) & Validation Module for BlastOpt Mobile.
  *
- * Implements field log validation rules and offline action replay queue management.
+ * Implements field log validation rules, persistent Write-Ahead Log (WAL) queuing,
+ * exponential backoff retry calculations, and conflict resolution strategies.
  */
 
 import { localStorage } from './storage.js';
@@ -42,22 +43,61 @@ export function validateFieldLog(log) {
 }
 
 /**
- * Enqueues an offline action into the sync queue.
+ * Calculates exponential backoff delay in milliseconds.
+ *
+ * @param {number} attempt - Zero-based retry attempt index.
+ * @param {number} baseDelayMs - Base delay in milliseconds (default: 1000ms).
+ * @param {number} backoffFactor - Backoff factor (default: 2.0).
+ * @returns {number} Backoff delay in milliseconds.
+ */
+export function calculateBackoffDelay(attempt, baseDelayMs = 1000, backoffFactor = 2.0) {
+  return baseDelayMs * Math.pow(backoffFactor, attempt);
+}
+
+/**
+ * Resolves concurrent modification conflicts between local edits and remote records.
+ *
+ * @param {Object} local - Local field edit record.
+ * @param {Object} remote - Remote server-side record.
+ * @param {string} strategy - Conflict strategy ('last_write_wins', 'remote_wins', 'local_wins').
+ * @returns {Object} Resolved record.
+ */
+export function resolveConflicts(local, remote, strategy = 'last_write_wins') {
+  if (!local && !remote) return {};
+  if (!local) return { ...remote };
+  if (!remote) return { ...local };
+
+  if (strategy === 'remote_wins') return { ...remote };
+  if (strategy === 'local_wins') return { ...local };
+
+  const localTs = new Date(local.timestamp || local.updatedAt || '1970-01-01').getTime();
+  const remoteTs = new Date(remote.timestamp || remote.updatedAt || '1970-01-01').getTime();
+
+  if (localTs >= remoteTs) {
+    return { ...local, conflictResolvedBy: 'last_write_wins_local' };
+  } else {
+    return { ...remote, conflictResolvedBy: 'last_write_wins_remote' };
+  }
+}
+
+/**
+ * Enqueues an offline action into the persistent Write-Ahead Log (WAL) sync queue.
  *
  * @param {Object} action - Action object { type: string, payload: Object }.
  */
 export function enqueueSyncAction(action) {
   const queue = localStorage.getItem('syncQueue') || [];
   queue.push({
-    id: `SYNC_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    id: `WAL_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
     timestamp: new Date().toISOString(),
+    attempts: 0,
     ...action,
   });
   localStorage.setItem('syncQueue', queue);
 }
 
 /**
- * Retrieves current pending sync queue items.
+ * Retrieves current pending Write-Ahead Log (WAL) queue items.
  *
  * @returns {Array<Object>} List of queued sync actions.
  */
@@ -68,7 +108,7 @@ export function getSyncQueue() {
 /**
  * Replays and reconciles queued sync actions upon network reconnection.
  *
- * @returns {Object} { replayedCount: number, status: string }
+ * @returns {Object} { replayedCount: number, status: string, lastSyncTimestamp: string }
  */
 export function replaySyncQueue() {
   const queue = getSyncQueue();
@@ -83,10 +123,13 @@ export function replaySyncQueue() {
   });
 
   localStorage.setItem('fieldLogs', logs);
-  localStorage.setItem('syncQueue', []); // Clear queue after replay
+  localStorage.setItem('syncQueue', []); // Clear WAL queue after replay
+  const lastSyncTimestamp = new Date().toISOString();
+  localStorage.setItem('lastSyncTimestamp', lastSyncTimestamp);
 
   return {
     replayedCount,
     status: 'SYNC_SUCCESS',
+    lastSyncTimestamp,
   };
 }
