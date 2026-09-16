@@ -44,6 +44,7 @@ from src.explainability_audit import log_explanation, get_recent_explanations, g
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 from src.agent.guardrails import get_guardrail_trips
 from src.agent.voice_interface import process_voice_turn, start_voice_session
+from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -160,6 +161,7 @@ page = st.sidebar.radio(
         get_translation("nav_integrations", lang_code),
         get_translation("nav_model_cards", lang_code),
         get_translation("nav_ensemble_uq", lang_code),
+        get_translation("nav_agent", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_visualize", lang_code),
@@ -206,6 +208,8 @@ page_keys = {
     get_translation("nav_model_cards", "tn"): "model_cards",
     get_translation("nav_ensemble_uq", "en"): "ensemble_uq",
     get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
+    get_translation("nav_agent", "en"): "agent",
+    get_translation("nav_agent", "tn"): "agent",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
@@ -1869,6 +1873,60 @@ elif active_module == "ensemble_uq":
             "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
         })
         st.dataframe(df_var, use_container_width=True)
+
+
+# --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
+elif active_module == "agent":
+    st.header("🤖 BlasterOPT Conversational Agent Assistant")
+    st.markdown(
+        "Interactive AI decision support agent for open-pit diamond mining operations. "
+        "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "
+        "and presents recommendations in plain English or Setswana."
+    )
+
+    c_ag1, c_ag2 = st.columns([1, 3])
+
+    with c_ag1:
+        st.subheader("⚙️ Agent Controls & Context")
+
+        user_role_sel = st.selectbox(
+            "User Operating Role",
+            ["engineer", "blaster", "supervisor", "operator"],
+            index=0,
+            help="Adapts explanation complexity and available UI controls."
+        )
+
+        bench_ctx_sel = st.selectbox(
+            "Active Mine Bench Context",
+            ["BENCH_JWA_15S", "BENCH_JWA_12N", "BENCH_ORA_15S", "BENCH_KAR_08W"],
+            index=0,
+        )
+
+        mode_sel = st.radio(
+            "Interface Mode",
+            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)"],
+            index=0,
+        )
+
+        st.markdown("---")
+        demo_mode = st.toggle("🧪 Demo Mode (Pre-load Sample Conversation)", value=False)
+
+        if demo_mode:
+            st.session_state["chat_messages"] = [
+                {"role": "user", "content": "Help me design an optimal blast for bench BENCH_JWA_15S with 10000 tonnes target."},
+                {"role": "assistant", "content": "📋 **Blast Design Summary for BENCH_JWA_15S:**\n- **Powder Factor:** 0.65 kg/m³\n- **Burden x Spacing:** 6.0m x 7.0m\n- **Predicted D50:** 220 mm\n- **Predicted PPV:** 4.20 mm/s (Compliant <= 5.0 mm/s)\n- **Cost:** $4.80 / t\n\n👉 **Next Step:** Would you like me to route this design to your certified blaster for review?"},
+            ]
+            st.info("Sample conversation pre-loaded!")
+
+    with c_ag2:
+        if mode_sel == "Interactive Chat":
+            render_agent_chat(user_role=user_role_sel, bench_id=bench_ctx_sel)
+        elif mode_sel == "Guided Workflow (Non-Expert)":
+            render_guided_mode(bench_id=bench_ctx_sel)
+        elif mode_sel == "Expert Technical Deep-Dive":
+            render_expert_mode(bench_id=bench_ctx_sel)
+        elif mode_sel == "Voice Assistant (Offline)":
+            render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
 
 
 # --- MODULE: GUARDRAIL LOG ---
