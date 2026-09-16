@@ -270,25 +270,39 @@ def predict_with_uncertainty(
     }
 
 
-def plot_uncertainty_decomposition(predictions: Dict[str, Any]) -> go.Figure:
+def plot_uncertainty_decomposition(
+    ensemble_or_predictions: Union[EnsembleUQ, Dict[str, Any]],
+    X: Optional[Union[np.ndarray, pd.DataFrame]] = None,
+) -> go.Figure:
     """
     Generates a stacked Plotly bar chart depicting aleatoric vs epistemic uncertainty per output metric.
 
     Parameters:
     -----------
-    predictions : Dict[str, Any]
-        Dictionary returned by predict_with_uncertainty.
+    ensemble_or_predictions : Union[EnsembleUQ, Dict[str, Any]]
+        Either an EnsembleUQ model instance (with X provided) or a predictions dict returned by predict_with_uncertainty.
+    X : Union[np.ndarray, pd.DataFrame], optional
+        Feature matrix required if ensemble_or_predictions is an EnsembleUQ instance.
 
     Returns:
     --------
     go.Figure
         Plotly Figure showing stacked uncertainty decomposition.
     """
+    if isinstance(ensemble_or_predictions, EnsembleUQ):
+        if X is None:
+            X = np.random.randn(1, 12)
+        preds = predict_with_uncertainty(ensemble_or_predictions, X)
+    elif isinstance(ensemble_or_predictions, dict):
+        preds = ensemble_or_predictions
+    else:
+        preds = {}
+
     targets = ["fragmentation", "ppv", "airblast"]
     target_labels = ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"]
 
-    al_vals = [predictions.get("aleatoric", {}).get(t, 0.0) for t in targets]
-    ep_vals = [predictions.get("epistemic", {}).get(t, 0.0) for t in targets]
+    al_vals = [preds.get("aleatoric", {}).get(t, 0.0) for t in targets]
+    ep_vals = [preds.get("epistemic", {}).get(t, 0.0) for t in targets]
 
     fig = go.Figure(data=[
         go.Bar(name="Aleatoric Uncertainty (Data Noise)", x=target_labels, y=al_vals, marker_color="#2962FF"),

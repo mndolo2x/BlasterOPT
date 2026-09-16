@@ -54,8 +54,8 @@ def test_predict_with_uncertainty_returns_non_negative_uncertainties():
         assert ci[0] <= ci[1]
 
 
-def test_plot_uncertainty_decomposition_returns_figure():
-    """Test plot_uncertainty_decomposition produces a valid Plotly Figure."""
+def test_plot_uncertainty_decomposition_with_ensemble_and_predictions():
+    """Test plot_uncertainty_decomposition produces a valid Plotly Figure when given predictions dict or ensemble instance."""
     X_dummy = np.random.rand(20, 12).astype(np.float32) + 0.5
     y_dummy = np.random.rand(20, 3).astype(np.float32) * 100.0
 
@@ -63,8 +63,15 @@ def test_plot_uncertainty_decomposition_returns_figure():
     x_test = np.random.rand(1, 12).astype(np.float32)
 
     res = predict_with_uncertainty(ensemble, x_test)
-    fig = plot_uncertainty_decomposition(res)
 
-    assert fig is not None
-    assert hasattr(fig, "data")
-    assert len(fig.data) == 2  # Aleatoric + Epistemic bars
+    # 1. Test passing predictions dict
+    fig1 = plot_uncertainty_decomposition(res)
+    assert fig1 is not None
+    assert hasattr(fig1, "data")
+    assert len(fig1.data) == 2
+
+    # 2. Test passing (ensemble, X)
+    fig2 = plot_uncertainty_decomposition(ensemble, x_test)
+    assert fig2 is not None
+    assert hasattr(fig2, "data")
+    assert len(fig2.data) == 2
