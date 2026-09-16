@@ -130,6 +130,30 @@ class ToolSpec(BaseModel):
     handler: Optional[Callable[..., Any]] = Field(None, description="Python execution handler function")
 
 
+class _ToolDictProxy(dict):
+    """Proxy dictionary that synchronizes key updates back to ToolSpec attributes."""
+
+    def __init__(self, spec: ToolSpec):
+        self.spec = spec
+        super().__init__({
+            "description": spec.description,
+            "input_schema": spec.input_schema,
+            "output_schema": spec.output_schema,
+            "function": spec.handler,
+        })
+
+    def __setitem__(self, key: str, value: Any):
+        super().__setitem__(key, value)
+        if key == "function":
+            self.spec.handler = value
+        elif key == "description":
+            self.spec.description = value
+        elif key == "input_schema":
+            self.spec.input_schema = value
+        elif key == "output_schema":
+            self.spec.output_schema = value
+
+
 class ToolRegistry:
     """
     Extensible Tool Registry storing tools with Pydantic schemas, descriptions, and execution handlers.
@@ -143,8 +167,8 @@ class ToolRegistry:
         self,
         name: str,
         description: str,
-        input_schema: Type[BaseModel],
-        output_schema: Optional[Type[BaseModel]] = None,
+        input_schema: Any,
+        output_schema: Any = None,
         handler: Optional[Callable[..., Any]] = None,
     ):
         """Registers a tool with name, description, input schema, output schema, and execution handler."""
@@ -193,15 +217,9 @@ class ToolRegistry:
             })
         return specs
 
-    def __getitem__(self, item: str) -> Dict[str, Any]:
+    def __getitem__(self, item: str) -> _ToolDictProxy:
         if item in self.registry:
-            spec = self.registry[item]
-            return {
-                "description": spec.description,
-                "input_schema": spec.input_schema,
-                "output_schema": spec.output_schema,
-                "function": spec.handler,
-            }
+            return _ToolDictProxy(self.registry[item])
         raise KeyError(item)
 
     def __contains__(self, item: str) -> bool:
@@ -462,6 +480,26 @@ def _query_knowledge_graph_handler(question: str) -> str:
     return f"Knowledge graph query answer for '{question}': Historical blast logs in Jwaneng Cut 8 show optimal digging rates when powder factor is between 0.62 and 0.68 kg/m3."
 
 
+def bind_tools():
+    """Bind registry entries to actual execution functions."""
+    TOOL_REGISTRY["predict_fragmentation"]["function"] = _predict_fragmentation_handler
+    TOOL_REGISTRY["predict_vibration"]["function"] = _predict_vibration_handler
+    TOOL_REGISTRY["predict_airblast"]["function"] = _predict_airblast_handler
+    TOOL_REGISTRY["predict_downstream"]["function"] = _predict_downstream_handler
+    TOOL_REGISTRY["design_blast"]["function"] = _design_blast_handler
+    TOOL_REGISTRY["optimize_blast"]["function"] = _optimize_blast_handler
+    TOOL_REGISTRY["explain_prediction"]["function"] = _explain_prediction_handler
+    TOOL_REGISTRY["get_mwd_data"]["function"] = _get_mwd_data_handler
+    TOOL_REGISTRY["get_geology"]["function"] = _get_geology_handler
+    TOOL_REGISTRY["get_regulations"]["function"] = _get_regulations_handler
+    TOOL_REGISTRY["search_past_blasts"]["function"] = _search_past_blasts_handler
+    TOOL_REGISTRY["find_similar_blasts"]["function"] = _find_similar_blasts_handler
+    TOOL_REGISTRY["generate_report"]["function"] = _generate_report_handler
+    TOOL_REGISTRY["route_for_approval"]["function"] = _route_for_approval_handler
+    TOOL_REGISTRY["log_decision"]["function"] = _log_decision_handler
+    TOOL_REGISTRY["query_knowledge_graph"]["function"] = _query_knowledge_graph_handler
+
+
 # --- Global Default Registry & Tool Declarations ---
 
 TOOL_REGISTRY = ToolRegistry()
@@ -594,3 +632,6 @@ TOOL_REGISTRY.register_tool(
     output_schema=str,
     handler=_query_knowledge_graph_handler,
 )
+
+# Bind tool functions
+bind_tools()

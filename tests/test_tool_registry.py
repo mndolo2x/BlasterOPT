@@ -16,6 +16,7 @@ from src.agent.tool_registry import (
     BlastRecord,
     ToolRegistry,
     TOOL_REGISTRY,
+    bind_tools,
 )
 
 
@@ -59,6 +60,21 @@ def test_tool_registry_registration_and_execution():
     # Execute tool with dict arguments
     res = registry.execute_tool("add_numbers", {"x": 10.5, "y": 4.5})
     assert res == 15.0
+
+
+def test_dict_binding_and_bind_tools():
+    """Test TOOL_REGISTRY dictionary key assignment and bind_tools execution."""
+    def dummy_func(bench_id: str, **kwargs):
+        return {"dummy": True, "bench_id": bench_id}
+
+    TOOL_REGISTRY["predict_fragmentation"]["function"] = dummy_func
+    spec = TOOL_REGISTRY.get_tool("predict_fragmentation")
+    assert spec.handler == dummy_func
+
+    # Re-run bind_tools to restore standard handler bindings
+    bind_tools()
+    spec_restored = TOOL_REGISTRY.get_tool("predict_fragmentation")
+    assert spec_restored.handler is not None
 
 
 def test_tool_registry_openai_specs_generation():
