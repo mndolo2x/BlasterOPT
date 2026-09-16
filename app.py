@@ -11,7 +11,7 @@ import streamlit as st
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, engineer_features
-from src.models import BlastMLPipeline
+from src.models import BlastMLPipeline, MODEL_REGISTRY
 from src.predict import predict_single_blast
 from src.optimize import BlastOptimizer
 from src.report import generate_pdf
@@ -77,6 +77,7 @@ page = st.sidebar.radio(
         "📊 Dashboard & Data Explorer",
         "⚙️ Data Ingestion & Generator",
         "🤖 ML Model Manager",
+        "🔬 Model Comparison",
         "🎯 Predictor & Kuz-Ram Curve",
         "⚡ Genetic Algorithm Optimizer",
         "📐 2D Blast Pattern & Delays",
@@ -199,6 +200,64 @@ elif page == "🤖 ML Model Manager":
             st.plotly_chart(fig_imp, use_container_width=True)
         else:
             st.info("Train a model using the options on the left to view evaluation metrics.")
+
+
+# --- MODULE: MODEL COMPARISON ---
+elif page == "🔬 Model Comparison":
+    st.header("🔬 Debswana Research Models Comparison")
+    st.markdown(
+        "Benchmarking production-validated research models trained on **Jwaneng** and **Orapa** mine datasets."
+    )
+
+    # Performance Table
+    rows = []
+    for model_key, meta in MODEL_REGISTRY.items():
+        perf = meta.get("performance", {})
+        r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
+        r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
+        r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
+        rows.append({
+            "Model Key": model_key,
+            "Architecture": meta.get("architecture", "N/A"),
+            "Optimizer": meta.get("optimizer", "N/A"),
+            "Source Data": meta.get("source", "N/A"),
+            "Fragmentation Performance (R²)": r2_frag,
+            "Vibration Performance (R²)": r2_vib,
+            "Airblast Performance (R²)": r2_air,
+            "Reference Citation": meta.get("reference", "N/A"),
+        })
+
+    df_registry = pd.DataFrame(rows)
+    st.subheader("Model Performance Summary Table")
+    st.dataframe(df_registry, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("Select Model for Sensitivity & Key Drivers Analysis")
+    selected_key = st.selectbox("Select Model", list(MODEL_REGISTRY.keys()))
+
+    if selected_key:
+        model_info = MODEL_REGISTRY[selected_key]
+        c1, c2 = st.columns([1, 1])
+
+        with c1:
+            st.subheader("Model Metadata & Source")
+            st.info(f"**Architecture:** `{model_info.get('architecture')}`")
+            st.info(f"**Outputs:** `{', '.join(model_info.get('outputs', []))}`")
+            st.info(f"**Data Source:** `{model_info.get('source')}`")
+            st.success(f"**Literature Citation:** {model_info.get('reference')}")
+
+        with c2:
+            st.subheader("Key Drivers & Sensitivity Analysis")
+            if "key_drivers" in model_info:
+                st.write("**Key Driving Features:**")
+                st.json(model_info["key_drivers"])
+            elif "key_sensitivity" in model_info:
+                st.write("**Key Parameter Sensitivity:**")
+                st.json(model_info["key_sensitivity"])
+
+            if "inverse_design" in model_info:
+                st.write("**Inverse Design Targets:**")
+                st.json(model_info["inverse_design"])
 
 
 # --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
