@@ -43,8 +43,8 @@ def test_train_pinn_executes_successfully():
     assert len(history["train_loss"]) > 0
 
 
-def test_predict_with_uncertainty_returns_exact_keys():
-    """Test predict_with_uncertainty returns mean, std, ci_95, aleatoric, epistemic, and high_uncertainty."""
+def test_predict_with_uncertainty_returns_exact_keys_and_non_negative_uncertainties():
+    """Test predict_with_uncertainty returns mean, confidence intervals, and non-negative aleatoric & epistemic uncertainties."""
     if HAS_TORCH:
         pinn = BlastPINN(input_dim=12)
         x_sample = np.random.randn(1, 12).astype(np.float32)
@@ -72,6 +72,10 @@ def test_predict_with_uncertainty_returns_exact_keys():
         assert key in res["ci_95"]
         assert key in res["aleatoric"]
         assert key in res["epistemic"]
+
+        # Verify aleatoric and epistemic uncertainties are non-negative
+        assert res["aleatoric"][key] >= 0.0, f"Aleatoric uncertainty for {key} should be non-negative"
+        assert res["epistemic"][key] >= 0.0, f"Epistemic uncertainty for {key} should be non-negative"
 
     ci_frag = res["ci_95"]["fragmentation"]
     assert isinstance(ci_frag, tuple)

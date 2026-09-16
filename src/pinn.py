@@ -364,10 +364,10 @@ def predict_with_uncertainty(
     ppv_epistemic = float(np.var(ppv_arr[:, 0]))
     air_epistemic = float(np.var(air_arr[:, 0]))
 
-    # Aleatoric uncertainty = baseline data noise variance
-    frag_aleatoric = float(round(0.05 * frag_mean, 2))
-    ppv_aleatoric = float(round(0.05 * ppv_mean, 2))
-    air_aleatoric = float(round(0.02 * air_mean, 2))
+    # Aleatoric uncertainty = baseline data noise variance (ensure non-negative)
+    frag_aleatoric = float(round(0.05 * abs(frag_mean), 2))
+    ppv_aleatoric = float(round(0.05 * abs(ppv_mean), 2))
+    air_aleatoric = float(round(0.02 * abs(air_mean), 2))
 
     # High uncertainty flag when relative std > 25% or PPV relative std > 35%
     high_unc = (frag_std / max(abs(frag_mean), 1.0)) > 0.25 or (ppv_std / max(abs(ppv_mean), 0.1)) > 0.35
