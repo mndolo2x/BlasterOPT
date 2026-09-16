@@ -987,136 +987,167 @@ elif active_module == "digital_twin":
     st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
     st.markdown(
         "Interactive 3D spatial digital twin connecting geological block models, as-drilled geometry, "
-        "and structural jointing to downstream digger productivity, truck payload, and primary crusher throughput."
+        "and structural jointing to downstream digger productivity, truck payload, primary crusher throughput, and ore tracking."
     )
 
-    c_dt1, c_dt2 = st.columns([1, 2])
+    tab_dt1, tab_dt2, tab_dt3 = st.tabs(["🧊 3D Bench & Fragmentation Simulation", "📈 What-If Scenario Sensitivity", "🗺️ Bench-to-Mill Ore Tracking"])
 
-    with c_dt1:
-        st.subheader("⚙️ Digital Twin Bench Inputs")
-        bench_id_input = st.text_input("Bench ID", value="BENCH_JWA_15S")
-        rock_type_input = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Waste_Granite_Hard", "Kimberlite_Soft", "Sandstone_Medium"])
-        rock_A_dt = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, 8.5, step=0.5)
-        joint_spacing = st.slider("Joint Set Spacing (m)", 0.2, 3.0, 0.8, step=0.1)
+    with tab_dt1:
+        c_dt1, c_dt2 = st.columns([1, 2])
 
-        st.subheader("Blast Design Parameters")
-        pf_dt = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05, key="dt_pf")
-        b_dt = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2, key="dt_b")
-        s_dt = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2, key="dt_s")
+        with c_dt1:
+            st.subheader("⚙️ Digital Twin Bench Inputs")
+            bench_id_input = st.text_input("Bench ID", value="BENCH_JWA_15S")
+            rock_type_input = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Waste_Granite_Hard", "Kimberlite_Soft", "Sandstone_Medium"])
+            rock_A_dt = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, 8.5, step=0.5)
 
-        geo_params = {
-            "rock_type": rock_type_input,
-            "rock_factor_A": rock_A_dt,
-            "density_t_m3": 2.65,
-            "joint_spacing_m": joint_spacing,
-            "hardness_index": 12.5,
-        }
+            st.subheader("Blast Design Parameters")
+            pf_dt = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05, key="dt_pf")
+            b_dt = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2, key="dt_b")
+            s_dt = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2, key="dt_s")
 
-        dt_obj = build_digital_twin(bench_id=bench_id_input, geological_data=geo_params)
-        frag_sim = simulate_fragmentation(dt_obj, blast_params={"powder_factor_kg_m3": pf_dt, "burden_m": b_dt, "spacing_m": s_dt, "charge_mass_per_hole_kg": 320.0})
-        downstream_kpis = link_to_downstream(dt_obj, frag_sim)
+            geo_params = {
+                "rock_type": rock_type_input,
+                "rock_factor_A": rock_A_dt,
+                "density_t_m3": 2.65,
+                "hardness_index": 12.5,
+            }
 
-        st.subheader("💡 Mine-to-Mill What-If Sensitivity Analysis")
+            dt_obj = build_digital_twin(bench_id=bench_id_input, geological_data=geo_params)
+            blast_payload_dt = {
+                "powder_factor_kg_m3": pf_dt,
+                "burden_m": b_dt,
+                "spacing_m": s_dt,
+                "stemming_m": 5.0,
+                "bench_height_m": 15.0,
+                "charge_mass_per_hole_kg": pf_dt * b_dt * s_dt * 15.0,
+            }
+
+            twin_obj = MineToMillTwin(rock_factor_A=rock_A_dt, ore_hardness_wi=12.5)
+            twin_sim = twin_obj.simulate(blast_payload_dt)
+
+        with c_dt2:
+            st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
+            as_drilled_df = dt_obj["as_drilled_data"]
+
+            fig_3d = go.Figure()
+            fig_3d.add_trace(go.Scatter3d(
+                x=as_drilled_df["x_m"],
+                y=as_drilled_df["y_m"],
+                z=as_drilled_df["z_m"],
+                mode="markers+text",
+                name="As-Drilled Collars",
+                marker=dict(size=8, color="#D50000", symbol="circle"),
+                text=as_drilled_df["hole_id"],
+            ))
+
+            for _, hole in as_drilled_df.iterrows():
+                fig_3d.add_trace(go.Scatter3d(
+                    x=[hole["x_m"], hole["x_m"]],
+                    y=[hole["y_m"], hole["y_m"]],
+                    z=[hole["z_m"], hole["z_m"] - hole["depth_m"]],
+                    mode="lines",
+                    line=dict(color="#FF6D00", width=4),
+                    showlegend=False,
+                ))
+
+            fig_3d.update_layout(
+                title="<b>3D Bench Spatial Geometry & As-Drilled Trajectories</b>",
+                scene=dict(xaxis_title="Easting (m)", yaxis_title="Northing (m)", zaxis_title="Elevation (m)"),
+                template="plotly_white",
+                height=420,
+            )
+            st.plotly_chart(fig_3d, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("💥 Fragmentation Size Distribution & Percentiles")
+
+            frag_data = twin_sim["fragmentation"]
+            col_f1, col_f2, col_f3 = st.columns(3)
+            col_f1.metric("D50 Fragment Size", f"{frag_data['d50_mm']:.1f} mm")
+            col_f2.metric("D80 Fragment Size", f"{frag_data['d80_mm']:.1f} mm")
+            col_f3.metric("Total Mine-to-Mill Cost", f"${twin_sim['cost']:.2f} / t")
+
+            df_dist = frag_data["distribution_df"]
+            fig_swebrec = px.line(
+                df_dist,
+                x="size_cm",
+                y="percent_passing",
+                title="<b>Swebrec Cumulative Size Distribution Curve P(x)</b>",
+                labels={"size_cm": "Sieve Particle Size (cm)", "percent_passing": "Cumulative Passing (%)"},
+                color_discrete_sequence=["#2962FF"],
+            )
+            fig_swebrec.update_layout(template="plotly_white", height=380)
+            st.plotly_chart(fig_swebrec, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("🏗️ Predicted Downstream Mine-to-Mill KPIs")
+            downstream_kpis = twin_sim["downstream"]
+
+            col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+            col_d1.metric("Digger Fill Factor", f"{downstream_kpis['digger_fill_factor']*100:.0f}%")
+            col_d2.metric("Truck Payload", f"{downstream_kpis['truck_payload_t']:.1f} t")
+            col_d3.metric("Crusher Throughput", f"{downstream_kpis['crusher_throughput_tph']:.0f} t/h")
+            col_d4.metric("Specific Energy", f"{downstream_kpis['specific_energy_kwh_t']:.2f} kWh/t")
+
+    with tab_dt2:
+        st.subheader("💡 What-If Scenario & Parameter Sensitivity Analyzer")
+
         param_to_sweep = st.selectbox(
-            "Select Parameter for What-If Analysis",
+            "Select Parameter for What-If Sensitivity Sweep",
             ["powder_factor_kg_m3", "burden_m", "spacing_m", "stemming_m"],
             index=0,
         )
 
-    with c_dt2:
-        st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
-
-        as_drilled_df = dt_obj["as_drilled_data"]
-
-        # Plotly 3D Scatter + Bench Mesh
-        fig_3d = go.Figure()
-
-        # Add 3D Drillholes as vertical line/scatter traces
-        fig_3d.add_trace(go.Scatter3d(
-            x=as_drilled_df["x_m"],
-            y=as_drilled_df["y_m"],
-            z=as_drilled_df["z_m"],
-            mode="markers+text",
-            name="As-Drilled Collars",
-            marker=dict(size=8, color="#D50000", symbol="circle"),
-            text=as_drilled_df["hole_id"],
-        ))
-
-        # Add 3D hole trajectories down to toe
-        for _, hole in as_drilled_df.iterrows():
-            fig_3d.add_trace(go.Scatter3d(
-                x=[hole["x_m"], hole["x_m"]],
-                y=[hole["y_m"], hole["y_m"]],
-                z=[hole["z_m"], hole["z_m"] - hole["depth_m"]],
-                mode="lines",
-                line=dict(color="#FF6D00", width=4),
-                showlegend=False,
-            ))
-
-        fig_3d.update_layout(
-            title="<b>3D Digital Twin Bench Geometry & As-Drilled Hole Trajectories</b>",
-            scene=dict(
-                xaxis_title="Easting (m)",
-                yaxis_title="Northing (m)",
-                zaxis_title="Elevation (m)",
-                aspectmode="data",
-            ),
-            template="plotly_white",
-            height=450,
-        )
-
-        st.plotly_chart(fig_3d, use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("💥 Simulated Bench Fragmentation Percent Passing")
-        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        col_f1.metric("d10 Size", f"{frag_sim['d10_mm']:.1f} mm")
-        col_f2.metric("d50 Mean Size", f"{frag_sim['d50_mm']:.1f} mm")
-        col_f3.metric("d80 Size", f"{frag_sim['d80_mm']:.1f} mm")
-        col_f4.metric("Boulder Pct (>50cm)", f"{frag_sim['boulder_percentage']:.1f}%")
-
-        st.markdown("---")
-        st.subheader("🏗️ Predicted Downstream Mine-to-Mill KPIs")
-        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-        col_d1.metric("Shovel Productivity", f"{downstream_kpis['digger_productivity_tph']:.0f} t/h")
-        col_d2.metric("Truck Fill Factor", f"{downstream_kpis['truck_fill_factor_pct']:.1f}%")
-        col_d3.metric("Crusher Throughput", f"{downstream_kpis['crusher_throughput_tph']:.0f} t/h")
-        col_d4.metric("Specific Energy", f"{downstream_kpis['specific_energy_kwh_t']:.2f} kWh/t")
-
-        st.markdown("---")
-        st.subheader("📈 Real-Time What-If Sensitivity Plot & Scenario Analysis")
-
-        twin = MineToMillTwin(rock_factor_A=rock_A_dt, ore_hardness_wi=12.5)
-        analyzer = ScenarioAnalyzer(twin=twin)
-
-        base_params_dt = {
-            "powder_factor_kg_m3": pf_dt,
-            "burden_m": b_dt,
-            "spacing_m": s_dt,
-            "stemming_m": 5.0,
-            "bench_height_m": 15.0,
-            "hole_diameter_mm": 250.0,
-        }
-
         min_range = 0.30 if param_to_sweep == "powder_factor_kg_m3" else 2.0
         max_range = 1.20 if param_to_sweep == "powder_factor_kg_m3" else 10.0
 
-        fig_sens = analyzer.plot_sensitivity(
-            base_blast_params=base_params_dt,
+        analyzer = ScenarioAnalyzer(twin=MineToMillTwin(rock_factor_A=8.5, ore_hardness_wi=12.5))
+        base_payload = {
+            "powder_factor_kg_m3": 0.65,
+            "burden_m": 6.0,
+            "spacing_m": 7.0,
+            "stemming_m": 5.0,
+            "bench_height_m": 15.0,
+        }
+
+        fig_sens = analyzer.sensitivity_sweep(
+            blast_params=base_payload,
             param_to_vary=param_to_sweep,
             range_min=min_range,
             range_max=max_range,
         )
         st.plotly_chart(fig_sens, use_container_width=True)
 
-        df_whatif = twin.what_if(
-            blast_params=base_params_dt,
+        df_whatif = analyzer.twin.what_if(
+            blast_params=base_payload,
             param_to_vary=param_to_sweep,
             range_min=min_range,
             range_max=max_range,
             steps=10,
         )
         st.dataframe(df_whatif, use_container_width=True)
+
+    with tab_dt3:
+        st.subheader("🗺️ Bench-to-Mill Ore Block Graph Tracking")
+        st.markdown(
+            "Traces ore blocks from bench origin polygon to primary crusher and milling batches using GPS, RFID, or ML telematics."
+        )
+
+        tracker = OreTracker()
+        tracker.add_blast("BLAST_JWA_2026_08", coordinates=(-24.52, 25.83, 1150.0), timestamp="2026-09-16T10:00:00")
+        tracker.add_ore_block("BLOCK_CUT8_15S_01", blast_id="BLAST_JWA_2026_08", coordinates=(-24.521, 25.832, 1150.0))
+        tracker.add_processing_batch("BATCH_MILL_402", block_ids=["BLOCK_CUT8_15S_01"], timestamp="2026-09-16T14:30:00")
+
+        query_block_id = st.text_input("Query Ore Block ID to Trace Path", value="BLOCK_CUT8_15S_01")
+
+        if st.button("Trace Ore Path from Bench to Mill"):
+            path_nodes = tracker.trace_ore(query_block_id)
+
+            st.success(f"Successfully traced ore block `{query_block_id}` across {len(path_nodes)} graph nodes!")
+
+            for idx, node in enumerate(path_nodes, 1):
+                st.info(f"**Step {idx} [{node['node_type']}]:** {node['data']}")
 
 
 # --- MODULE: DRILL CONNECTIVITY ---
