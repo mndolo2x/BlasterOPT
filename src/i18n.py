@@ -18,6 +18,7 @@ Mining Terminology Differences (English vs Setswana):
 """
 
 from typing import Dict, Any
+from src.autshumato_translator import translate_phrase
 
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "en": {
@@ -119,4 +120,12 @@ def get_translation(key: str, lang: str = "en") -> str:
     if lang_clean not in TRANSLATIONS:
         lang_clean = "en"
 
-    return TRANSLATIONS[lang_clean].get(key, TRANSLATIONS["en"].get(key, key))
+    if lang_clean in ["tn", "setswana"]:
+        val = TRANSLATIONS["tn"].get(key)
+        if val:
+            return val
+        # Query Autshumato parallel corpus fallback
+        en_text = TRANSLATIONS["en"].get(key, key)
+        return translate_phrase(en_text, source_lang="en", target_lang="tn")
+
+    return TRANSLATIONS["en"].get(key, key)

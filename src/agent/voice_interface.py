@@ -12,6 +12,7 @@ from src.agent.speech_to_text import transcribe_audio, detect_language
 from src.agent.text_to_speech import synthesize_speech
 from src.agent.agent_graph import build_agent_graph
 from src.agent.state import AgentState
+from src.autshumato_translator import translate_phrase
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,11 @@ def process_voice_turn(
     else:
         response_text = "I have processed your request."
 
-    # 4. Synthesize text response to speech audio bytes
+    # 4. If Setswana language, translate response using Autshumato corpus if needed
+    if lang in ["tn", "setswana"]:
+        response_text = translate_phrase(response_text, source_lang="en", target_lang="tn")
+
+    # Synthesize text response to speech audio bytes
     audio_response = synthesize_speech(text=response_text, language=lang)
 
     # 5. Return dict
