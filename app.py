@@ -56,6 +56,7 @@ from src.explainability import (
     get_feature_contributions,
     plot_feature_contributions_waterfall,
     create_explanation_panel,
+    get_shap_explanation,
 )
 
 # Page configuration
@@ -1462,33 +1463,52 @@ elif active_module == "pinn":
         uncertainty_res = predict_with_uncertainty(pinn_model, np.array([pinn_feature_vec]), n_samples=mc_samples)
 
         means = uncertainty_res["mean"]
-        cis = uncertainty_res["confidence_interval_95"]
+        cis = uncertainty_res["ci_95"]
+        is_high_unc = uncertainty_res.get("high_uncertainty", False)
 
         m_p1, m_p2, m_p3 = st.columns(3)
         m_p1.metric(
-            "Fragmentation d50",
-            f"{means['fragmentation_d50_mm']:.1f} mm",
-            f"95% CI: [{cis['fragmentation_d50_mm'][0]:.1f}, {cis['fragmentation_d50_mm'][1]:.1f}]",
+            "Fragmentation (D80)",
+            f"{means['fragmentation']:.1f} mm",
+            f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
         )
         m_p2.metric(
-            "Ground PPV",
-            f"{means['ppv_mms']:.2f} mm/s",
-            f"95% CI: [{cis['ppv_mms'][0]:.2f}, {cis['ppv_mms'][1]:.2f}]",
+            "Ground Vibration (PPV)",
+            f"{means['ppv']:.2f} mm/s",
+            f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
         )
         m_p3.metric(
             "Airblast Overpressure",
-            f"{means['airblast_dbl']:.1f} dBL",
-            f"95% CI: [{cis['airblast_dbl'][0]:.1f}, {cis['airblast_dbl'][1]:.1f}]",
+            f"{means['airblast']:.1f} dB",
+            f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
         )
 
         st.markdown("---")
         st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
 
-        if uncertainty_res["is_out_of_distribution"]:
-            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
-            st.warning("💡 **RECOMMENDATION:** High prediction variance detected. Verify rock mass jointing in field log or run conservative physics bounds.")
+        if is_high_unc:
+            st.error("⚠️ **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
+            st.warning("💡 **RECOMMENDATION:** High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.")
         else:
             st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
+
+        st.markdown("---")
+        st.subheader("🔍 DeepSHAP Feature Contribution Explanation for PINN")
+
+        pinn_df_input = pd.DataFrame([pinn_feature_vec], columns=PINN_INPUT_COLS)
+        pinn_shap = get_shap_explanation(
+            model=pinn_model,
+            input_data=pinn_df_input,
+            feature_names=PINN_INPUT_COLS,
+        )
+
+        waterfall_fig = pinn_shap.get("waterfall_plot")
+        if waterfall_fig is not None:
+            st.plotly_chart(waterfall_fig, use_container_width=True)
+
+        force_fig = pinn_shap.get("force_plot")
+        if force_fig is not None:
+            st.plotly_chart(force_fig, use_container_width=True)
 
         st.markdown("---")
         st.subheader("📐 Physics Soft Loss Terms Embedding")
