@@ -480,6 +480,18 @@ class ScenarioAnalyzer:
         fig.update_layout(template="plotly_white", height=420)
         return fig
 
+    def plot_sensitivity(
+        self,
+        blast_params: Dict[str, float],
+        param_to_vary: str = "powder_factor_kg_m3",
+        range_min: float = 0.30,
+        range_max: float = 1.20,
+    ) -> go.Figure:
+        """
+        Alias for sensitivity_sweep for backward compatibility.
+        """
+        return self.sensitivity_sweep(blast_params, param_to_vary, range_min, range_max)
+
     def compare_scenarios(self, scenarios: List[Dict[str, Any]]) -> pd.DataFrame:
         """
         Generates a comparison table DataFrame across multiple blast scenarios.
