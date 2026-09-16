@@ -38,7 +38,7 @@ from src.regulatory import load_regulatory_limits, check_compliance, generate_co
 from src.i18n import get_translation
 from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
 from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
-from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation
+from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation, plot_pareto_front
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations
 import plotly.express as px
@@ -1521,7 +1521,7 @@ elif active_module == "pareto":
     st.header("⚡ Model 3: Multi-Objective NSGA-II Pareto Optimizer")
     st.markdown(
         "Discovers the non-dominated **Pareto Frontier** across 5 competing blast design objectives: "
-        "minimizing fragmentation ($d_{80}$), minimizing ground vibration ($PPV$), minimizing airblast ($dBL$), "
+        "minimizing fragmentation ($D_{80}$), minimizing ground vibration ($PPV$), minimizing airblast ($dB$), "
         "minimizing cost ($/t), and maximizing primary crusher throughput ($t/h$)."
     )
 
@@ -1529,7 +1529,7 @@ elif active_module == "pareto":
 
     with c_par1:
         st.subheader("⚖️ Objective Importance Weights")
-        w_frag = st.slider("Minimizing d80 Fragmentation Weight", 0.0, 1.0, 0.25, step=0.05)
+        w_frag = st.slider("Minimizing D80 Fragmentation Weight", 0.0, 1.0, 0.25, step=0.05)
         w_vib = st.slider("Minimizing Ground PPV Weight", 0.0, 1.0, 0.25, step=0.05)
         w_air = st.slider("Minimizing Airblast Overpressure Weight", 0.0, 1.0, 0.15, step=0.05)
         w_cost = st.slider("Minimizing Unit Cost Weight", 0.0, 1.0, 0.20, step=0.05)
@@ -1543,8 +1543,8 @@ elif active_module == "pareto":
             "weight_throughput": w_tph,
         }
 
-        n_gen = st.slider("NSGA-II Generations", 20, 300, 80, step=20)
-        pop_size = st.slider("Population Size", 20, 150, 40, step=10)
+        n_gen = st.slider("NSGA-II Generations", 20, 300, 100, step=20)
+        pop_size = st.slider("Population Size", 20, 150, 50, step=10)
 
         if st.button("Run Multi-Objective NSGA-II", type="primary"):
             with st.spinner("Calculating non-dominated Pareto Frontier across 5 objectives..."):
@@ -1553,43 +1553,59 @@ elif active_module == "pareto":
                 st.success(f"Discovered {len(df_pareto)} non-dominated Pareto-optimal designs!")
 
     with c_par2:
-        if "pareto_front_df" in st.session_state:
+        if "pareto_front_df" in st.session_state and not st.session_state["pareto_front_df"].empty:
             df_p = st.session_state["pareto_front_df"]
+
+            st.subheader("📊 Interactive Pareto Front Scatter Plot")
+            c_p_x, c_p_y = st.columns(2)
+            with c_p_x:
+                obj_x = st.selectbox("X-Axis Objective", ["d80_mm", "ppv_mms", "airblast_dbl", "cost_per_tonne_usd", "crusher_throughput_tph"], index=0)
+            with c_p_y:
+                obj_y = st.selectbox("Y-Axis Objective", ["ppv_mms", "d80_mm", "airblast_dbl", "cost_per_tonne_usd", "crusher_throughput_tph"], index=0)
+
+            fig_p = plot_pareto_front(df_p, x_objective=obj_x, y_objective=obj_y)
+            st.plotly_chart(fig_p, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("📋 Pareto-Optimal Candidate Designs Table")
+            st.dataframe(df_p, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("🌟 Select Design & View Trade-Off Explanation")
 
             selected_design = select_best_design(df_p, weights_dict)
 
-            st.subheader("🌟 Recommended Design (Highest Utility Score)")
-            c_p1, c_p2, c_p3, c_p4 = st.columns(4)
-            c_p1.metric("Burden x Spacing", f"{selected_design.get('burden_m', 6.0):.2f} x {selected_design.get('spacing_m', 7.0):.2f} m")
-            c_p2.metric("Powder Factor", f"{selected_design.get('powder_factor_kg_m3', 0.65):.3f} kg/m3")
-            c_p3.metric("Predicted d80", f"{selected_design.get('d80_mm', 320.0):.1f} mm")
-            c_p4.metric("Predicted PPV", f"{selected_design.get('ppv_mms', 6.5):.2f} mm/s")
+            if st.button("Select Recommended Design"):
+                st.session_state["active_selected_pareto"] = selected_design
+
+            if "active_selected_pareto" in st.session_state:
+                sel_d = st.session_state["active_selected_pareto"]
+
+                st.json(sel_d)
+                explanation_str = generate_trade_off_explanation(df_p, sel_d)
+                st.info(f"💡 **Trade-Off Explanation:** {explanation_str}")
 
             st.markdown("---")
-            st.subheader("📊 Interactive 3D Pareto Front Trade-Off Scatter Plot")
+            st.subheader("⚔️ Compare Two Pareto Designs Side-by-Side")
 
-            fig_p3d = px.scatter_3d(
-                df_p,
-                x="d80_mm",
-                y="ppv_mms",
-                z="cost_per_tonne_usd",
-                color="crusher_throughput_tph",
-                size_max=15,
-                title="<b>Pareto Front: d80 vs. PPV Vibration vs. Cost ($/t)</b>",
-                labels={"d80_mm": "d80 (mm)", "ppv_mms": "PPV (mm/s)", "cost_per_tonne_usd": "Cost ($/t)", "crusher_throughput_tph": "Throughput (t/h)"},
-                color_continuous_scale="Viridis",
-            )
-            fig_p3d.update_layout(template="plotly_white", height=500)
-            st.plotly_chart(fig_p3d, use_container_width=True)
+            c_cmp1, c_cmp2 = st.columns(2)
+            with c_cmp1:
+                idx_1 = st.selectbox("Select Design #1 (Row Index)", list(df_p.index), index=0, key="pareto_cmp_1")
+                design_1 = df_p.loc[idx_1].to_dict()
+                st.write("**Design #1 Parameters & Outcomes:**")
+                st.json(design_1)
 
-            st.markdown("---")
-            st.subheader("💡 Trade-Off Explanation relative to Extremes")
-            tradeoff_text = generate_trade_off_explanation(df_p, selected_design)
-            st.info(tradeoff_text)
+            with c_cmp2:
+                default_idx_2 = min(1, len(df_p) - 1)
+                idx_2 = st.selectbox("Select Design #2 (Row Index)", list(df_p.index), index=default_idx_2, key="pareto_cmp_2")
+                design_2 = df_p.loc[idx_2].to_dict()
+                st.write("**Design #2 Parameters & Outcomes:**")
+                st.json(design_2)
 
-            st.markdown("---")
-            st.subheader("📋 All Pareto-Optimal Candidate Designs")
-            st.dataframe(df_p, use_container_width=True)
+            df_side_by_side = pd.DataFrame([design_1, design_2], index=["Design #1", "Design #2"]).T
+            st.subheader("Side-by-Side Metrics Comparison Table")
+            st.dataframe(df_side_by_side, use_container_width=True)
+
         else:
             st.info("Adjust objective weights and click 'Run Multi-Objective NSGA-II' to compute Pareto front.")
 

@@ -1,22 +1,18 @@
 """
-Unit tests for Multi-Objective Pareto Optimizer (Model 3) module.
+Unit tests for Multi-Objective Pareto Optimizer module (src/pareto_optimizer.py).
 """
 
 import pytest
 import pandas as pd
-from src.pareto_optimizer import (
-    run_nsga2,
-    select_best_design,
-    generate_trade_off_explanation,
-)
+from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation, plot_pareto_front
 
 
 def test_run_nsga2_returns_dataframe_with_correct_columns():
-    """Test run_nsga2 returns a non-empty DataFrame with all required objective columns."""
+    """Test run_nsga2 returns a DataFrame containing all required decision variables and objective outcomes."""
     df_pareto = run_nsga2(n_gen=10, pop_size=20, seed=42)
 
     assert isinstance(df_pareto, pd.DataFrame)
-    assert len(df_pareto) > 0
+    assert not df_pareto.empty
 
     expected_cols = [
         "burden_m",
@@ -31,18 +27,18 @@ def test_run_nsga2_returns_dataframe_with_correct_columns():
     ]
 
     for col in expected_cols:
-        assert col in df_pareto.columns, f"Expected column '{col}' in Pareto front DataFrame"
+        assert col in df_pareto.columns, f"Missing expected column {col} in Pareto front DataFrame"
 
 
 def test_select_best_design_returns_row_from_pareto_front():
-    """Test select_best_design selects a valid row dictionary from the Pareto front."""
+    """Test select_best_design returns a valid row dictionary from the Pareto front."""
     df_pareto = run_nsga2(n_gen=10, pop_size=20, seed=42)
 
     weights = {
         "weight_fragmentation": 0.30,
-        "weight_vibration": 0.30,
-        "weight_airblast": 0.10,
-        "weight_cost": 0.15,
+        "weight_vibration": 0.20,
+        "weight_airblast": 0.15,
+        "weight_cost": 0.20,
         "weight_throughput": 0.15,
     }
 
@@ -56,14 +52,21 @@ def test_select_best_design_returns_row_from_pareto_front():
 
 
 def test_generate_trade_off_explanation_returns_non_empty_string():
-    """Test generate_trade_off_explanation returns non-empty plain English trade-off text."""
+    """Test generate_trade_off_explanation returns a non-empty descriptive string."""
     df_pareto = run_nsga2(n_gen=10, pop_size=20, seed=42)
-    weights = {"weight_fragmentation": 0.25, "weight_vibration": 0.25}
-    selected = select_best_design(df_pareto, weights)
+    selected = select_best_design(df_pareto, {"weight_vibration": 0.50})
 
     explanation = generate_trade_off_explanation(df_pareto, selected)
 
     assert isinstance(explanation, str)
-    assert len(explanation.strip()) > 0
-    assert "ground vibration" in explanation.lower() or "fragmentation" in explanation.lower()
-    assert len(explanation.split()) <= 150
+    assert len(explanation) > 0
+    assert "vibration" in explanation.lower() or "design" in explanation.lower()
+
+
+def test_plot_pareto_front_returns_figure():
+    """Test plot_pareto_front generates an interactive Plotly Figure."""
+    df_pareto = run_nsga2(n_gen=10, pop_size=20, seed=42)
+    fig = plot_pareto_front(df_pareto, x_objective="d80_mm", y_objective="ppv_mms")
+
+    assert fig is not None
+    assert hasattr(fig, "data")

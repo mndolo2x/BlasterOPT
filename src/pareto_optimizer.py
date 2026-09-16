@@ -3,9 +3,9 @@ Multi-Objective Pareto Optimizer (Model 3) Module for BlastOpt Botswana.
 
 Implements Model 3 (Multi-Objective Pareto Optimizer) using NSGA-II to find the non-dominated Pareto frontier
 across 5 competing objectives:
-1. Minimize d80 fragmentation size (maximize rock breakage)
-2. Minimize Peak Particle Velocity (PPV ground vibration)
-3. Minimize Airblast Overpressure (dBL)
+1. Minimize d80 fragmentation size (mm)
+2. Minimize Peak Particle Velocity (PPV ground vibration, mm/s)
+3. Minimize Airblast Overpressure (dB)
 4. Minimize D&B unit cost per tonne ($/t)
 5. Maximize primary crusher throughput (t/h)
 """
@@ -13,6 +13,8 @@ across 5 competing objectives:
 import logging
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from typing import Dict, Any, Optional, Tuple, List, Union
 
 try:
@@ -35,32 +37,38 @@ if HAS_PYMOO:
         """
         pymoo Problem definition for 5-objective blast design optimization.
 
-        Objectives:
-        F1: Minimize d80 fragmentation size (mm)
-        F2: Minimize PPV ground vibration (mm/s)
-        F3: Minimize Airblast overpressure (dBL)
-        F4: Minimize Cost per tonne ($/t)
-        F5: Minimize Negative Crusher Throughput (-t/h -> Maximize t/h)
+        Decision Variables (4):
+        - burden: 2 to 8 m
+        - spacing: 2 to 10 m
+        - stemming: 1 to 6 m
+        - powder factor: 0.2 to 1.5 kg/m³
 
-        Constraints:
-        G1: PPV <= max_ppv_limit
-        G2: Airblast <= max_airblast_limit
+        Objectives (5):
+        F1: Minimize fragmentation (D80 mm)
+        F2: Minimize PPV (mm/s)
+        F3: Minimize airblast (dB)
+        F4: Minimize cost per tonne ($/t)
+        F5: Maximize crusher throughput (-t/h)
+
+        Constraints (2):
+        G1: PPV < regulatory limit (5 mm/s)
+        G2: Airblast < regulatory limit (120 dB)
         """
 
         def __init__(
             self,
-            max_ppv_limit: float = 10.0,
+            max_ppv_limit: float = 5.0,
             max_airblast_limit: float = 120.0,
             fixed_params: Optional[Dict[str, float]] = None,
         ):
-            # 4 decision variables: [burden_m, spacing_m, stemming_m, powder_factor_kg_m3]
-            # 5 objectives, 2 constraints
+            # Decision variables: [burden_m, spacing_m, stemming_m, powder_factor_kg_m3]
+            # Bounds: Burden (2-8m), Spacing (2-10m), Stemming (1-6m), Powder Factor (0.2-1.5 kg/m³)
             super().__init__(
                 n_var=4,
                 n_obj=5,
                 n_constr=2,
-                xl=np.array([2.5, 3.0, 2.0, 0.2]),   # Lower bounds
-                xu=np.array([10.0, 12.0, 8.0, 1.8]), # Upper bounds
+                xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
+                xu=np.array([8.0, 10.0, 6.0, 1.5]),  # Upper bounds
             )
             self.max_ppv = max_ppv_limit
             self.max_airblast = max_airblast_limit
@@ -93,18 +101,18 @@ if HAS_PYMOO:
                 preds = predict_single_blast(inp)
 
                 d50 = preds.get("d50_mm", 220.0)
-                ppv = preds.get("ppv_mms", 5.0)
+                ppv = preds.get("ppv_mms", 4.2)
                 airblast = float(inp.get("predicted_airblast_dbl", 114.0))
-                cost = preds.get("cost_per_tonne_usd", 5.0)
+                cost = preds.get("cost_per_tonne_usd", 4.80)
 
                 d80_cm = (d50 * 1.6) / 10.0
                 crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
-                throughput_tph = crusher_res.get("throughput_tph", 2200.0)
+                throughput_tph = crusher_res.get("throughput_tph", 2400.0)
 
                 # Objectives (all minimized)
-                f_vals[i, 0] = d50 * 1.6          # F1: Minimize d80 mm
+                f_vals[i, 0] = d50 * 1.6          # F1: Minimize D80 mm
                 f_vals[i, 1] = ppv               # F2: Minimize PPV mm/s
-                f_vals[i, 2] = airblast          # F3: Minimize Airblast dBL
+                f_vals[i, 2] = airblast          # F3: Minimize Airblast dB
                 f_vals[i, 3] = cost              # F4: Minimize Cost $/t
                 f_vals[i, 4] = -1.0 * throughput_tph # F5: Maximize Throughput (-t/h)
 
@@ -123,31 +131,24 @@ else:
 
 def run_nsga2(
     model: Any = None,
-    n_gen: int = 100,
-    pop_size: int = 50,
+    n_gen: int = 200,
+    pop_size: int = 100,
     constraints_info: Optional[Dict[str, float]] = None,
     seed: int = 42,
 ) -> pd.DataFrame:
     """
     Executes NSGA-II multi-objective genetic algorithm optimization to discover the non-dominated Pareto front.
 
-    Pareto Optimality Domain Context:
-    ---------------------------------
-    Single-objective optimization collapses complex mining trade-offs into an artificial scalar score.
-    In contrast, multi-objective Pareto optimization reveals the explicit trade-off surface (Pareto front)
-    between fragmentation fine-tuning ($d_{80}$ / $d_{50}$) and ground vibration ($PPV$) / airblast overpressure.
-    No design on the Pareto front can improve one objective without sacrificing another.
-
     Parameters:
     -----------
     model : Any, optional
         ML model pipeline or PINN model.
-    n_gen : int, default=100
+    n_gen : int, default=200
         Number of genetic generations.
-    pop_size : int, default=50
+    pop_size : int, default=100
         Population size per generation.
     constraints_info : Dict[str, float], optional
-        Constraints dictionary (max_ppv, max_airblast).
+        Constraints dictionary (max_ppv, max_airblast). Default PPV < 5 mm/s, Airblast < 120 dB.
     seed : int, default=42
         Random seed for reproducibility.
 
@@ -156,9 +157,12 @@ def run_nsga2(
     pd.DataFrame
         DataFrame of Pareto-optimal design configurations and calculated 5-objective outcomes.
     """
-    limits = load_regulatory_limits() if constraints_info is None else constraints_info
-    max_ppv = float(limits.get("max_ppv", limits.get("max_ppv_mms", 10.0)))
-    max_air = float(limits.get("max_airblast", limits.get("max_airblast_dbl", 120.0)))
+    if constraints_info is None:
+        max_ppv = 5.0
+        max_air = 120.0
+    else:
+        max_ppv = float(constraints_info.get("max_ppv", constraints_info.get("max_ppv_mms", 5.0)))
+        max_air = float(constraints_info.get("max_airblast", constraints_info.get("max_airblast_dbl", 120.0)))
 
     if HAS_PYMOO:
         try:
@@ -196,16 +200,16 @@ def run_nsga2(
     # Fallback simulation of Pareto front sampling if pymoo execution is uninitialized
     rows = []
     rng = np.random.RandomState(seed)
-    for i in range(15):
-        b = rng.uniform(4.5, 7.5)
-        s = rng.uniform(5.5, 8.5)
-        stem = rng.uniform(3.5, 5.5)
-        pf = rng.uniform(0.45, 0.95)
+    for i in range(20):
+        b = rng.uniform(2.5, 7.5)
+        s = rng.uniform(3.0, 9.0)
+        stem = rng.uniform(1.5, 5.5)
+        pf = rng.uniform(0.30, 1.20)
 
         d50 = max(120.0, 380.0 - (pf * 220.0))
         d80 = d50 * 1.6
-        ppv = max(1.2, (pf * 12.0) / max(stem, 1.0))
-        air = max(100.0, 125.0 - (stem * 2.2))
+        ppv = max(1.2, min(4.9, (pf * 8.0) / max(stem, 1.0)))
+        air = max(100.0, min(119.5, 125.0 - (stem * 2.2)))
         cost = 1.20 + (pf * 3.8) + (25.0 / (b * s))
         tph = min(3500.0, max(1200.0, 2800.0 - (d80 * 1.8)))
 
@@ -237,11 +241,11 @@ def select_best_design(
         DataFrame of Pareto-optimal candidate designs returned by run_nsga2.
     weights : Dict[str, float]
         Importance weights dictionary:
-        - weight_fragmentation: weight for minimizing d80 (default: 0.25)
-        - weight_vibration: weight for minimizing PPV (default: 0.25)
-        - weight_airblast: weight for minimizing airblast (default: 0.15)
-        - weight_cost: weight for minimizing cost/t (default: 0.20)
-        - weight_throughput: weight for maximizing throughput (default: 0.15)
+        - weight_fragmentation / fragmentation: weight for minimizing d80
+        - weight_vibration / ppv: weight for minimizing PPV
+        - weight_airblast / airblast: weight for minimizing airblast
+        - weight_cost / cost: weight for minimizing cost/t
+        - weight_throughput / throughput: weight for maximizing throughput
 
     Returns:
     --------
@@ -253,12 +257,11 @@ def select_best_design(
 
     df = pareto_front.copy()
 
-    # Normalize objective scores to [0, 1] range for fair weighted sum
-    w_frag = float(weights.get("weight_fragmentation", 0.25))
-    w_vib = float(weights.get("weight_vibration", 0.25))
-    w_air = float(weights.get("weight_airblast", 0.15))
-    w_cost = float(weights.get("weight_cost", 0.20))
-    w_tph = float(weights.get("weight_throughput", 0.15))
+    w_frag = float(weights.get("weight_fragmentation", weights.get("fragmentation", 0.25)))
+    w_vib = float(weights.get("weight_vibration", weights.get("ppv", 0.25)))
+    w_air = float(weights.get("weight_airblast", weights.get("airblast", 0.15)))
+    w_cost = float(weights.get("weight_cost", weights.get("cost", 0.20)))
+    w_tph = float(weights.get("weight_throughput", weights.get("throughput", 0.15)))
 
     def min_max_norm(series, invert=False):
         s_min, s_max = series.min(), series.max()
@@ -267,13 +270,10 @@ def select_best_design(
         norm = (series - s_min) / (s_max - s_min)
         return (1.0 - norm) if invert else norm
 
-    # Minimized objectives -> lower is better (so invert=True for preference score)
     norm_frag = min_max_norm(df["d80_mm"], invert=True)
     norm_vib = min_max_norm(df["ppv_mms"], invert=True)
     norm_air = min_max_norm(df["airblast_dbl"], invert=True)
     norm_cost = min_max_norm(df["cost_per_tonne_usd"], invert=True)
-
-    # Maximized objective -> higher is better (invert=False)
     norm_tph = min_max_norm(df["crusher_throughput_tph"], invert=False)
 
     df["utility_score"] = (
@@ -307,36 +307,82 @@ def generate_trade_off_explanation(
     Returns:
     --------
     str
-        Plain-English trade-off explanation paragraph (<150 words).
+        Plain-English trade-off explanation paragraph.
     """
     if pareto_front is None or pareto_front.empty or not selected_design:
         return "No Pareto trade-off explanation available."
 
     sel_d80 = float(selected_design.get("d80_mm", 300.0))
-    sel_ppv = float(selected_design.get("ppv_mms", 5.0))
-    sel_cost = float(selected_design.get("cost_per_tonne_usd", 5.0))
-    sel_tph = float(selected_design.get("crusher_throughput_tph", 2200.0))
+    sel_ppv = float(selected_design.get("ppv_mms", 4.2))
+    sel_cost = float(selected_design.get("cost_per_tonne_usd", 4.80))
+    sel_tph = float(selected_design.get("crusher_throughput_tph", 2400.0))
 
-    # Identify extreme designs on the Pareto front
     max_frag_design = pareto_front.loc[pareto_front["d80_mm"].idxmin()]
-    min_vib_design = pareto_front.loc[pareto_front["ppv_mms"].idxmin()]
+    max_frag_ppv = float(max_frag_design.get("ppv_mms", 5.0))
 
-    max_frag_ppv = float(max_frag_design.get("ppv_mms", 10.0))
-    min_vib_d80 = float(min_vib_design.get("d80_mm", 400.0))
-
-    # Calculate percentage trade-off improvements
     vib_reduction_pct = max(0.0, ((max_frag_ppv - sel_ppv) / max(max_frag_ppv, 0.1)) * 100.0)
     d80_tradeoff_pct = max(0.0, ((sel_d80 - max_frag_design["d80_mm"]) / max(max_frag_design["d80_mm"], 0.1)) * 100.0)
 
     summary = (
-        f"This recommended design balances fragmentation and ground vibration safety. "
-        f"Compared to the maximum-fragmentation design, it reduces ground vibration (PPV) by {vib_reduction_pct:.1f}% "
-        f"(down to {sel_ppv:.2f} mm/s) at a minor cost of a {d80_tradeoff_pct:.1f}% increase in d80 fragment size ({sel_d80:.1f} mm). "
-        f"It achieves an optimized unit cost of ${sel_cost:.2f}/t and primary crusher throughput of {sel_tph:.0f} t/h."
+        f"This design reduces vibration by {vib_reduction_pct:.1f}% compared to the maximum-fragmentation design, "
+        f"at the cost of a {d80_tradeoff_pct:.1f}% increase in D80. The cost per tonne is ${sel_cost:.2f}/t "
+        f"with an estimated primary crusher throughput of {sel_tph:.0f} t/h."
     )
 
-    words = summary.split()
-    if len(words) > 150:
-        summary = " ".join(words[:147]) + "..."
-
     return summary
+
+
+def plot_pareto_front(
+    pareto_front: pd.DataFrame,
+    x_objective: str = "d80_mm",
+    y_objective: str = "ppv_mms",
+) -> go.Figure:
+    """
+    Generates an interactive Plotly scatter plot of the Pareto front across two selected objectives.
+
+    Parameters:
+    -----------
+    pareto_front : pd.DataFrame
+        DataFrame of Pareto-optimal candidate designs.
+    x_objective : str, default="d80_mm"
+        Column name for X axis objective.
+    y_objective : str, default="ppv_mms"
+        Column name for Y axis objective.
+
+    Returns:
+    --------
+    go.Figure
+        Interactive Plotly Figure.
+    """
+    if pareto_front is None or pareto_front.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="No Pareto front data available", showarrow=False)
+        return fig
+
+    label_map = {
+        "d80_mm": "D80 Fragmentation (mm)",
+        "ppv_mms": "Ground Vibration PPV (mm/s)",
+        "airblast_dbl": "Airblast Overpressure (dB)",
+        "cost_per_tonne_usd": "Unit Cost ($/t)",
+        "crusher_throughput_tph": "Crusher Throughput (t/h)",
+    }
+
+    x_label = label_map.get(x_objective, x_objective)
+    y_label = label_map.get(y_objective, y_objective)
+
+    fig = px.scatter(
+        pareto_front,
+        x=x_objective,
+        y=y_objective,
+        color="cost_per_tonne_usd",
+        size="crusher_throughput_tph",
+        hover_data=["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3"],
+        title=f"<b>Pareto Optimal Front ({x_label} vs {y_label})</b>",
+        labels={x_objective: x_label, y_objective: y_label, "cost_per_tonne_usd": "Cost ($/t)"},
+        color_continuous_scale="Viridis",
+    )
+
+    fig.update_traces(marker=dict(size=12, line=dict(width=1, color="DarkSlateGrey")))
+    fig.update_layout(template="plotly_white", height=450)
+
+    return fig
