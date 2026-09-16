@@ -46,9 +46,10 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Synthetic Data Limitations:** Synthetic datasets generated from empirical equations (e.g. Kuz-Ram, USBM) rely on idealized assumptions and uniform rock mass properties.
 - **Real Production Data Necessity:** Production blast logs from mine operations capture site-specific geological heterogeneity, structural discontinuities (joints, faults, bedding planes), Joint Wall Factor ($JWF$), bench groundwater saturation, explosive product degradation, and actual measured seismograph waveforms. Ingesting real mine data when data-sharing agreements are active is critical to calibrate ML models for production deployment and minimize generalization error on site.
 
-### Measure-While-Drilling (MWD) & Closed-Loop Charging Adaptation
+### Measure-While-Drilling (MWD) & Real-Time Adaptive Blast Designer (Model 1)
 - **MWD Sensor Ingestion:** MWD telemetry from smart drill rigs (Epiroc, Sandvik) measures penetration rate (ROP, m/hr), torque (N·m), weight-on-bit (WOB, kg), air pressure (bar), and Specific Energy of Drilling ($SED$).
-- **Closed-Loop Charging Adaptation:** Real-time MWD streaming via MQTT/OPC-UA (`src/mwd_ingestion.py`) feeds as-drilled geometry and rock hardness variations directly back into BlastOpt. When MWD identifies unexpected voids or weak strata at depth, the charging plan automatically adapts bulk explosive density or decks charges to mitigate flyrock and vibration risks.
+- **Dynamic In-Flight Adaptation (`src/realtime_adaptive.py`):** Replaces static pre-blast assumptions with dynamic per-hole charging plan adjustments (`adjust_charging_plan`). Hard Kimberlite strata (low ROP) triggers powder factor increases (+15%), while high torque/vibration ground triggers stemming length increases (+0.5 m).
+- **Risk Controller & Immutable Audit Log:** The automated Risk Controller (`risk_controller`) evaluates modified designs against regulatory limits ($PPV \le 10.0$ mm/s, $dBL \le 120$ dB). All recommendations and operator overrides are immutably logged to a local SQLite database (`audit_log.db`).
 
 ### 3D Digital Twin of the Bench & Mine-to-Mill Value
 - **3D Spatial Digital Twin:** The Digital Twin module (`src/digital_twin.py`) constructs a 3D spatial representation of the bench incorporating geological block models (rock mass rating, Kimberlite vs Granite boundaries, joint set spacing), as-drilled hole trajectories, and structural discontinuities.

@@ -28,8 +28,8 @@ Botswana's mining industry faces periodic engineering skill shortages and staff 
 ### 📊 Real Mine Data Ingestion vs. Synthetic Physics Data
 Production blast deployment requires real mine production logs (`load_real_blast_data()` in `src/data_ingestion.py`). Synthetic physics datasets provide idealized empirical baseline estimates, whereas real mine production logs capture site-specific geological heterogeneity, structural joint orientations ($JWF$), bench water conditions, and actual measured seismograph waveforms.
 
-### 📡 Real-Time MWD Telemetry & Closed-Loop Control
-Drill rig MWD sensors (`src/mwd_ingestion.py`) capture real-time ROP, torque, WOB, and Specific Energy of Drilling ($SED$). Ingested via MQTT, MWD data enables closed-loop adaptation of charging plans (variable bulk explosive density and deck charges) based on as-drilled geometry and rock hardness transitions.
+### 📡 Real-Time Adaptive Blast Designer & Risk Controller (`src/realtime_adaptive.py`)
+Implements Model 1 (Real-Time Adaptive Blast Designer) for dynamic in-flight charging adjustments. Ingests streaming MWD telemetry to adapt powder factor and stemming per hole, evaluates safety with an automated `risk_controller`, and records immutable action trails in SQLite (`audit_log.db`).
 
 ### 💎 3D Digital Twin of the Bench
 Constructs a 3D spatial digital twin (`src/digital_twin.py`) integrating geological block models, as-drilled drillhole trajectories, and joint set orientations. Simulates full fragmentation size distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) and feeds downstream value models predicting shovel productivity, truck payload, crusher throughput, and specific grinding energy.

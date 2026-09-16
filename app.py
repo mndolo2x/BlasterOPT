@@ -15,6 +15,7 @@ from src.models import BlastMLPipeline, MODEL_REGISTRY
 from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
 from src.mwd_ingestion import parse_mwd_message, MWD_HISTORY
+from src.realtime_adaptive import adjust_charging_plan, risk_controller, audit_log
 from src.digital_twin import build_digital_twin, simulate_fragmentation, link_to_downstream
 from src.drill_connectivity import connect_to_sandvik, connect_to_epiroc, sync_design_to_drill
 from src.detonator_integration import (
@@ -914,6 +915,44 @@ elif active_module == "mwd":
             st.warning("⚡ **ADAPTIVE CHARGING PLAN:** Automatically adjusting sub-drilling stemming length and bulk explosive density to prevent flyrock and toe accumulation.")
         else:
             st.success("✅ **GEOMETRY COMPLIANT:** As-drilled hole dimensions are within ±1.0 m tolerance bounds of design specifications.")
+
+        st.markdown("---")
+        st.subheader("⚡ Model 1: Dynamic Adaptive Charging & Risk Controller")
+
+        col_ad1, col_ad2 = st.columns(2)
+
+        curr_design_mwd = st.session_state.get("last_predict_inputs", {"powder_factor_kg_m3": 0.65, "stemming_m": 5.0})
+        latest_mwd_sample = df_mwd.iloc[-1].to_dict() if not df_mwd.empty else {"hole_id": "HOLE_001", "penetration_rate": 20.0, "torque": 1900.0}
+
+        with col_ad1:
+            if st.button("Recommend In-Flight Charging Adjustment", type="primary"):
+                adjusted_plan = adjust_charging_plan(mwd_data=latest_mwd_sample, current_design=curr_design_mwd)
+                st.session_state["active_adjusted_plan"] = adjusted_plan
+
+                # Immutably log recommendation to SQLite database
+                audit_log(
+                    action="RECOMMEND_ADJUSTMENT",
+                    user_id="REALTIME_ADAPTIVE_ENGINE",
+                    original_value=curr_design_mwd,
+                    new_value=adjusted_plan,
+                    reason_code="MWD_ROP_LOW_TORQUE_HIGH",
+                )
+                st.success(f"Dynamic adjustment recommended for {adjusted_plan.get('adjusted_for_hole', 'hole')}!")
+
+        if "active_adjusted_plan" in st.session_state:
+            adj_plan = st.session_state["active_adjusted_plan"]
+            st.json(adj_plan)
+
+            risk_eval = risk_controller(adj_plan)
+
+            if risk_eval["is_safe"]:
+                st.success("🛡️ **RISK CONTROLLER:** Adjusted design is SAFE and complies with all regulatory limits.")
+            else:
+                st.error("🛡️ **RISK CONTROLLER WARNING:** Predicted limit violation in adjusted design!")
+                for v in risk_eval["violations"]:
+                    st.write(f"- ⚠️ {v}")
+                for r in risk_eval["recommendations"]:
+                    st.info(f"💡 {r}")
 
 
 # --- MODULE: DIGITAL TWIN OF THE BENCH ---
