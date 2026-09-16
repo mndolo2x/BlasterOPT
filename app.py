@@ -451,7 +451,7 @@ elif page == "⚡ Genetic Algorithm Optimizer":
             c4.metric("Optimized Cost", f"${out_p['cost_per_tonne_usd']:.2f} / t")
 
             st.markdown("---")
-            st.subheader("Top 5 Recommended Blast Designs")
+            st.subheader("Top 5 Recommended Blast Designs & SHAP Explainability")
             top_5 = res.get("top_5_designs", [])
 
             table_rows = []
@@ -471,6 +471,57 @@ elif page == "⚡ Genetic Algorithm Optimizer":
                 })
 
             st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
+
+            # Per-design SHAP Explainability
+            st.subheader("🔍 SHAP Explanation per Pareto Design")
+            for rank, item in enumerate(top_5, 1):
+                p = item["parameters"]
+                o = item["outputs"]
+                with st.expander(f"🔎 Explain Design #{rank} (Cost: ${o['cost_per_tonne_usd']:.2f}/t, PPV: {o['ppv_mms']:.2f} mm/s)"):
+                    design_payload = {
+                        "rock_factor_A": float(rock_A_opt),
+                        "bench_height_m": float(bench_h_opt),
+                        "hole_diameter_mm": float(hole_d_opt),
+                        "burden_m": float(p["burden_m"]),
+                        "spacing_m": float(p["spacing_m"]),
+                        "stemming_m": float(p["stemming_m"]),
+                        "powder_factor_kg_m3": float(p["powder_factor_kg_m3"]),
+                        "charge_mass_per_hole_kg": 320.0,
+                        "max_charge_per_delay_kg": 640.0,
+                        "monitoring_distance_m": float(dist_opt),
+                        "explosive_rws": 100.0,
+                    }
+
+                    exp_outcome = st.selectbox(
+                        f"Target Outcome to Explain (Design #{rank})",
+                        ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+                        key=f"opt_exp_target_{rank}",
+                    )
+
+                    pipeline = st.session_state.get("pipeline", None)
+                    target_model = None
+                    if pipeline is not None and exp_outcome in pipeline.models:
+                        target_model = pipeline.models[exp_outcome]
+
+                    constraints_info = {
+                        "metric": exp_outcome,
+                        "limit": max_ppv if exp_outcome == "ppv_mms" else (max_flyrock if exp_outcome == "flyrock_m" else 250.0),
+                        "unit": "mm/s" if exp_outcome == "ppv_mms" else ("m" if exp_outcome == "flyrock_m" else "mm"),
+                    }
+
+                    panel = create_explanation_panel(
+                        model=target_model,
+                        input_data=pd.DataFrame([design_payload]),
+                        prediction=o.get(exp_outcome, 10.0),
+                        constraints=constraints_info,
+                    )
+
+                    st.info(f"**Natural Language Explanation:** {panel.get('natural_language', '')}")
+
+                    # SHAP Waterfall Chart
+                    waterfall_fig = panel.get("shap", {}).get("waterfall_plot")
+                    if waterfall_fig is not None:
+                        st.plotly_chart(waterfall_fig, use_container_width=True, key=f"opt_waterfall_{rank}")
 
             # Generate PDF Report Download Button
             pdf_path = generate_pdf(
