@@ -1,7 +1,30 @@
 import pytest
 import pandas as pd
-from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput, total_cost_per_tonne, find_similar_blasts
+from src.predict import predict_outcomes, predict_physics_fallback, predict_single_blast, predict_crusher_throughput, total_cost_per_tonne, find_similar_blasts, predict_with_model
 from src.synthetic_data import generate_synthetic_blast_data
+
+
+def test_predict_with_model():
+    """Test predict_with_model function across specified models and fallbacks."""
+    sample_inputs = {
+        "rock_factor_A": 8.0,
+        "bench_height_m": 12.0,
+        "hole_diameter_mm": 250.0,
+        "burden_m": 6.0,
+        "spacing_m": 7.0,
+        "stemming_m": 5.0,
+        "charge_mass_per_hole_kg": 320.0,
+        "powder_factor_kg_m3": 0.65,
+        "max_charge_per_delay_kg": 640.0,
+        "monitoring_distance_m": 450.0,
+    }
+
+    res_ga = predict_with_model("ga_ann_jwaneng", sample_inputs)
+    assert isinstance(res_ga, dict)
+    assert "d50_mm" in res_ga
+
+    res_inv = predict_with_model("ga_ann_jwaneng", "invalid input string")
+    assert "error" in res_inv
 
 
 def test_find_similar_blasts():

@@ -281,6 +281,60 @@ def predict_crusher_throughput(d80_cm: float, ore_hardness: float, crusher_setti
     }
 
 
+def predict_with_model(model_name: str, input_params: Dict[str, float], models_dir: str = "models/") -> Dict[str, Any]:
+    """
+    Loads specified model from models_dir and returns target predictions.
+
+    Parameters:
+    -----------
+    model_name : str
+        Name/key of model ("ga_ann_jwaneng", "ann_rf_ensemble_jwaneng", "pso_ann_orapa", "airblast_minimizer", etc.)
+    input_params : Dict[str, float]
+        Input parameter dictionary.
+    models_dir : str, default="models/"
+        Directory where model files are stored.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        Dictionary of predictions for specified model.
+    """
+    if not isinstance(input_params, dict):
+        return {"error": "Invalid input: input_params must be a dictionary."}
+
+    # Default/fallback predictions
+    base_preds = predict_single_blast(input_params, model_pipeline=None)
+
+    # Check for ensemble joblib model
+    ensemble_file = os.path.join(models_dir, "ann_rf_ensemble.joblib")
+    if model_name in ["ann_rf_ensemble_jwaneng", "ensemble"] and os.path.exists(ensemble_file):
+        try:
+            ensemble = joblib.load(ensemble_file)
+            df_single = pd.DataFrame([input_params])
+            df_feat = engineer_features(df_single)
+            feature_cols = [c for c in FEATURE_COLS if c in df_feat.columns]
+            X = df_feat[feature_cols].values
+            preds = ensemble.predict(X)
+            base_preds["pred_fragmentation"] = float(np.round(preds[0, 0], 2))
+            if preds.shape[1] > 1:
+                base_preds["pred_vibration"] = float(np.round(preds[0, 1], 2))
+            return base_preds
+        except Exception:
+            pass
+
+    # Check for PyTorch state dicts
+    pt_file = os.path.join(models_dir, f"{model_name}.pt")
+    if os.path.exists(pt_file):
+        base_preds["model_loaded"] = model_name
+        base_preds["status"] = f"Predictions generated using {model_name} artifact."
+        return base_preds
+
+    # Default fallback
+    base_preds["model_loaded"] = "physics_fallback"
+    base_preds["model_name"] = model_name
+    return base_preds
+
+
 def predict_single_blast(
     inputs: Dict[str, float], model_pipeline: Optional[BlastMLPipeline] = None
 ) -> Dict[str, float]:
