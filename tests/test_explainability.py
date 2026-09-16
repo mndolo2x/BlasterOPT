@@ -9,6 +9,7 @@ from src.explainability import (
     get_shap_explanation,
     get_lime_explanation,
     generate_natural_language_explanation,
+    create_explanation_panel,
     HAS_SHAP,
     HAS_LIME,
 )
@@ -139,6 +140,33 @@ def test_generate_natural_language_explanation():
     assert "5.0 mm/s" in explanation
     assert "5.8" in explanation
     assert len(explanation.split()) <= 150
+
+
+def test_create_explanation_panel():
+    """Test create_explanation_panel consolidated dictionary function."""
+    X = np.random.randn(20, 4)
+    y = np.random.randn(20)
+    rf = RandomForestRegressor(n_estimators=5, random_state=42)
+    rf.fit(X, y)
+
+    feature_names = ["feat_a", "feat_b", "feat_c", "feat_d"]
+    input_df = pd.DataFrame(X[:1], columns=feature_names)
+    train_df = pd.DataFrame(X, columns=feature_names)
+
+    panel = create_explanation_panel(
+        model=rf,
+        input_data=input_df,
+        feature_names=feature_names,
+        training_data=train_df,
+        prediction=12.5,
+        constraints={"metric": "d50 fragmentation", "limit": 15.0, "unit": "cm"},
+    )
+
+    assert isinstance(panel, dict)
+    assert "shap" in panel
+    assert "lime" in panel
+    assert "natural_language" in panel
+    assert isinstance(panel["natural_language"], str)
 
 
 def test_plot_feature_contributions_waterfall():

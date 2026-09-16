@@ -2,8 +2,9 @@
 Explainability Module for BlasterOPT / BlastOpt Botswana.
 
 Provides model explainability, feature contribution attributions, visual waterfall charts,
-SHAP explanations, LIME explanations, and plain-English natural language summaries to help
-certified blasters understand and trust ML predictions (d50, PPV, flyrock, cost).
+SHAP explanations, LIME explanations, plain-English natural language summaries, and consolidated
+explanation panels for Streamlit UI to help certified blasters understand and trust ML predictions
+(d50, PPV, flyrock, cost).
 """
 
 import numpy as np
@@ -580,6 +581,87 @@ def generate_natural_language_explanation(
         summary = " ".join(words[:147]) + "..."
 
     return summary
+
+
+def create_explanation_panel(
+    model: Any,
+    input_data: Union[pd.DataFrame, np.ndarray, Any],
+    feature_names: Optional[List[str]] = None,
+    background_data: Optional[Union[pd.DataFrame, np.ndarray, Any]] = None,
+    training_data: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+    model_type: str = "ann",
+    prediction: Optional[float] = None,
+    constraints: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Convenience function combining SHAP, LIME, and natural language explanations into a single UI dictionary.
+
+    Parameters:
+    -----------
+    model : Any
+        Trained model instance (scikit-learn model, PyTorch nn.Module, or ANN_RF_Ensemble).
+    input_data : Union[pd.DataFrame, np.ndarray, Any]
+        Single row sample input data to explain.
+    feature_names : List[str], optional
+        List of feature names.
+    background_data : Union[pd.DataFrame, np.ndarray, Any], optional
+        Reference background matrix for SHAP explainer.
+    training_data : Union[pd.DataFrame, np.ndarray], optional
+        Background matrix for LIME explainer.
+    model_type : str, default="ann"
+        Model architecture type indicator ("ann", "tree", "ensemble").
+    prediction : float, optional
+        Model predicted numerical value. If None, computes prediction using model.
+    constraints : Dict[str, Any], optional
+        Constraint threshold dict for natural language summary.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        Dictionary containing `shap`, `lime`, and `natural_language` explanation components.
+    """
+    # 1. SHAP Explanation
+    shap_res = get_shap_explanation(
+        model=model,
+        input_data=input_data,
+        feature_names=feature_names,
+        background_data=background_data,
+    )
+
+    # Determine feature names list
+    fn = shap_res.get("feature_names", feature_names)
+
+    # 2. LIME Explanation
+    lime_res = get_lime_explanation(
+        model=model,
+        input_data=input_data,
+        training_data=training_data,
+        feature_names=fn,
+        model_type=model_type,
+    )
+
+    # Determine predicted numerical output
+    if prediction is None:
+        base_val = shap_res.get("base_value", 0.0)
+        shap_sum = float(np.sum(shap_res.get("shap_values", [0.0])))
+        prediction = base_val + shap_sum
+
+    if constraints is None:
+        constraints = {"metric": "outcome", "limit": 10.0, "unit": ""}
+
+    # 3. Natural Language Explanation
+    nl_summary = generate_natural_language_explanation(
+        shap_values=shap_res.get("shap_values", []),
+        feature_names=fn if fn else [f"feature_{i}" for i in range(len(shap_res.get("shap_values", [])))],
+        prediction=prediction,
+        constraints=constraints,
+    )
+
+    return {
+        "shap": shap_res,
+        "lime": lime_res,
+        "natural_language": nl_summary,
+    }
 
 
 def explain_prediction(model, input_data, feature_names=None, background_data=None):
