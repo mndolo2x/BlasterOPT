@@ -42,6 +42,7 @@ from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_o
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
+from src.agent.guardrails import get_guardrail_trips
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -137,6 +138,7 @@ page = st.sidebar.radio(
         get_translation("nav_model_cards", lang_code),
         get_translation("nav_ensemble_uq", lang_code),
         get_translation("nav_pattern", lang_code),
+        get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_visualize", lang_code),
     ],
 )
@@ -183,6 +185,8 @@ page_keys = {
     get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
+    get_translation("nav_guardrail_log", "en"): "guardrail_log",
+    get_translation("nav_guardrail_log", "tn"): "guardrail_log",
     get_translation("nav_visualize", "en"): "visualize",
     get_translation("nav_visualize", "tn"): "visualize",
 }
@@ -1842,6 +1846,45 @@ elif active_module == "ensemble_uq":
             "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
         })
         st.dataframe(df_var, use_container_width=True)
+
+
+# --- MODULE: GUARDRAIL LOG ---
+elif active_module == "guardrail_log":
+    st.header("🛡️ Hard-Coded Safety Guardrail Trip Log")
+    st.markdown(
+        "Immutable audit log recording every hard-coded safety guardrail trip event. "
+        "These guardrails enforce non-negotiable safety rules (preventing unauthorized detonation, regulatory limit bypass, "
+        "invented measurements, and blaster sign-off bypass)."
+    )
+
+    all_trips = get_guardrail_trips(trip_type_filter="ALL", limit=200)
+
+    # Metrics overview
+    c_g1, c_g2, c_g3, c_g4 = st.columns(4)
+    c_g1.metric("Total Guardrail Trips", len(all_trips))
+
+    type_counts = {}
+    for t in all_trips:
+        ttype = t.get("trip_type", "UNKNOWN")
+        type_counts[ttype] = type_counts.get(ttype, 0) + 1
+
+    c_g2.metric("Fire Blast Blocked", type_counts.get("FIRE_BLAST_REQUEST", 0))
+    c_g3.metric("Limit Bypass Blocked", type_counts.get("BYPASS_LIMITS", 0))
+    c_g4.metric("Regulatory Limit Violations", type_counts.get("REGULATORY_LIMIT_EXCEEDED", 0))
+
+    st.markdown("---")
+    st.subheader("📋 Guardrail Trips Table & Filtering")
+
+    filter_options = ["ALL"] + sorted(list(type_counts.keys()))
+    selected_trip_type = st.selectbox("Filter by Trip Type", filter_options)
+
+    filtered_trips = get_guardrail_trips(trip_type_filter=selected_trip_type, limit=100)
+
+    if filtered_trips:
+        df_trips = pd.DataFrame(filtered_trips)
+        st.dataframe(df_trips, use_container_width=True)
+    else:
+        st.info("No guardrail trips recorded for the selected filter.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
