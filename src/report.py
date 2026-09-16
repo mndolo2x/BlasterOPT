@@ -125,7 +125,28 @@ def generate_pdf(
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_img:
             img_path = tmp_img.name
-            pio.write_image(fig, img_path, width=700, height=350)
+            try:
+                pio.write_image(fig, img_path, width=700, height=350)
+            except Exception:
+                import matplotlib.pyplot as plt
+                import numpy as np
+                fig_mpl, ax = plt.subplots(figsize=(7, 3.5), dpi=100)
+                x_sizes = np.logspace(0, 3.2, 250)
+                n_val = 1.2
+                x_c = best_d50 / (np.log(2.0) ** (1.0 / n_val))
+                passing_pct = (1.0 - np.exp(-1.0 * ((x_sizes / x_c) ** n_val))) * 100.0
+                ax.semilogx(x_sizes, passing_pct, color='#2962FF', linewidth=2, label=f"Best Recommended Design (d50={best_d50:.1f} mm)")
+                ax.axhline(50, linestyle='--', color='gray', alpha=0.7, label=f"d50 = {best_d50:.1f} mm")
+                ax.axhline(63.2, linestyle=':', color='darkblue', alpha=0.7, label=f"x_c = {x_c:.1f} mm")
+                ax.set_title("Kuz-Ram Fragmentation Curve", fontsize=11, fontweight='bold')
+                ax.set_xlabel("Sieve / Fragment Size x (mm) [Log Scale]", fontsize=9)
+                ax.set_ylabel("Cumulative Percent Passing P(x) [%]", fontsize=9)
+                ax.set_ylim(0, 105)
+                ax.grid(True, which="both", ls="--", alpha=0.5)
+                ax.legend(loc="lower right", fontsize=8)
+                plt.tight_layout()
+                fig_mpl.savefig(img_path, format="png")
+                plt.close(fig_mpl)
 
         pdf.image(img_path, x=15, w=180)
         try:
