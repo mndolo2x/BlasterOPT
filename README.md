@@ -40,6 +40,9 @@ Connects BlastOpt directly to Sandvik (My Sandvik) and Epiroc (Certiq) drill rig
 ### ⚡ Electronic Detonator Integration (AEL / BME / Orica)
 Integrates field-to-cloud initiation workflows (`src/detonator_integration.py`) for AEL IntelliShot, BME AXXIS, and Orica i-kon III systems. Validates timing sequences against regulatory vibration ($PPV \le 10.0$ mm/s) and airblast ($dBL \le 120$ dB) limits, and logs downloadable post-blast firing confirmations.
 
+### 📱 React Native Mobile Field App (`mobile/`)
+Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.

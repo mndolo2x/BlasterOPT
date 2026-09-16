@@ -62,5 +62,12 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Precision Electronic Initiation:** Electronic detonator integration (`src/detonator_integration.py`) supports AEL IntelliShot, BME AXXIS, and Orica i-kon systems, providing $\pm 0.1$ ms timing accuracy for vibration wave cancellation and fragmentation optimization.
 - **Regulatory Sequence Validation:** Pre-blast validation (`validate_sequence`) enforces Botswana Department of Mines environmental guidelines (minimum inter-hole delay $\ge 8$ ms, inter-row delay $\ge 25$ ms, $PPV \le 10.0$ mm/s, $dBL \le 120$ dB).
 
+### Mobile App Offline-First Architecture & RBAC
+- **Offline-First Criticality:** Remote pit benches in Botswana open-pit operations (Jwaneng, Orapa, Karowe) experience limited or intermittent cellular coverage. The field app (`mobile/`) utilizes local JSON storage and an offline action queue to ensure drillers and blasters can log hole measurements without network connection.
+- **Role-Based Access Control (RBAC):**
+  - **Driller / Blaster:** Views approved blast designs, logs measured hole depth, charge weight, and stemming length.
+  - **Mining Engineer:** Approves/edits pattern designs, reviews field logs, and configures optimization constraints.
+  - **Supervisor / Manager:** Reviews shift summaries, oversees fleet status, and monitors real-time safety alerts.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).
