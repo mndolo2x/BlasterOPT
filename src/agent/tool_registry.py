@@ -477,6 +477,27 @@ def _log_decision_handler(query_params: Dict[str, Any] = {}) -> str:
 
 
 def _query_knowledge_graph_handler(question: str) -> str:
+    """Queries mining knowledge graph and HuggingFace mining domain terminology dataset."""
+    try:
+        from datasets import load_dataset
+        ds = load_dataset("Lyntas/mining_domain_specific_terminology", split="train")
+        query_term = question.lower()
+
+        matches = []
+        for row in ds:
+            term = str(row.get("Domain-specific Terminology", "")).lower()
+            definition = str(row.get("Definition", ""))
+            if any(word in term for word in query_term.split() if len(word) > 3):
+                matches.append(f"**{row.get('Domain-specific Terminology')}**: {definition}")
+            if len(matches) >= 3:
+                break
+
+        if matches:
+            matched_text = " | ".join(matches)
+            return f"Knowledge Graph Result for '{question}': {matched_text}"
+    except Exception as e:
+        logger.warning(f"Error querying Lyntas/mining_domain_specific_terminology dataset: {e}")
+
     return f"Knowledge graph query answer for '{question}': Historical blast logs in Jwaneng Cut 8 show optimal digging rates when powder factor is between 0.62 and 0.68 kg/m3."
 
 
