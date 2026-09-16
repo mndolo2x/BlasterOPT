@@ -98,5 +98,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Soft Loss Terms:** $L_{\text{total}} = L_{\text{data}} + \lambda_1 L_{\text{kuzram}} + \lambda_2 L_{\text{usbm}}$.
 - **Monte Carlo Dropout Uncertainty:** Uses Monte Carlo dropout inference (`predict_with_uncertainty`) to estimate epistemic uncertainty, returning 95% confidence intervals and Out-Of-Distribution (OOD) risk alerts.
 
+### Multi-Objective Pareto Optimizer (Model 3) & NSGA-II
+- **Multi-Objective Trade-Off Surface:** Model 3 (`src/pareto_optimizer.py`) implements NSGA-II genetic algorithm optimization across 5 competing objectives (minimizing $d_{80}$ fragmentation, minimizing PPV vibration, minimizing airblast dBL, minimizing cost $/t$, and maximizing primary crusher throughput $t/h$).
+- **Normalized Weighted Sum Selection:** Allows mine engineers to customize objective importance weights and select recommended designs from the Pareto front with plain-English trade-off explanations (`generate_trade_off_explanation`).
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

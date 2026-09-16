@@ -55,6 +55,9 @@ Eliminates data silos by integrating with SAP ERP (cost/procurement), Deswik CAD
 ### 🧠 Physics-Informed Neural Network (PINN) Model 2 (`src/pinn.py`)
 Blends deep learning with Kuz-Ram and USBM physics as soft loss penalties ($L_{\text{total}} = L_{\text{data}} + \lambda_1 L_{\text{kuzram}} + \lambda_2 L_{\text{usbm}}$). Uses Monte Carlo dropout inference (`predict_with_uncertainty`) to estimate epistemic confidence and issue Out-Of-Distribution (OOD) risk alerts.
 
+### ⚡ Multi-Objective NSGA-II Pareto Optimizer Model 3 (`src/pareto_optimizer.py`)
+Discovers non-dominated Pareto trade-off frontiers across 5 competing objectives ($d_{80}$ fragmentation, PPV vibration, airblast, cost $/t$, and crusher throughput $t/h$). Features weighted sum selection and plain-English trade-off explanations.
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 

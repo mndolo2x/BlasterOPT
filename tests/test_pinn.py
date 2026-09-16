@@ -25,9 +25,6 @@ def test_blast_pinn_forward_pass_returns_three_outputs():
     assert pred_air.shape == (8, 1)
 
 
-test_blast_pinn_forward_pass_returns_three_outputs
-
-
 def test_predict_with_uncertainty_returns_mean_and_confidence_intervals():
     """Test predict_with_uncertainty returns mean, std, 95% CI, and OOD flag."""
     if HAS_TORCH:

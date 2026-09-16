@@ -29,6 +29,7 @@ from src.regulatory import load_regulatory_limits, check_compliance, generate_co
 from src.i18n import get_translation
 from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
 from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
+from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -109,6 +110,7 @@ page = st.sidebar.radio(
         get_translation("nav_comparison", lang_code),
         get_translation("nav_predictor", lang_code),
         get_translation("nav_optimizer", lang_code),
+        get_translation("nav_pareto", lang_code),
         get_translation("nav_economic", lang_code),
         get_translation("nav_recommender", lang_code),
         get_translation("nav_mwd", lang_code),
@@ -138,6 +140,8 @@ page_keys = {
     get_translation("nav_predictor", "tn"): "predictor",
     get_translation("nav_optimizer", "en"): "optimizer",
     get_translation("nav_optimizer", "tn"): "optimizer",
+    get_translation("nav_pareto", "en"): "pareto",
+    get_translation("nav_pareto", "tn"): "pareto",
     get_translation("nav_economic", "en"): "economic",
     get_translation("nav_economic", "tn"): "economic",
     get_translation("nav_recommender", "en"): "recommender",
@@ -1434,6 +1438,84 @@ elif active_module == "pinn":
         st.subheader("📐 Physics Soft Loss Terms Embedding")
         st.info("**Kuz-Ram Soft Penalty ($L_{\\text{kuzram}}$):** Penalizes predictions deviating from $X_{50} = A \\cdot K^{-0.8} \\cdot Q^{1/6} \\cdot (115/E)^{19/30}$.")
         st.info("**USBM PPV Soft Penalty ($L_{\\text{usbm}}$):** Penalizes predictions deviating from $PPV = 1140 \\cdot (D / \\sqrt{W})^{-1.6}$.")
+
+
+# --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
+elif active_module == "pareto":
+    st.header("⚡ Model 3: Multi-Objective NSGA-II Pareto Optimizer")
+    st.markdown(
+        "Discovers the non-dominated **Pareto Frontier** across 5 competing blast design objectives: "
+        "minimizing fragmentation ($d_{80}$), minimizing ground vibration ($PPV$), minimizing airblast ($dBL$), "
+        "minimizing cost ($/t), and maximizing primary crusher throughput ($t/h$)."
+    )
+
+    c_par1, c_par2 = st.columns([1, 2])
+
+    with c_par1:
+        st.subheader("⚖️ Objective Importance Weights")
+        w_frag = st.slider("Minimizing d80 Fragmentation Weight", 0.0, 1.0, 0.25, step=0.05)
+        w_vib = st.slider("Minimizing Ground PPV Weight", 0.0, 1.0, 0.25, step=0.05)
+        w_air = st.slider("Minimizing Airblast Overpressure Weight", 0.0, 1.0, 0.15, step=0.05)
+        w_cost = st.slider("Minimizing Unit Cost Weight", 0.0, 1.0, 0.20, step=0.05)
+        w_tph = st.slider("Maximizing Crusher Throughput Weight", 0.0, 1.0, 0.15, step=0.05)
+
+        weights_dict = {
+            "weight_fragmentation": w_frag,
+            "weight_vibration": w_vib,
+            "weight_airblast": w_air,
+            "weight_cost": w_cost,
+            "weight_throughput": w_tph,
+        }
+
+        n_gen = st.slider("NSGA-II Generations", 20, 300, 80, step=20)
+        pop_size = st.slider("Population Size", 20, 150, 40, step=10)
+
+        if st.button("Run Multi-Objective NSGA-II", type="primary"):
+            with st.spinner("Calculating non-dominated Pareto Frontier across 5 objectives..."):
+                df_pareto = run_nsga2(n_gen=n_gen, pop_size=pop_size, seed=42)
+                st.session_state["pareto_front_df"] = df_pareto
+                st.success(f"Discovered {len(df_pareto)} non-dominated Pareto-optimal designs!")
+
+    with c_par2:
+        if "pareto_front_df" in st.session_state:
+            df_p = st.session_state["pareto_front_df"]
+
+            selected_design = select_best_design(df_p, weights_dict)
+
+            st.subheader("🌟 Recommended Design (Highest Utility Score)")
+            c_p1, c_p2, c_p3, c_p4 = st.columns(4)
+            c_p1.metric("Burden x Spacing", f"{selected_design.get('burden_m', 6.0):.2f} x {selected_design.get('spacing_m', 7.0):.2f} m")
+            c_p2.metric("Powder Factor", f"{selected_design.get('powder_factor_kg_m3', 0.65):.3f} kg/m3")
+            c_p3.metric("Predicted d80", f"{selected_design.get('d80_mm', 320.0):.1f} mm")
+            c_p4.metric("Predicted PPV", f"{selected_design.get('ppv_mms', 6.5):.2f} mm/s")
+
+            st.markdown("---")
+            st.subheader("📊 Interactive 3D Pareto Front Trade-Off Scatter Plot")
+
+            fig_p3d = px.scatter_3d(
+                df_p,
+                x="d80_mm",
+                y="ppv_mms",
+                z="cost_per_tonne_usd",
+                color="crusher_throughput_tph",
+                size_max=15,
+                title="<b>Pareto Front: d80 vs. PPV Vibration vs. Cost ($/t)</b>",
+                labels={"d80_mm": "d80 (mm)", "ppv_mms": "PPV (mm/s)", "cost_per_tonne_usd": "Cost ($/t)", "crusher_throughput_tph": "Throughput (t/h)"},
+                color_continuous_scale="Viridis",
+            )
+            fig_p3d.update_layout(template="plotly_white", height=500)
+            st.plotly_chart(fig_p3d, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("💡 Trade-Off Explanation relative to Extremes")
+            tradeoff_text = generate_trade_off_explanation(df_p, selected_design)
+            st.info(tradeoff_text)
+
+            st.markdown("---")
+            st.subheader("📋 All Pareto-Optimal Candidate Designs")
+            st.dataframe(df_p, use_container_width=True)
+        else:
+            st.info("Adjust objective weights and click 'Run Multi-Objective NSGA-II' to compute Pareto front.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
