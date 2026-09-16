@@ -110,17 +110,23 @@ def log_explanation(
     }
 
 
-def get_recent_explanations(
-    limit: int = 50,
+def get_explanation_history(
+    prediction_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    limit: int = 100,
     db_path: str = "data/processed/explainability_audit.db",
 ) -> List[Dict[str, Any]]:
     """
-    Retrieves recent explanation records from the immutable SQLite audit log.
+    Retrieves explanation audit log entries from SQLite database, optionally filtered by prediction_id or user_id.
 
     Parameters:
     -----------
-    limit : int, default=50
-        Maximum number of recent records to retrieve.
+    prediction_id : str, optional
+        Filter entries matching prediction_id.
+    user_id : str, optional
+        Filter entries matching user_id.
+    limit : int, default=100
+        Maximum number of records to retrieve.
     db_path : str, default="data/processed/explainability_audit.db"
         Path to SQLite audit database file.
 
@@ -132,16 +138,25 @@ def get_recent_explanations(
     conn = _init_db(db_path)
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT id, timestamp, prediction_id, shap_values_json, lime_weights_json, natural_language, user_id
-        FROM explanation_audit_log
-        ORDER BY id DESC
-        LIMIT ?
-        """,
-        (limit,),
-    )
+    query = "SELECT id, timestamp, prediction_id, shap_values_json, lime_weights_json, natural_language, user_id FROM explanation_audit_log"
+    params = []
+    conditions = []
 
+    if prediction_id:
+        conditions.append("prediction_id = ?")
+        params.append(prediction_id)
+
+    if user_id:
+        conditions.append("user_id = ?")
+        params.append(user_id)
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 
@@ -158,3 +173,11 @@ def get_recent_explanations(
         })
 
     return records
+
+
+def get_recent_explanations(
+    limit: int = 50,
+    db_path: str = "data/processed/explainability_audit.db",
+) -> List[Dict[str, Any]]:
+    """Alias for get_explanation_history for backwards compatibility."""
+    return get_explanation_history(limit=limit, db_path=db_path)

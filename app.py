@@ -40,7 +40,7 @@ from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpa
 from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
 from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation, plot_pareto_front
 from src.model_cards import generate_model_card
-from src.explainability_audit import log_explanation, get_recent_explanations
+from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1672,16 +1672,36 @@ elif active_module == "model_cards":
         model_meta = MODEL_REGISTRY.get(selected_key, {})
 
         # Generate / ensure model card Markdown file exists
-        card_filepath = generate_model_card(
-            model_name=selected_card_label,
-            model=None,
-            training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
-            performance_metrics=model_meta.get("performance", {}),
-            output_dir="models/cards/",
-        )
+        col_mc_btn1, col_mc_btn2 = st.columns([1, 3])
 
-        if os.path.exists(card_filepath):
-            with open(card_filepath, "r", encoding="utf-8") as f:
+        with col_mc_btn1:
+            if st.button("Generate Model Card 📄", type="primary"):
+                card_filepath = generate_model_card(
+                    model_name=selected_card_label,
+                    model=None,
+                    training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
+                    performance_metrics=model_meta.get("performance", {}),
+                    research_reference=model_meta.get("reference", "Debswana Mining Series"),
+                    output_dir="models/cards/",
+                    version="1.0.0",
+                )
+                st.session_state["last_generated_card"] = card_filepath
+                st.success(f"Generated model card: `{card_filepath}`")
+
+        card_path_to_display = st.session_state.get("last_generated_card", f"models/cards/{selected_key.lower()}_v1.0.0.md")
+
+        if not os.path.exists(card_path_to_display):
+            card_path_to_display = generate_model_card(
+                model_name=selected_card_label,
+                model=None,
+                training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
+                performance_metrics=model_meta.get("performance", {}),
+                output_dir="models/cards/",
+                version="1.0.0",
+            )
+
+        if os.path.exists(card_path_to_display):
+            with open(card_path_to_display, "r", encoding="utf-8") as f:
                 card_md_content = f.read()
 
             st.markdown(card_md_content)
@@ -1689,11 +1709,13 @@ elif active_module == "model_cards":
             st.download_button(
                 label="📄 Download Model Card (.md)",
                 data=card_md_content,
-                file_name=f"{selected_key}_model_card.md",
+                file_name=os.path.basename(card_path_to_display),
                 mime="text/markdown",
             )
         else:
             st.error("Model card Markdown file could not be generated.")
+        with col_mc_btn2:
+            pass
 
     with tab_mc2:
         st.subheader("📜 Recent Logged Explanations (Immutable SQLite Audit Trail)")
@@ -1722,10 +1744,10 @@ elif active_module == "model_cards":
 
         with col_aud2:
             st.markdown("### 📋 Audit Trail Log Records")
-            recent_audit = get_recent_explanations(limit=25)
+            audit_history = get_explanation_history(limit=25)
 
-            if recent_audit:
-                df_audit = pd.DataFrame(recent_audit)
+            if audit_history:
+                df_audit = pd.DataFrame(audit_history)
                 st.dataframe(df_audit, use_container_width=True)
             else:
                 st.info("No audit logs recorded yet. Use the simulation tool on the left to record sample explanations.")
