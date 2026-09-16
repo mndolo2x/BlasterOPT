@@ -31,8 +31,8 @@ Production blast deployment requires real mine production logs (`load_real_blast
 ### 📡 Real-Time Adaptive Blast Designer & Risk Controller (`src/realtime_adaptive.py`)
 Implements Model 1 (Real-Time Adaptive Blast Designer) for dynamic in-flight charging adjustments. Ingests streaming MWD telemetry to adapt powder factor and stemming per hole, evaluates safety with an automated `risk_controller`, and records immutable action trails in SQLite (`audit_log.db`).
 
-### 💎 3D Digital Twin of the Bench
-Constructs a 3D spatial digital twin (`src/digital_twin.py`) integrating geological block models, as-drilled drillhole trajectories, and joint set orientations. Simulates full fragmentation size distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) and feeds downstream value models predicting shovel productivity, truck payload, crusher throughput, and specific grinding energy.
+### 💎 Mine-to-Mill Digital Twin Model 4 (`src/digital_twin.py`)
+Implements Model 4 based on Cost-Integrated AI Meta-Models (`FragmentationModel`, `DownstreamModel`, `MineToMillTwin`, `OreTracker`, `ScenarioAnalyzer`). Connects blast design decisions to downstream digger fill factor, truck payload, crusher throughput ($t/h$), specific energy ($kWh/t$), and total cost per tonne ($/t) with interactive what-if sensitivity sweeps.
 
 ### 🚜 Direct-to-Drill Telematics (ISO 15143-3 / AEMP 2.0)
 Connects BlastOpt directly to Sandvik (My Sandvik) and Epiroc (Certiq) drill rigs via ISO 15143-3 (`src/drill_connectivity.py`). Pushes 3D drill patterns to rig cabin displays and pulls as-drilled telemetry, eliminating paper handoffs and manual operator entry errors.

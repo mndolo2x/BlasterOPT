@@ -51,9 +51,10 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Dynamic In-Flight Adaptation (`src/realtime_adaptive.py`):** Replaces static pre-blast assumptions with dynamic per-hole charging plan adjustments (`adjust_charging_plan`). Hard Kimberlite strata (low ROP) triggers powder factor increases (+15%), while high torque/vibration ground triggers stemming length increases (+0.5 m).
 - **Risk Controller & Immutable Audit Log:** The automated Risk Controller (`risk_controller`) evaluates modified designs against regulatory limits ($PPV \le 10.0$ mm/s, $dBL \le 120$ dB). All recommendations and operator overrides are immutably logged to a local SQLite database (`audit_log.db`).
 
-### 3D Digital Twin of the Bench & Mine-to-Mill Value
-- **3D Spatial Digital Twin:** The Digital Twin module (`src/digital_twin.py`) constructs a 3D spatial representation of the bench incorporating geological block models (rock mass rating, Kimberlite vs Granite boundaries, joint set spacing), as-drilled hole trajectories, and structural discontinuities.
-- **Downstream Mine-to-Mill Linking:** Simulated fragmentation distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) directly predict downstream excavator productivity (t/h), truck fill factors (%), primary crusher throughput (t/h), specific grinding energy (kWh/t), and total operating cost per tonne ($/t).
+### Mine-to-Mill Digital Twin (Model 4) & Ore Tracking
+- **Cost-Integrated AI Meta-Models Framework:** Model 4 (`src/digital_twin.py`) orchestrates the full Mine-to-Mill pipeline (`MineToMillTwin`), coupling `FragmentationModel` (Kuz-Ram/Swebrec percentiles) with `DownstreamModel` (digger fill factor & cycle time, haul truck payload, crusher throughput t/h, specific grinding energy kWh/t, and total cost per tonne $/t).
+- **OreTracker Graph Database:** `OreTracker` models graph relationships (Neo4j / local fallback) tracking ore blocks from bench to mill via GPS, RFID, and telematics to close the loop on processing performance.
+- **Real-Time What-If Sensitivity Analysis:** `ScenarioAnalyzer` generates parameter sweep sensitivity charts (`what_if`), allowing engineers to evaluate the economic impact of parameter variations in real time.
 
 ### Direct-to-Drill Rig Telematics & ISO 15143-3 Standard
 - **ISO 15143-3 (AEMP 2.0) Standard:** Direct-to-drill connectivity (`src/drill_connectivity.py`) implements the ISO 15143-3 standard for telematics data exchange across Sandvik (My Sandvik) and Epiroc (Certiq) drill rigs.

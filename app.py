@@ -16,7 +16,16 @@ from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
 from src.mwd_ingestion import parse_mwd_message, MWD_HISTORY
 from src.realtime_adaptive import adjust_charging_plan, risk_controller, audit_log
-from src.digital_twin import build_digital_twin, simulate_fragmentation, link_to_downstream
+from src.digital_twin import (
+    build_digital_twin,
+    simulate_fragmentation,
+    link_to_downstream,
+    FragmentationModel,
+    DownstreamModel,
+    MineToMillTwin,
+    OreTracker,
+    ScenarioAnalyzer,
+)
 from src.drill_connectivity import connect_to_sandvik, connect_to_epiroc, sync_design_to_drill
 from src.detonator_integration import (
     upload_timing_sequence,
@@ -997,6 +1006,13 @@ elif active_module == "digital_twin":
         frag_sim = simulate_fragmentation(dt_obj, blast_params={"powder_factor_kg_m3": pf_dt, "burden_m": b_dt, "spacing_m": s_dt, "charge_mass_per_hole_kg": 320.0})
         downstream_kpis = link_to_downstream(dt_obj, frag_sim)
 
+        st.subheader("💡 Mine-to-Mill What-If Sensitivity Analysis")
+        param_to_sweep = st.selectbox(
+            "Select Parameter for What-If Analysis",
+            ["powder_factor_kg_m3", "burden_m", "spacing_m", "stemming_m"],
+            index=0,
+        )
+
     with c_dt2:
         st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
 
@@ -1056,6 +1072,41 @@ elif active_module == "digital_twin":
         col_d2.metric("Truck Fill Factor", f"{downstream_kpis['truck_fill_factor_pct']:.1f}%")
         col_d3.metric("Crusher Throughput", f"{downstream_kpis['crusher_throughput_tph']:.0f} t/h")
         col_d4.metric("Specific Energy", f"{downstream_kpis['specific_energy_kwh_t']:.2f} kWh/t")
+
+        st.markdown("---")
+        st.subheader("📈 Real-Time What-If Sensitivity Plot & Scenario Analysis")
+
+        twin = MineToMillTwin(rock_factor_A=rock_A_dt, ore_hardness_wi=12.5)
+        analyzer = ScenarioAnalyzer(twin=twin)
+
+        base_params_dt = {
+            "powder_factor_kg_m3": pf_dt,
+            "burden_m": b_dt,
+            "spacing_m": s_dt,
+            "stemming_m": 5.0,
+            "bench_height_m": 15.0,
+            "hole_diameter_mm": 250.0,
+        }
+
+        min_range = 0.30 if param_to_sweep == "powder_factor_kg_m3" else 2.0
+        max_range = 1.20 if param_to_sweep == "powder_factor_kg_m3" else 10.0
+
+        fig_sens = analyzer.plot_sensitivity(
+            base_blast_params=base_params_dt,
+            param_to_vary=param_to_sweep,
+            range_min=min_range,
+            range_max=max_range,
+        )
+        st.plotly_chart(fig_sens, use_container_width=True)
+
+        df_whatif = twin.what_if(
+            blast_params=base_params_dt,
+            param_to_vary=param_to_sweep,
+            range_min=min_range,
+            range_max=max_range,
+            steps=10,
+        )
+        st.dataframe(df_whatif, use_container_width=True)
 
 
 # --- MODULE: DRILL CONNECTIVITY ---

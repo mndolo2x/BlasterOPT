@@ -21,3 +21,4 @@ pyvista>=0.43
 trimesh>=4.0
 requests>=2.31
 pymoo>=0.6
+neo4j>=5.0
