@@ -14,7 +14,7 @@ from src.predict import predict_single_blast, predict_physics_fallback
 
 if HAS_TORCH:
     import torch
-    from src.models import GAANNModel, PSOANNModel
+    from src.models import GAANNModel, PSOANNModel, AirblastMinimizerModel
 from src.optimize import BlastOptimizer, optimize_blast_design
 from src.report import generate_pdf
 from src.visualize import (
@@ -99,6 +99,17 @@ def test_pso_ann_model():
 
     model = PSOANNModel(input_size=7)
     x = torch.randn(5, 7)
+    out = model(x)
+    assert out.shape == (5, 1)
+
+
+def test_airblast_minimizer_model():
+    """Test AirblastMinimizerModel instantiation and forward pass tensor output shape."""
+    if not HAS_TORCH:
+        pytest.skip("PyTorch not installed")
+
+    model = AirblastMinimizerModel(input_size=8)
+    x = torch.randn(5, 8)
     out = model(x)
     assert out.shape == (5, 1)
 

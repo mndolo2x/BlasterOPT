@@ -342,6 +342,28 @@ if HAS_TORCH:
             x = self.relu(self.hidden2(x))
             return self.output(x)
 
+    class AirblastMinimizerModel(nn.Module):
+        """
+        ANN for airblast prediction and minimization at Debswana open-pit mine.
+
+        Best-performing model compared to SVM, k-NN, and RF.
+        Minimum achievable airblast: ~40 dB.
+        Most sensitive parameter: stemming. Least sensitive: spacing.
+        Source: Debswana open-pit, 94 blasts.
+        Reference: Saubi et al. (2025). Int. J. Mining and Mineral Eng., 16(2), 148-167.
+        """
+        def __init__(self, input_size=8):
+            super().__init__()
+            self.hidden1 = nn.Linear(input_size, 64)
+            self.hidden2 = nn.Linear(64, 32)
+            self.output = nn.Linear(32, 1)
+            self.relu = nn.ReLU()
+
+        def forward(self, x):
+            x = self.relu(self.hidden1(x))
+            x = self.relu(self.hidden2(x))
+            return self.output(x)
+
 
 MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
