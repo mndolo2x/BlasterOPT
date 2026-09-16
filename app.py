@@ -28,6 +28,7 @@ from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
 from src.regulatory import load_regulatory_limits, check_compliance, generate_compliance_report
 from src.i18n import get_translation
 from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
+from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -116,6 +117,7 @@ page = st.sidebar.radio(
         get_translation("nav_detonator", lang_code),
         get_translation("nav_sync", lang_code),
         get_translation("nav_regulatory", lang_code),
+        get_translation("nav_pinn", lang_code),
         get_translation("nav_integrations", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_visualize", lang_code),
@@ -152,6 +154,8 @@ page_keys = {
     get_translation("nav_sync", "tn"): "sync",
     get_translation("nav_regulatory", "en"): "regulatory",
     get_translation("nav_regulatory", "tn"): "regulatory",
+    get_translation("nav_pinn", "en"): "pinn",
+    get_translation("nav_pinn", "tn"): "pinn",
     get_translation("nav_integrations", "en"): "integrations",
     get_translation("nav_integrations", "tn"): "integrations",
     get_translation("nav_pattern", "en"): "pattern",
@@ -1354,6 +1358,82 @@ elif active_module == "integrations":
         if st.button("Push Cost Record to SAP Cost Center"):
             push_res = push_to_sap({"blast_id": blast_id_push, "total_cost_per_tonne_usd": cost_push_val})
             st.success(push_res["message"])
+
+
+# --- MODULE: PINN PREDICTION & UNCERTAINTY ---
+elif active_module == "pinn":
+    st.header("🧠 Physics-Informed Neural Network (PINN) & Uncertainty Quantification")
+    st.markdown(
+        "Model 2 (Physics-Informed Neural Network) embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations "
+        "as soft loss terms ($L_{\\text{total}} = L_{\\text{data}} + \\lambda_1 L_{\\text{kuzram}} + \\lambda_2 L_{\\text{usbm}}$). "
+        "Monte Carlo Dropout estimates epistemic uncertainty and alerts blasters to Out-Of-Distribution (OOD) risks."
+    )
+
+    c_pinn1, c_pinn2 = st.columns([1, 2])
+
+    with c_pinn1:
+        st.subheader("⚙️ PINN 12 Input Parameters")
+        last_in = st.session_state.get("last_predict_inputs", {})
+
+        b_pinn = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2)
+        s_pinn = st.slider("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2)
+        d_pinn = st.slider("Hole Diameter (mm)", 80.0, 380.0, float(last_in.get("hole_diameter_mm", 250.0)), step=10.0)
+        h_pinn = st.slider("Hole Depth (m)", 5.0, 35.0, float(last_in.get("bench_height_m", 15.0)), step=0.5)
+        stem_pinn = st.slider("Stemming Length (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2)
+        sub_pinn = st.slider("Sub-drill (m)", 0.5, 3.0, 1.5, step=0.1)
+        pf_pinn = st.slider("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05)
+        w_pinn = st.slider("Max Charge per Delay (kg)", 10.0, 2000.0, float(last_in.get("max_charge_per_delay_kg", 640.0)), step=20.0)
+        ucs_pinn = st.slider("Rock Strength UCS (MPa)", 20.0, 300.0, 120.0, step=5.0)
+        rmr_pinn = st.slider("Rock Mass Rating RMR", 20.0, 90.0, 65.0, step=1.0)
+        dist_pinn = st.slider("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0)
+        bi_pinn = st.slider("Blastability Index BI", 10.0, 100.0, 55.0, step=1.0)
+
+        pinn_feature_vec = [
+            b_pinn, s_pinn, d_pinn, h_pinn, stem_pinn, sub_pinn,
+            pf_pinn, w_pinn, ucs_pinn, rmr_pinn, dist_pinn, bi_pinn
+        ]
+
+        mc_samples = st.slider("Monte Carlo Dropout Pass Samples", 20, 300, 100, step=20)
+
+    with c_pinn2:
+        st.subheader("📊 PINN Predictions & 95% Confidence Intervals")
+
+        pinn_model = BlastPINN(input_dim=12)
+        uncertainty_res = predict_with_uncertainty(pinn_model, np.array([pinn_feature_vec]), n_samples=mc_samples)
+
+        means = uncertainty_res["mean"]
+        cis = uncertainty_res["confidence_interval_95"]
+
+        m_p1, m_p2, m_p3 = st.columns(3)
+        m_p1.metric(
+            "Fragmentation d50",
+            f"{means['fragmentation_d50_mm']:.1f} mm",
+            f"95% CI: [{cis['fragmentation_d50_mm'][0]:.1f}, {cis['fragmentation_d50_mm'][1]:.1f}]",
+        )
+        m_p2.metric(
+            "Ground PPV",
+            f"{means['ppv_mms']:.2f} mm/s",
+            f"95% CI: [{cis['ppv_mms'][0]:.2f}, {cis['ppv_mms'][1]:.2f}]",
+        )
+        m_p3.metric(
+            "Airblast Overpressure",
+            f"{means['airblast_dbl']:.1f} dBL",
+            f"95% CI: [{cis['airblast_dbl'][0]:.1f}, {cis['airblast_dbl'][1]:.1f}]",
+        )
+
+        st.markdown("---")
+        st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
+
+        if uncertainty_res["is_out_of_distribution"]:
+            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
+            st.warning("💡 **RECOMMENDATION:** High prediction variance detected. Verify rock mass jointing in field log or run conservative physics bounds.")
+        else:
+            st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
+
+        st.markdown("---")
+        st.subheader("📐 Physics Soft Loss Terms Embedding")
+        st.info("**Kuz-Ram Soft Penalty ($L_{\\text{kuzram}}$):** Penalizes predictions deviating from $X_{50} = A \\cdot K^{-0.8} \\cdot Q^{1/6} \\cdot (115/E)^{19/30}$.")
+        st.info("**USBM PPV Soft Penalty ($L_{\\text{usbm}}$):** Penalizes predictions deviating from $PPV = 1140 \\cdot (D / \\sqrt{W})^{-1.6}$.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

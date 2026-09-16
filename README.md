@@ -52,6 +52,9 @@ Full dual-language interface support (English 🇬🇧 & Setswana 🇧🇼) for 
 ### 🔗 Debswana Enterprise Integrations (`src/integrations.py`)
 Eliminates data silos by integrating with SAP ERP (cost/procurement), Deswik CAD (mine planning & pattern design), and GEOVIA Surpac (3D geological block models & Bond Work Index).
 
+### 🧠 Physics-Informed Neural Network (PINN) Model 2 (`src/pinn.py`)
+Blends deep learning with Kuz-Ram and USBM physics as soft loss penalties ($L_{\text{total}} = L_{\text{data}} + \lambda_1 L_{\text{kuzram}} + \lambda_2 L_{\text{usbm}}$). Uses Monte Carlo dropout inference (`predict_with_uncertainty`) to estimate epistemic confidence and issue Out-Of-Distribution (OOD) risk alerts.
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 

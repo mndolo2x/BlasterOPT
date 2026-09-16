@@ -93,5 +93,10 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
   - **Deswik CAD:** Ingests 3D bench polygons and 3D hole collar locations; pushes optimized pattern geometries.
   - **GEOVIA Surpac:** Ingests 3D geological block models (rock types, Kimberlite pipe contacts, Bond Work Index hardness); pushes predicted $d_{50}$ fragmentation overlays.
 
+### Physics-Informed Neural Network (PINN, Model 2) & Uncertainty Quantification
+- **Architecture:** 12 input features, 4 hidden layers (128, 256, 256, 128) with Dropout(0.1), and 3 output heads (fragmentation $d_{50}$, PPV, airblast) (`src/pinn.py`).
+- **Soft Loss Terms:** $L_{\text{total}} = L_{\text{data}} + \lambda_1 L_{\text{kuzram}} + \lambda_2 L_{\text{usbm}}$.
+- **Monte Carlo Dropout Uncertainty:** Uses Monte Carlo dropout inference (`predict_with_uncertainty`) to estimate epistemic uncertainty, returning 95% confidence intervals and Out-Of-Distribution (OOD) risk alerts.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).
