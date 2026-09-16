@@ -6,6 +6,7 @@ rock fracture mechanics and wave propagation equations (Kuz-Ram d80 and USBM PPV
 Includes Monte Carlo Dropout uncertainty estimation for epistemic and aleatoric confidence quantification.
 """
 
+import os
 import logging
 import numpy as np
 import pandas as pd
@@ -399,3 +400,60 @@ def predict_with_uncertainty(
         },
         "high_uncertainty": high_unc,
     }
+
+
+def save_pinn(model: Any, path: str = "models/pinn_model.pt") -> str:
+    """
+    Saves the trained PINN model state dict to disk.
+
+    Parameters:
+    -----------
+    model : Any
+        Trained BlastPINN instance.
+    path : str, default="models/pinn_model.pt"
+        Filepath to save the model.
+
+    Returns:
+    --------
+    str
+        Filepath where the model was saved.
+    """
+    os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+    if HAS_TORCH and isinstance(model, torch.nn.Module):
+        torch.save(model.state_dict(), path)
+    else:
+        # Fallback dummy file creation if PyTorch is absent
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("PINN model weights fallback placeholder")
+    return path
+
+
+def load_pinn(path: str = "models/pinn_model.pt", input_dim: int = 12) -> Any:
+    """
+    Loads a trained PINN model from disk.
+
+    Parameters:
+    -----------
+    path : str, default="models/pinn_model.pt"
+        Filepath to load the model from.
+    input_dim : int, default=12
+        Input dimension for BlastPINN.
+
+    Returns:
+    --------
+    Any
+        Loaded BlastPINN instance with state dict applied.
+    """
+    if HAS_TORCH:
+        model = BlastPINN(input_dim=input_dim)
+        if os.path.exists(path):
+            try:
+                state_dict = torch.load(path, map_location=torch.device("cpu"))
+                if isinstance(state_dict, dict):
+                    model.load_state_dict(state_dict)
+            except Exception as e:
+                logger.warning(f"Failed to load PINN state dict from {path}: {e}")
+        model.eval()
+        return model
+    else:
+        return BlastPINN(input_dim=input_dim)

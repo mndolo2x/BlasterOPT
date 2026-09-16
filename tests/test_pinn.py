@@ -2,9 +2,11 @@
 Unit tests for Physics-Informed Neural Network (PINN) module (src/pinn.py).
 """
 
+import os
+import tempfile
 import pytest
 import numpy as np
-from src.pinn import BlastPINN, train_pinn, predict_with_uncertainty, HAS_TORCH
+from src.pinn import BlastPINN, train_pinn, predict_with_uncertainty, save_pinn, load_pinn, HAS_TORCH
 
 if HAS_TORCH:
     import torch
@@ -75,3 +77,32 @@ def test_predict_with_uncertainty_returns_exact_keys():
     assert isinstance(ci_frag, tuple)
     assert len(ci_frag) == 2
     assert ci_frag[0] <= ci_frag[1]
+
+
+def test_save_and_load_pinn():
+    """Test save_pinn and load_pinn save state dict to disk and reload it correctly."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        save_path = os.path.join(tmp_dir, "pinn_test_model.pt")
+
+        if HAS_TORCH:
+            pinn = BlastPINN(input_dim=12)
+            saved_path = save_pinn(pinn, save_path)
+            assert os.path.exists(saved_path)
+
+            loaded_pinn = load_pinn(saved_path, input_dim=12)
+            assert loaded_pinn is not None
+
+            # Verify predictions match between saved and loaded models
+            x_test = torch.ones(1, 12)
+            pinn.eval()
+            with torch.no_grad():
+                f1, p1, a1 = pinn(x_test)
+                f2, p2, a2 = loaded_pinn(x_test)
+
+            np.testing.assert_allclose(f1.numpy(), f2.numpy(), rtol=1e-4)
+        else:
+            pinn = None
+            saved_path = save_pinn(pinn, save_path)
+            assert os.path.exists(saved_path)
+            loaded_pinn = load_pinn(saved_path)
+            assert loaded_pinn is not None
