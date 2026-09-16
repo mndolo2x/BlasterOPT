@@ -23,3 +23,4 @@ requests>=2.31
 pymoo>=0.6
 neo4j>=5.0
 pydantic>=2.0
+langgraph>=0.1.0
