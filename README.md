@@ -43,6 +43,9 @@ Integrates field-to-cloud initiation workflows (`src/detonator_integration.py`) 
 ### 🔄 Offline-First Write-Ahead Log (WAL) & SyncManager (`src/offline_sync.py`)
 Ensures zero field data loss in remote pit locations. Action modifications write to persistent disk storage (`WriteAheadLog`) before transmission, while `SyncManager` executes queue replays with exponential backoff retries and timestamp conflict resolution (`resolve_conflicts`).
 
+### 📜 Botswana Regulatory Compliance Module (`src/regulatory.py`)
+Automates legal compliance audits under the Mines, Quarries, Works and Machinery Act (Cap. 44:02) and Data Protection Act of Botswana. Configurable via `data/processed/regulatory_limits.json` to evaluate PPV ($\le 10.0$ mm/s), airblast ($\le 120$ dBL), flyrock ($\le 250$ m), and generate official PDF submission reports.
+
 ### 📱 React Native Mobile Field App (`mobile/`)
 Field app for pit operators, drillers, and blasters in remote bench locations with limited cellular connectivity. Features offline-first local storage, action sync queue replay upon reconnection, input data validation, and Role-Based Access Control (Blaster, Engineer, Supervisor).
 

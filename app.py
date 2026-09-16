@@ -24,6 +24,7 @@ from src.detonator_integration import (
     FIRING_CONFIRMATIONS_DB,
 )
 from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
+from src.regulatory import load_regulatory_limits, check_compliance, generate_compliance_report
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -104,6 +105,7 @@ page = st.sidebar.radio(
         "🚜 Drill Connectivity",
         "⚡ Electronic Detonator Integration",
         "🔄 Sync Status & Write-Ahead Log",
+        "📜 Regulatory Compliance",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -1149,6 +1151,68 @@ elif page == "🔄 Sync Status & Write-Ahead Log":
             rem_rec = {"hole_id": "HOLE_01", "depth_m": rem_depth, "timestamp": "2026-09-16T10:00:00"}
             res_rec = resolve_conflicts(loc_rec, rem_rec, strategy=strategy_sel)
             st.json(res_rec)
+
+
+# --- MODULE: REGULATORY COMPLIANCE ---
+elif page == "📜 Regulatory Compliance":
+    st.header("📜 Botswana Mining Regulatory Compliance & Audit Module")
+    st.markdown(
+        "Automated compliance evaluation under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)** "
+        "and **Data Protection Act of Botswana**. Evaluates ground vibration (PPV), airblast noise overpressure (dBL), "
+        "flyrock safety boundaries, and stemming confinement."
+    )
+
+    c_reg1, c_reg2 = st.columns([1, 2])
+
+    reg_limits = load_regulatory_limits()
+
+    with c_reg1:
+        st.subheader("⚖️ Active Regulatory Threshold Limits")
+        st.info(f"**Legislative Framework:** {reg_limits.get('act')}")
+        st.metric("Max Ground Vibration (PPV)", f"{reg_limits.get('max_ppv_mms', 10.0):.1f} mm/s")
+        st.metric("Max Airblast Overpressure", f"{reg_limits.get('max_airblast_dbl', 120.0):.1f} dBL")
+        st.metric("Max Flyrock Boundary Range", f"{reg_limits.get('max_flyrock_m', 250.0):.1f} m")
+        st.metric("Min Stemming Confinement", f"{reg_limits.get('min_stemming_m', 2.5):.1f} m")
+
+    with c_reg2:
+        st.subheader("🔍 Proposed Blast Design Compliance Evaluation")
+
+        last_in = st.session_state.get("last_predict_inputs", {})
+        last_out = st.session_state.get("last_predict_results", {})
+
+        comp_eval = check_compliance(blast_params=last_in, predictions=last_out, custom_limits=reg_limits)
+
+        if comp_eval["is_compliant"]:
+            st.success("✅ **FULLY COMPLIANT:** Proposed blast design satisfies all Botswana Department of Mines environmental & safety regulations.")
+        else:
+            st.error("❌ **NON-COMPLIANT:** Detected regulatory threshold violations in proposed design!")
+            st.subheader("Detected Violations:")
+            for v in comp_eval["violations"]:
+                st.write(f"- ⚠️ {v}")
+
+            st.subheader("Actionable Engineering Recommendations:")
+            for r in comp_eval["recommendations"]:
+                st.info(f"💡 {r}")
+
+        st.markdown("---")
+        st.subheader("📄 Export Official Regulatory Submission Report")
+
+        report_pdf_path = generate_compliance_report(
+            blast_params=last_in,
+            predictions=last_out,
+            output_path="data/processed/botswana_regulatory_compliance_report.pdf",
+        )
+
+        with open(report_pdf_path, "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+
+        st.download_button(
+            label="📄 Download Official Compliance PDF Report",
+            data=pdf_bytes,
+            file_name="Botswana_Mining_Regulatory_Compliance_Report.pdf",
+            mime="application/pdf",
+            type="primary",
+        )
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

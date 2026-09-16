@@ -1,0 +1,11 @@
+{
+  "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) & Data Protection Act of Botswana",
+  "max_ppv_mms": 10.0,
+  "min_ppv_mms": 0.1,
+  "max_airblast_dbl": 120.0,
+  "max_flyrock_m": 250.0,
+  "min_stemming_m": 2.5,
+  "max_powder_factor_kg_m3": 1.20,
+  "d50_target_min_mm": 100.0,
+  "d50_target_max_mm": 350.0
+}

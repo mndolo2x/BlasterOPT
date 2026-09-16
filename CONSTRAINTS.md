@@ -66,6 +66,11 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Write-Ahead Log (WAL) Resilience:** In remote open-pit mining benches with limited cellular connectivity, all local field modifications (hole measurements, design edits) are enqueued to persistent disk storage (`WriteAheadLog` in `src/offline_sync.py`) prior to transmission.
 - **Exponential Backoff SyncManager:** When connectivity is restored, `SyncManager` replays pending WAL items using exponential backoff retries ($delay = initial \cdot backoff^{attempt}$) and resolves concurrent modification conflicts (`resolve_conflicts`).
 
+### Botswana Regulatory Compliance Framework
+- **Mines, Quarries, Works and Machinery Act (Cap. 44:02):** Mandates legal environmental compliance and public safety limits. Maximum allowable ground vibration $PPV \le 10.0$ mm/s (minimum detectable $0.1$ mm/s), airblast noise overpressure $dBL \le 120$ dB, and maximum flyrock range $\le 250$ m.
+- **Data Protection Act of Botswana:** Mandates secure handling and anonymization of site-specific geological block models and blasting telematics.
+- **Automated Compliance Engine (`src/regulatory.py`):** Configurable via `data/processed/regulatory_limits.json` to generate downloadable official PDF submission reports for Department of Mines audits.
+
 ### Mobile App Offline-First Architecture & RBAC
 - **Offline-First Criticality:** Remote pit benches in Botswana open-pit operations (Jwaneng, Orapa, Karowe) experience limited or intermittent cellular coverage. The field app (`mobile/`) utilizes local JSON storage and an offline action queue to ensure drillers and blasters can log hole measurements without network connection.
 - **Role-Based Access Control (RBAC):**
