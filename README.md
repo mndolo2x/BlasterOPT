@@ -22,6 +22,9 @@ Deviations above target cause severe physical jamming and liner wear, while extr
 - **Stemming Length ($T$) — Most Sensitive Parameter:** Stemming length directly confines explosive detonation gases within the blast hole. Inadequate stemming results in premature gas venting to atmosphere, triggering high-intensity airblast overpressure shockwaves ($dBL$).
 - **Spacing ($S$) — Least Sensitive Parameter:** Hole spacing governs stress wave superposition in the rock mass rather than direct gas venting into atmosphere, making it the least sensitive parameter for airblast overpressure generation.
 
+### 🧠 Knowledge Transfer & Skill Shortage Mitigation
+Botswana's mining industry faces periodic engineering skill shortages and staff rotations across operations (e.g. Debswana Jwaneng and Orapa mines). The **Similar Blast Recommender** (`src/recommender.py`) uses $k$-nearest neighbors matching to allow junior blasters and newly rotated engineers to search historical blast logs, examine actual achieved outcomes ($d_{50}$, PPV, flyrock, cost), and learn from historical lessons learned.
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.

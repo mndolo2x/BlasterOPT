@@ -13,7 +13,9 @@ from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, engineer_features
 from src.models import BlastMLPipeline, MODEL_REGISTRY
 from src.predict import predict_single_blast, total_cost_per_tonne
+from src.recommender import find_similar_blasts
 import plotly.express as px
+import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
 from src.report import generate_pdf
 from src.visualize import (
@@ -86,6 +88,7 @@ page = st.sidebar.radio(
         "🎯 Predictor & Kuz-Ram Curve",
         "⚡ Genetic Algorithm Optimizer",
         "💰 Economic Dashboard",
+        "👥 Similar Blasts Recommender",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -650,6 +653,103 @@ elif page == "💰 Economic Dashboard":
 
         st.subheader("Detailed Cost Components Table")
         st.dataframe(df_costs, use_container_width=True)
+
+
+# --- MODULE: SIMILAR BLASTS RECOMMENDER ---
+elif page == "👥 Similar Blasts Recommender":
+    st.header("👥 Similar Blast Recommender & Knowledge Transfer")
+    st.markdown(
+        "Empowers junior blasters and newly rotated mining engineers to query historical blast logs, "
+        "learn from past blast outcomes ($d_{50}$, PPV, flyrock, cost), and review historical lessons learned."
+    )
+
+    c_rec1, c_rec2 = st.columns([1, 2])
+
+    with c_rec1:
+        st.subheader("Current Blast Parameters")
+        last_in = st.session_state.get("last_predict_inputs", {})
+
+        rock_A_rec = st.number_input("Rock Factor (A)", 4.0, 16.0, float(last_in.get("rock_factor_A", 8.0)), step=0.5, key="rec_rock")
+        bench_h_rec = st.number_input("Bench Height (m)", 5.0, 30.0, float(last_in.get("bench_height_m", 12.0)), step=0.5, key="rec_h")
+        hole_d_rec = st.number_input("Hole Diameter (mm)", 80.0, 380.0, float(last_in.get("hole_diameter_mm", 250.0)), step=10.0, key="rec_d")
+        burden_rec = st.number_input("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2, key="rec_b")
+        spacing_rec = st.number_input("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2, key="rec_s")
+        stemming_rec = st.number_input("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="rec_stem")
+        pf_rec = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05, key="rec_pf")
+        charge_rec = st.number_input("Charge Mass per Hole (kg)", 10.0, 1500.0, float(last_in.get("charge_mass_per_hole_kg", 320.0)), step=10.0, key="rec_charge")
+        dist_rec = st.number_input("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0, key="rec_dist")
+
+        query_payload = {
+            "rock_factor_A": rock_A_rec,
+            "bench_height_m": bench_h_rec,
+            "hole_diameter_mm": hole_d_rec,
+            "burden_m": burden_rec,
+            "spacing_m": spacing_rec,
+            "stemming_m": stemming_rec,
+            "powder_factor_kg_m3": pf_rec,
+            "charge_mass_per_hole_kg": charge_rec,
+            "max_charge_per_delay_kg": charge_rec * 2.0,
+            "monitoring_distance_m": dist_rec,
+            "explosive_rws": 100.0,
+        }
+
+        top_k_val = st.slider("Number of Similar Blasts to Retrieve", 3, 10, 5)
+
+    with c_rec2:
+        st.subheader("Top Matching Historical Blasts")
+        hist_df = st.session_state["dataset"]
+
+        similar_df = find_similar_blasts(query_payload, hist_df, top_k=top_k_val)
+
+        if not similar_df.empty:
+            display_cols = [
+                c for c in ["similarity_distance", "burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
+                if c in similar_df.columns
+            ]
+            st.dataframe(similar_df[display_cols], use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("📊 Outcomes Comparison: Current Design vs Historical Blasts")
+
+            # Predicted outcomes for current proposed design
+            curr_pred = predict_single_blast(query_payload, model_pipeline=st.session_state.get("pipeline", None))
+
+            metrics_comp = ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
+            labels_comp = ["d50 (mm)", "PPV (mm/s)", "Flyrock (m)", "Cost ($/t)"]
+
+            curr_vals = [curr_pred.get(m, 0.0) for m in metrics_comp]
+            hist_avg_vals = [similar_df[m].mean() if m in similar_df.columns else 0.0 for m in metrics_comp]
+
+            fig_bar = go.Figure(data=[
+                go.Bar(name="Current Proposed Design", x=labels_comp, y=curr_vals, marker_color="#2962FF"),
+                go.Bar(name="Top Similar Blasts Avg", x=labels_comp, y=hist_avg_vals, marker_color="#00C853"),
+            ])
+            fig_bar.update_layout(
+                barmode="group",
+                title="<b>Outcome Metric Comparison</b>",
+                template="plotly_white",
+                height=380,
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("💡 Lessons Learned & Historical Observations")
+            for idx, (_, row) in enumerate(similar_df.iterrows(), 1):
+                dist_val = row.get("similarity_distance", 0.0)
+                d50_val = row.get("d50_mm", 200.0)
+                ppv_val = row.get("ppv_mms", 5.0)
+
+                # Simulated domain lessons learned based on historical outcome physics
+                if ppv_val > 10.0:
+                    lesson = "High ground vibration observed. Recommend increasing electronic delay intervals or reducing maximum charge per delay."
+                elif d50_val > 300.0:
+                    lesson = "Coarse fragmentation produced. Increasing powder factor or reducing burden/spacing ratio improved digging rates."
+                else:
+                    lesson = "Optimal blast performance recorded. Good muckpile displacement and balanced fragmentation achieved."
+
+                with st.expander(f"Blast Log #{idx} (Similarity Distance: {dist_val:.2f}) - d50: {d50_val:.1f} mm | PPV: {ppv_val:.2f} mm/s"):
+                    st.write(f"**Parameters:** Burden: `{row.get('burden_m', 6.0):.2f}m`, Spacing: `{row.get('spacing_m', 7.0):.2f}m`, Stemming: `{row.get('stemming_m', 5.0):.2f}m`, PF: `{row.get('powder_factor_kg_m3', 0.65):.3f} kg/m³`")
+                    st.info(f"**Historical Lesson Learned:** {lesson}")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

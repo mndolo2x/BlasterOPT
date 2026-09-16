@@ -38,5 +38,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Drill & Blast Cost Share:** Drilling and blasting operations account for up to **20% of total mining costs per tonne**.
 - **Mine-to-Mill Balance:** Comminution (crushing and grinding) accounts for over 50% of total mine electrical energy. Small, targeted increases in D&B expenditure (powder factor tuning) yield disproportionately large energy savings, throughput gains, and reduced equipment wear downstream.
 
+### Knowledge Transfer & Skill Shortage Mitigation
+- **Industry Skill Shortage:** Botswana's mining sector faces periodic engineering skill shortages and frequent staff rotations between mine sites (Jwaneng, Orapa, Letlhakane, Karowe).
+- **Nearest-Neighbors Historical Lookup:** The Similar Blast Recommender system (`src/recommender.py`) allows junior blasters and newly rotated engineers to query past historical blast logs with similar geometry/rock parameters, review achieved outcomes, and leverage historical 'lessons learned' to reduce operational risk.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).
