@@ -58,5 +58,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **ISO 15143-3 (AEMP 2.0) Standard:** Direct-to-drill connectivity (`src/drill_connectivity.py`) implements the ISO 15143-3 standard for telematics data exchange across Sandvik (My Sandvik) and Epiroc (Certiq) drill rigs.
 - **Manual Data Entry Elimination:** Pushing 3D drill patterns directly from BlastOpt to drill rig cabin displays eliminates manual paper handoffs, USB transfers, and operator collar coordinate entry errors.
 
+### Electronic Detonator Field-to-Cloud Integration
+- **Precision Electronic Initiation:** Electronic detonator integration (`src/detonator_integration.py`) supports AEL IntelliShot, BME AXXIS, and Orica i-kon systems, providing $\pm 0.1$ ms timing accuracy for vibration wave cancellation and fragmentation optimization.
+- **Regulatory Sequence Validation:** Pre-blast validation (`validate_sequence`) enforces Botswana Department of Mines environmental guidelines (minimum inter-hole delay $\ge 8$ ms, inter-row delay $\ge 25$ ms, $PPV \le 10.0$ mm/s, $dBL \le 120$ dB).
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

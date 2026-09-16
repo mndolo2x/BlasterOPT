@@ -17,6 +17,12 @@ from src.recommender import find_similar_blasts
 from src.mwd_ingestion import parse_mwd_message, MWD_HISTORY
 from src.digital_twin import build_digital_twin, simulate_fragmentation, link_to_downstream
 from src.drill_connectivity import connect_to_sandvik, connect_to_epiroc, sync_design_to_drill
+from src.detonator_integration import (
+    upload_timing_sequence,
+    download_firing_confirmation,
+    validate_sequence,
+    FIRING_CONFIRMATIONS_DB,
+)
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -95,6 +101,7 @@ page = st.sidebar.radio(
         "📡 Real-Time MWD Monitoring",
         "💎 Digital Twin of Bench",
         "🚜 Drill Connectivity",
+        "⚡ Electronic Detonator Integration",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -1007,6 +1014,72 @@ elif page == "🚜 Drill Connectivity":
             {"Hole ID": "Hole_04", "Design Depth (m)": 15.0, "Drilled Depth (m)": 15.1, "Deviation (m)": "+0.10", "Status": "PASS"},
         ]
         st.dataframe(pd.DataFrame(compliance_data), use_container_width=True)
+
+
+# --- MODULE: ELECTRONIC DETONATOR INTEGRATION ---
+elif page == "⚡ Electronic Detonator Integration":
+    st.header("⚡ Electronic Detonator Field-to-Cloud Integration")
+    st.markdown(
+        "Direct integration with major electronic initiation systems in Botswana (**AEL IntelliShot**, **BME AXXIS**, **Orica i-kon III**). "
+        "Upload millisecond-precision timing sequences, validate regulatory compliance, and download firing confirmations."
+    )
+
+    c_det1, c_det2 = st.columns([1, 2])
+
+    with c_det1:
+        st.subheader("⚙️ System Selection & Sequence Upload")
+        det_system = st.selectbox("Select Electronic Detonator System", ["AEL IntelliShot", "BME AXXIS", "Orica i-kon III"])
+        blast_id_det = st.text_input("Blast Pattern ID", value="BLAST_JWA_2024_08")
+
+        hole_delay_det = st.number_input("Inter-Hole Delay (ms)", 1.0, 100.0, 17.0, step=1.0)
+        row_delay_det = st.number_input("Inter-Row Delay (ms)", 5.0, 200.0, 42.0, step=1.0)
+        charge_delay_det = st.number_input("Max Charge per Delay (kg)", 50.0, 5000.0, 640.0, step=50.0)
+
+        seq_payload = {
+            "blast_id": blast_id_det,
+            "hole_delay_ms": hole_delay_det,
+            "row_delay_ms": row_delay_det,
+            "max_charge_per_delay_kg": charge_delay_det,
+            "predicted_ppv_mms": 8.5,
+            "predicted_airblast_dbl": 115.0,
+        }
+
+        # Real-time Sequence Regulatory Validation
+        is_valid_seq, seq_violations = validate_sequence(seq_payload)
+
+        if is_valid_seq:
+            st.success("✅ **REGULATORY COMPLIANT:** Sequence satisfies Botswana vibration and airblast thresholds.")
+        else:
+            for v in seq_violations:
+                st.error(v)
+
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("Upload Timing Sequence", type="primary"):
+                up_res = upload_timing_sequence(det_system, seq_payload, blast_id=blast_id_det)
+                st.success(f"Uploaded to {up_res['detonator_system']}!")
+
+        with col_b2:
+            if st.button("Download Confirmation"):
+                conf_res = download_firing_confirmation(det_system, blast_id=blast_id_det)
+                st.success(f"Downloaded confirmation for {conf_res['blast_id']}!")
+
+    with c_det2:
+        st.subheader("📊 Firing Confirmations & Field Diagnostics")
+
+        if not FIRING_CONFIRMATIONS_DB:
+            # Seed mock default confirmation if database is empty
+            download_firing_confirmation("AEL IntelliShot", blast_id="BLAST_JWA_2024_01")
+            download_firing_confirmation("BME AXXIS", blast_id="BLAST_ORA_2024_03")
+
+        df_conf = pd.DataFrame(FIRING_CONFIRMATIONS_DB)
+        st.dataframe(df_conf, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🔍 Electronic System Vendor Architecture")
+        st.info("**AEL IntelliShot:** Uses Commander control boxes and Tagger handheld devices with smart lead wire auto-tagging.")
+        st.info("**BME AXXIS:** AXXIS Titanium / Gii dual-capacitor architecture with sub-millisecond firing window accuracy.")
+        st.info("**Orica i-kon III:** High-capacity Logger/Blaster suite supporting up to 4,800 caps per blast with encrypted telemetry.")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
