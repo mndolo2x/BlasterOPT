@@ -157,6 +157,86 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     return df_feat
 
 
+def load_real_blast_data(
+    filepath: str, anomaly_log_path: str = "data/processed/data_anomalies.log"
+) -> pd.DataFrame:
+    """
+    Loads, validates, and cleans real mine blasting logs from CSV when a data-sharing agreement is active.
+
+    Real Data vs. Synthetic Data Domain Context:
+    -------------------------------------------
+    Synthetic blast datasets rely on empirical Kuz-Ram equations and simplified geology assumptions.
+    In contrast, real mine production logs (e.g. from Debswana Jwaneng or Orapa pits) reflect site-specific
+    geological heterogeneity, joint plane orientations, bench water conditions, explosive product degradation,
+    and actual measured fragmentation or seismograph PPV waveforms. Consuming real blast data is essential
+    for production model calibration, reducing generalization error on site.
+
+    Parameters:
+    -----------
+    filepath : str
+        File path to real blast data CSV file.
+    anomaly_log_path : str, default="data/processed/data_anomalies.log"
+        File path to record out-of-bounds anomaly entries and missing value logs.
+
+    Returns:
+    --------
+    pd.DataFrame
+        Validated, cleaned, and feature-engineered real blast dataset.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Real blast data file not found at: {filepath}")
+
+    raw_df = pd.read_csv(filepath)
+
+    # Prepare directory for anomaly log file
+    os.makedirs(os.path.dirname(anomaly_log_path) if os.path.dirname(anomaly_log_path) else ".", exist_ok=True)
+
+    anomalies = []
+
+    # 1. Check schema
+    missing_cols = [c for c in REQUIRED_COLUMNS if c not in raw_df.columns]
+    if missing_cols:
+        anomalies.append(f"CRITICAL: Missing required schema column(s): {', '.join(missing_cols)}")
+
+    cleaned_df = raw_df.copy()
+
+    # 2. Check missing values and impute with median
+    for col in REQUIRED_COLUMNS + [c for c in TARGET_COLUMNS if c in cleaned_df.columns]:
+        if col in cleaned_df.columns:
+            cleaned_df[col] = pd.to_numeric(cleaned_df[col], errors="coerce")
+            num_missing = cleaned_df[col].isna().sum()
+            if num_missing > 0:
+                median_val = cleaned_df[col].median()
+                anomalies.append(
+                    f"MISSING VALUE: Column '{col}' had {num_missing} missing entry/entries. Imputed with median = {median_val:.2f}."
+                )
+                cleaned_df[col] = cleaned_df[col].fillna(median_val)
+
+    # 3. Check physical range validation bounds
+    for col, (vmin, vmax) in VALIDATION_RANGES.items():
+        if col in cleaned_df.columns:
+            out_of_bounds = cleaned_df[(cleaned_df[col] < vmin) | (cleaned_df[col] > vmax)]
+            if len(out_of_bounds) > 0:
+                anomalies.append(
+                    f"OUT OF RANGE: Column '{col}' contained {len(out_of_bounds)} row(s) outside physical range [{vmin}, {vmax}]. Clipped."
+                )
+                cleaned_df[col] = cleaned_df[col].clip(lower=vmin, upper=vmax)
+
+    # Write anomaly report to log file
+    with open(anomaly_log_path, "a", encoding="utf-8") as f_log:
+        f_log.write(f"\n--- Data Ingestion Anomaly Report for {filepath} ---\n")
+        if anomalies:
+            for log_entry in anomalies:
+                f_log.write(f"[{pd.Timestamp.now()}] {log_entry}\n")
+        else:
+            f_log.write(f"[{pd.Timestamp.now()}] No anomalies detected in real dataset.\n")
+
+    # Perform feature engineering
+    engineered_df = engineer_features(cleaned_df)
+
+    return engineered_df
+
+
 def prepare_ingested_dataset(
     raw_df: pd.DataFrame, save_path: Optional[str] = None
 ) -> pd.DataFrame:

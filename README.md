@@ -25,6 +25,9 @@ Deviations above target cause severe physical jamming and liner wear, while extr
 ### 🧠 Knowledge Transfer & Skill Shortage Mitigation
 Botswana's mining industry faces periodic engineering skill shortages and staff rotations across operations (e.g. Debswana Jwaneng and Orapa mines). The **Similar Blast Recommender** (`src/recommender.py`) uses $k$-nearest neighbors matching to allow junior blasters and newly rotated engineers to search historical blast logs, examine actual achieved outcomes ($d_{50}$, PPV, flyrock, cost), and learn from historical lessons learned.
 
+### 📊 Real Mine Data Ingestion vs. Synthetic Physics Data
+Production blast deployment requires real mine production logs (`load_real_blast_data()` in `src/data_ingestion.py`). Synthetic physics datasets provide idealized empirical baseline estimates, whereas real mine production logs capture site-specific geological heterogeneity, structural joint orientations ($JWF$), bench water conditions, and actual measured seismograph waveforms.
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.

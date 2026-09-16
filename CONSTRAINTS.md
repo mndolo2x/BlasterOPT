@@ -42,5 +42,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **Industry Skill Shortage:** Botswana's mining sector faces periodic engineering skill shortages and frequent staff rotations between mine sites (Jwaneng, Orapa, Letlhakane, Karowe).
 - **Nearest-Neighbors Historical Lookup:** The Similar Blast Recommender system (`src/recommender.py`) allows junior blasters and newly rotated engineers to query past historical blast logs with similar geometry/rock parameters, review achieved outcomes, and leverage historical 'lessons learned' to reduce operational risk.
 
+### Real Data vs. Synthetic Data Domain Context
+- **Synthetic Data Limitations:** Synthetic datasets generated from empirical equations (e.g. Kuz-Ram, USBM) rely on idealized assumptions and uniform rock mass properties.
+- **Real Production Data Necessity:** Production blast logs from mine operations capture site-specific geological heterogeneity, structural discontinuities (joints, faults, bedding planes), Joint Wall Factor ($JWF$), bench groundwater saturation, explosive product degradation, and actual measured seismograph waveforms. Ingesting real mine data when data-sharing agreements are active is critical to calibrate ML models for production deployment and minimize generalization error on site.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

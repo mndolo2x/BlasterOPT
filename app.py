@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from src.synthetic_data import generate_synthetic_blast_data
-from src.data_ingestion import prepare_ingested_dataset, clean_and_preprocess, engineer_features
+from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features
 from src.models import BlastMLPipeline, MODEL_REGISTRY
 from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
@@ -149,23 +149,46 @@ elif page == "⚙️ Data Ingestion & Generator":
             st.dataframe(processed_df.head(10), use_container_width=True)
 
     with tab2:
-        st.subheader("Upload Custom Mine Dataset")
-        uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+        st.subheader("Upload Real Mine Production Data vs Synthetic Data")
+        st.markdown(
+            "Upload production blast logs (e.g., from Debswana Jwaneng/Orapa pits when under a data-sharing agreement) "
+            "to calibrate models on site-specific geology, structural discontinuities, and actual measured fragmentation."
+        )
 
-        if uploaded_file is not None:
-            try:
-                raw_df = pd.read_csv(uploaded_file)
-                st.write("Raw Input Preview:", raw_df.head(5))
+        data_mode = st.radio(
+            "Select Data Pathway for Model Training",
+            ["Real Mine Data (Uploaded CSV)", "Synthetic Physics Data Generator"],
+            index=0,
+            help="Keep real mine data and synthetic empirical data pathways separate."
+        )
 
-                if st.button("Process & Load Uploaded Data"):
-                    processed_df = prepare_ingested_dataset(
-                        raw_df, save_path="data/processed/uploaded_blast_data.csv"
-                    )
-                    st.session_state["dataset"] = processed_df
-                    st.success("Successfully cleaned, validated, and loaded uploaded dataset!")
-                    st.dataframe(processed_df.head(10), use_container_width=True)
-            except Exception as e:
-                st.error(f"Error processing uploaded file: {e}")
+        if data_mode == "Real Mine Data (Uploaded CSV)":
+            uploaded_file = st.file_uploader("Upload Real Mine CSV File", type=["csv"])
+
+            if uploaded_file is not None:
+                try:
+                    temp_path = "data/raw/uploaded_real_blast_data.csv"
+                    os.makedirs("data/raw", exist_ok=True)
+                    with open(temp_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+
+                    st.write("Uploaded CSV Raw Preview:")
+                    st.dataframe(pd.read_csv(temp_path).head(5), use_container_width=True)
+
+                    if st.button("Process & Load Real Mine Data", type="primary"):
+                        real_processed_df = load_real_blast_data(
+                            filepath=temp_path,
+                            anomaly_log_path="data/processed/data_anomalies.log"
+                        )
+                        st.session_state["dataset"] = real_processed_df
+                        st.session_state["data_source_mode"] = "real"
+                        st.success("Successfully validated, cleaned, and loaded real mine production dataset!")
+                        st.info("💡 Anomaly report generated at `data/processed/data_anomalies.log`.")
+                        st.dataframe(real_processed_df.head(10), use_container_width=True)
+                except Exception as e:
+                    st.error(f"Error processing real mine dataset: {e}")
+        else:
+            st.info("Active Pathway: Synthetic Physics Data Generator (Tab 1). Use Tab 1 controls to configure synthetic dataset parameters.")
 
 
 # --- MODULE 3: ML MODEL MANAGER ---
