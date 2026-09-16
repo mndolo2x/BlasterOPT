@@ -15,6 +15,7 @@ from src.models import BlastMLPipeline, MODEL_REGISTRY
 from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
 from src.mwd_ingestion import parse_mwd_message, MWD_HISTORY
+from src.digital_twin import build_digital_twin, simulate_fragmentation, link_to_downstream
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -91,6 +92,7 @@ page = st.sidebar.radio(
         "💰 Economic Dashboard",
         "👥 Similar Blasts Recommender",
         "📡 Real-Time MWD Monitoring",
+        "💎 Digital Twin of Bench",
         "📐 2D Blast Pattern & Delays",
         "📈 Visualize",
     ],
@@ -849,6 +851,101 @@ elif page == "📡 Real-Time MWD Monitoring":
             st.warning("⚡ **ADAPTIVE CHARGING PLAN:** Automatically adjusting sub-drilling stemming length and bulk explosive density to prevent flyrock and toe accumulation.")
         else:
             st.success("✅ **GEOMETRY COMPLIANT:** As-drilled hole dimensions are within ±1.0 m tolerance bounds of design specifications.")
+
+
+# --- MODULE: DIGITAL TWIN OF THE BENCH ---
+elif page == "💎 Digital Twin of Bench":
+    st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
+    st.markdown(
+        "Interactive 3D spatial digital twin connecting geological block models, as-drilled geometry, "
+        "and structural jointing to downstream digger productivity, truck payload, and primary crusher throughput."
+    )
+
+    c_dt1, c_dt2 = st.columns([1, 2])
+
+    with c_dt1:
+        st.subheader("⚙️ Digital Twin Bench Inputs")
+        bench_id_input = st.text_input("Bench ID", value="BENCH_JWA_15S")
+        rock_type_input = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Waste_Granite_Hard", "Kimberlite_Soft", "Sandstone_Medium"])
+        rock_A_dt = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, 8.5, step=0.5)
+        joint_spacing = st.slider("Joint Set Spacing (m)", 0.2, 3.0, 0.8, step=0.1)
+
+        st.subheader("Blast Design Parameters")
+        pf_dt = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05, key="dt_pf")
+        b_dt = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2, key="dt_b")
+        s_dt = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2, key="dt_s")
+
+        geo_params = {
+            "rock_type": rock_type_input,
+            "rock_factor_A": rock_A_dt,
+            "density_t_m3": 2.65,
+            "joint_spacing_m": joint_spacing,
+            "hardness_index": 12.5,
+        }
+
+        dt_obj = build_digital_twin(bench_id=bench_id_input, geological_data=geo_params)
+        frag_sim = simulate_fragmentation(dt_obj, blast_params={"powder_factor_kg_m3": pf_dt, "burden_m": b_dt, "spacing_m": s_dt, "charge_mass_per_hole_kg": 320.0})
+        downstream_kpis = link_to_downstream(dt_obj, frag_sim)
+
+    with c_dt2:
+        st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
+
+        as_drilled_df = dt_obj["as_drilled_data"]
+
+        # Plotly 3D Scatter + Bench Mesh
+        fig_3d = go.Figure()
+
+        # Add 3D Drillholes as vertical line/scatter traces
+        fig_3d.add_trace(go.Scatter3d(
+            x=as_drilled_df["x_m"],
+            y=as_drilled_df["y_m"],
+            z=as_drilled_df["z_m"],
+            mode="markers+text",
+            name="As-Drilled Collars",
+            marker=dict(size=8, color="#D50000", symbol="circle"),
+            text=as_drilled_df["hole_id"],
+        ))
+
+        # Add 3D hole trajectories down to toe
+        for _, hole in as_drilled_df.iterrows():
+            fig_3d.add_trace(go.Scatter3d(
+                x=[hole["x_m"], hole["x_m"]],
+                y=[hole["y_m"], hole["y_m"]],
+                z=[hole["z_m"], hole["z_m"] - hole["depth_m"]],
+                mode="lines",
+                line=dict(color="#FF6D00", width=4),
+                showlegend=False,
+            ))
+
+        fig_3d.update_layout(
+            title="<b>3D Digital Twin Bench Geometry & As-Drilled Hole Trajectories</b>",
+            scene=dict(
+                xaxis_title="Easting (m)",
+                yaxis_title="Northing (m)",
+                zaxis_title="Elevation (m)",
+                aspectmode="data",
+            ),
+            template="plotly_white",
+            height=450,
+        )
+
+        st.plotly_chart(fig_3d, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("💥 Simulated Bench Fragmentation Percent Passing")
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        col_f1.metric("d10 Size", f"{frag_sim['d10_mm']:.1f} mm")
+        col_f2.metric("d50 Mean Size", f"{frag_sim['d50_mm']:.1f} mm")
+        col_f3.metric("d80 Size", f"{frag_sim['d80_mm']:.1f} mm")
+        col_f4.metric("Boulder Pct (>50cm)", f"{frag_sim['boulder_percentage']:.1f}%")
+
+        st.markdown("---")
+        st.subheader("🏗️ Predicted Downstream Mine-to-Mill KPIs")
+        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+        col_d1.metric("Shovel Productivity", f"{downstream_kpis['digger_productivity_tph']:.0f} t/h")
+        col_d2.metric("Truck Fill Factor", f"{downstream_kpis['truck_fill_factor_pct']:.1f}%")
+        col_d3.metric("Crusher Throughput", f"{downstream_kpis['crusher_throughput_tph']:.0f} t/h")
+        col_d4.metric("Specific Energy", f"{downstream_kpis['specific_energy_kwh_t']:.2f} kWh/t")
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

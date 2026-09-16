@@ -31,6 +31,9 @@ Production blast deployment requires real mine production logs (`load_real_blast
 ### 📡 Real-Time MWD Telemetry & Closed-Loop Control
 Drill rig MWD sensors (`src/mwd_ingestion.py`) capture real-time ROP, torque, WOB, and Specific Energy of Drilling ($SED$). Ingested via MQTT, MWD data enables closed-loop adaptation of charging plans (variable bulk explosive density and deck charges) based on as-drilled geometry and rock hardness transitions.
 
+### 💎 3D Digital Twin of the Bench
+Constructs a 3D spatial digital twin (`src/digital_twin.py`) integrating geological block models, as-drilled drillhole trajectories, and joint set orientations. Simulates full fragmentation size distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) and feeds downstream value models predicting shovel productivity, truck payload, crusher throughput, and specific grinding energy.
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.

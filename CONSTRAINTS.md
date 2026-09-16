@@ -50,5 +50,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **MWD Sensor Ingestion:** MWD telemetry from smart drill rigs (Epiroc, Sandvik) measures penetration rate (ROP, m/hr), torque (N·m), weight-on-bit (WOB, kg), air pressure (bar), and Specific Energy of Drilling ($SED$).
 - **Closed-Loop Charging Adaptation:** Real-time MWD streaming via MQTT/OPC-UA (`src/mwd_ingestion.py`) feeds as-drilled geometry and rock hardness variations directly back into BlastOpt. When MWD identifies unexpected voids or weak strata at depth, the charging plan automatically adapts bulk explosive density or decks charges to mitigate flyrock and vibration risks.
 
+### 3D Digital Twin of the Bench & Mine-to-Mill Value
+- **3D Spatial Digital Twin:** The Digital Twin module (`src/digital_twin.py`) constructs a 3D spatial representation of the bench incorporating geological block models (rock mass rating, Kimberlite vs Granite boundaries, joint set spacing), as-drilled hole trajectories, and structural discontinuities.
+- **Downstream Mine-to-Mill Linking:** Simulated fragmentation distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) directly predict downstream excavator productivity (t/h), truck fill factors (%), primary crusher throughput (t/h), specific grinding energy (kWh/t), and total operating cost per tonne ($/t).
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).
