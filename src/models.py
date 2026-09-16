@@ -286,39 +286,67 @@ MODEL_REGISTRY = {
         "architecture": "10-70-25-3",
         "optimizer": "genetic_algorithm",
         "outputs": ["fragmentation", "vibration", "airblast"],
-        "source": "Jwaneng Mine, 120 blasts",
-        "performance": {"fragmentation": 0.910, "vibration": 0.925, "airblast": 0.967},
-        "inverse_design": True
+        "source": "Jwaneng Mine, 120 production blasts",
+        "performance": {
+            "fragmentation_r2": 0.910,
+            "vibration_r2": 0.925,
+            "airblast_r2": 0.967
+        },
+        "inverse_design": {
+            "optimal_fragmentation_pct": 84,
+            "optimal_vibration_mm_s": 0.10,
+            "optimal_airblast_db": 41
+        },
+        "input_params": [
+            "burden", "spacing", "hole_diameter", "hole_depth",
+            "stemming_length", "sub_drill", "powder_factor",
+            "max_charge_per_delay", "rock_strength_ucs", "rmr"
+        ],
+        "reference": "Saubi, O. et al. (2026). Discover Applied Sciences, 8(5), 547."
     },
     "ann_rf_ensemble_jwaneng": {
         "architecture": "ensemble",
         "outputs": ["fragmentation", "vibration"],
-        "source": "Jwaneng Mine, 120 blasts",
-        "performance": {"fragmentation": 0.956, "vibration": 0.930},
+        "source": "Jwaneng Mine, 120 production blasts",
+        "performance": {
+            "fragmentation_r2": 0.956, "fragmentation_rmse": 0.315, "fragmentation_mae": 0.250,
+            "vibration_r2": 0.930, "vibration_rmse": 0.380, "vibration_mae": 0.302
+        },
         "explainability": "tree_shap",
         "key_drivers": {
             "fragmentation": ["powder_factor", "burden"],
             "vibration": ["burden", "charge_per_delay", "distance"]
-        }
+        },
+        "inverse_design": {
+            "optimal_fragmentation_pct": 84,
+            "optimal_vibration_mm_s": 0.12
+        },
+        "reference": "Saubi, O. et al. (2025). Scientific Reports, 15, 33871."
     },
     "pso_ann_orapa": {
         "architecture": "7-65-30-1",
         "optimizer": "particle_swarm",
         "outputs": ["fragmentation"],
-        "source": "Orapa Mine, 120 blasts",
-        "performance": {"fragmentation": 0.86},
-        "optimal_fragmentation": 0.86,
+        "source": "Orapa Mine, 120 blasting events",
+        "performance": {"fragmentation_optimal_pct": 86},
         "key_drivers": {
-            "rock_factor": 0.153,
-            "blastability_index": 0.147,
-            "spacing_to_burden_ratio": 0.147
-        }
+            "rock_factor_pct": 15.3,
+            "blastability_index_pct": 14.7,
+            "spacing_to_burden_ratio_pct": 14.7,
+            "stiffness_ratio_pct": 6.3
+        },
+        "reference": "Saubi, O. et al. (2025). Journal of Mining Institute, 275, 179-195."
     },
     "airblast_minimizer": {
         "architecture": "ANN",
         "outputs": ["airblast"],
         "source": "Debswana open-pit, 94 blasts",
-        "min_airblast_db": 40,
-        "key_sensitivity": {"stemming": "high", "spacing": "low"}
+        "performance": {"min_airblast_db": 40},
+        "key_sensitivity": {"stemming": "high", "spacing": "low"},
+        "input_params": [
+            "stemming", "distance", "burden", "powder_factor",
+            "hole_diameter", "max_charge_per_delay", "spacing", "hole_depth"
+        ],
+        "reference": "Saubi, O. et al. (2025). Int. J. Mining and Mineral Engineering, 16(2), 148-167."
     }
 }
