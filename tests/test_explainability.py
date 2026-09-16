@@ -1,11 +1,19 @@
 import pytest
-import pytest
-from src.explainability import get_feature_contributions, plot_feature_contributions_waterfall, explain_prediction, HAS_SHAP
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from src.explainability import (
+    get_feature_contributions,
+    plot_feature_contributions_waterfall,
+    explain_prediction,
+    get_shap_explanation,
+    HAS_SHAP,
+)
 from src.models import HAS_TORCH
 
 if HAS_TORCH:
     import torch
-    from src.models import GAANNModel
+    from src.models import GAANNModel, ANN_RF_Ensemble
 
 
 def test_get_feature_contributions_structure():
@@ -43,14 +51,34 @@ def test_get_feature_contributions_invalid_input():
 def test_explain_prediction_shap():
     """Test explain_prediction function when shap and torch are available or missing."""
     if not HAS_SHAP or not HAS_TORCH:
-        with pytest.raises(ImportError):
-            explain_prediction(None, None)
+        res = explain_prediction(None, np.zeros((1, 5)))
+        assert isinstance(res, dict)
     else:
         model = GAANNModel(input_size=10)
         x = torch.randn(1, 10)
         bg = torch.zeros(10, 10)
-        shap_vals = explain_prediction(model, x, background_data=bg)
-        assert shap_vals is not None
+        res = explain_prediction(model, x, background_data=bg)
+        assert isinstance(res, dict)
+        assert "shap_values" in res
+
+
+def test_get_shap_explanation_rf():
+    """Test get_shap_explanation with a Random Forest model."""
+    X = np.random.randn(20, 4)
+    y = np.random.randn(20)
+    rf = RandomForestRegressor(n_estimators=5, random_state=42)
+    rf.fit(X, y)
+
+    input_df = pd.DataFrame(X[:1], columns=["feat_a", "feat_b", "feat_c", "feat_d"])
+    res = get_shap_explanation(rf, input_df)
+
+    assert isinstance(res, dict)
+    assert "shap_values" in res
+    assert "base_value" in res
+    assert "force_plot" in res
+    assert "waterfall_plot" in res
+    assert "feature_contributions" in res
+    assert len(res["feature_contributions"]) == 4
 
 
 def test_plot_feature_contributions_waterfall():
