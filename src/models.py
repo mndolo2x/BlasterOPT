@@ -264,9 +264,10 @@ if HAS_TORCH:
         Multi-output GA-ANN for simultaneous prediction of fragmentation,
         ground vibration, and airblast at Jwaneng Mine.
 
-        Architecture: 10-70-25-3
-        Source: Jwaneng Mine, 120 production blasts
-        Performance: R² = 0.910 (frag), 0.925 (vib), 0.967 (airblast)
+        Architecture: 10-70-25-3 (10 inputs, 70 neurons hidden1, 25 hidden2, 3 outputs)
+        Performance: R² = 0.910 (fragmentation), 0.925 (vibration), 0.967 (airblast)
+        Source: Jwaneng Mine, 120 production blasts.
+        Reference: Saubi et al. (2026). Discover Applied Sciences, 8(5), 547.
         """
         def __init__(self, input_size=10):
             super().__init__()
@@ -274,10 +275,13 @@ if HAS_TORCH:
             self.hidden2 = nn.Linear(70, 25)
             self.output = nn.Linear(25, 3)  # fragmentation, vibration, airblast
             self.relu = nn.ReLU()
+            self.dropout = nn.Dropout(0.1)  # light regularization
 
         def forward(self, x):
             x = self.relu(self.hidden1(x))
+            x = self.dropout(x)
             x = self.relu(self.hidden2(x))
+            x = self.dropout(x)
             return self.output(x)
 
 
