@@ -54,5 +54,9 @@ $$\text{Penalty} = k_{crush} \cdot (d_{50} - d_{50, \text{target}})^2$$
 - **3D Spatial Digital Twin:** The Digital Twin module (`src/digital_twin.py`) constructs a 3D spatial representation of the bench incorporating geological block models (rock mass rating, Kimberlite vs Granite boundaries, joint set spacing), as-drilled hole trajectories, and structural discontinuities.
 - **Downstream Mine-to-Mill Linking:** Simulated fragmentation distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) directly predict downstream excavator productivity (t/h), truck fill factors (%), primary crusher throughput (t/h), specific grinding energy (kWh/t), and total operating cost per tonne ($/t).
 
+### Direct-to-Drill Rig Telematics & ISO 15143-3 Standard
+- **ISO 15143-3 (AEMP 2.0) Standard:** Direct-to-drill connectivity (`src/drill_connectivity.py`) implements the ISO 15143-3 standard for telematics data exchange across Sandvik (My Sandvik) and Epiroc (Certiq) drill rigs.
+- **Manual Data Entry Elimination:** Pushing 3D drill patterns directly from BlastOpt to drill rig cabin displays eliminates manual paper handoffs, USB transfers, and operator collar coordinate entry errors.
+
 ## Fallback Mechanisms
 - When trained PyTorch ML artifacts (`.pkl` / `.pt`) are unavailable, systems must seamlessly fallback to physics-based formulations (Kuz-Ram, USBM, Langerfors-Kihlström flyrock equation).

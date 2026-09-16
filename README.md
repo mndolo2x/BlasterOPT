@@ -34,6 +34,9 @@ Drill rig MWD sensors (`src/mwd_ingestion.py`) capture real-time ROP, torque, WO
 ### 💎 3D Digital Twin of the Bench
 Constructs a 3D spatial digital twin (`src/digital_twin.py`) integrating geological block models, as-drilled drillhole trajectories, and joint set orientations. Simulates full fragmentation size distributions ($d_{10}, d_{50}, d_{80}$, Rosin-Rammler $n, x_c$) and feeds downstream value models predicting shovel productivity, truck payload, crusher throughput, and specific grinding energy.
 
+### 🚜 Direct-to-Drill Telematics (ISO 15143-3 / AEMP 2.0)
+Connects BlastOpt directly to Sandvik (My Sandvik) and Epiroc (Certiq) drill rigs via ISO 15143-3 (`src/drill_connectivity.py`). Pushes 3D drill patterns to rig cabin displays and pulls as-drilled telemetry, eliminating paper handoffs and manual operator entry errors.
+
 **BlastOpt Botswana** bridges domain mining physics with advanced multi-target Machine Learning (Random Forest, XGBoost, Ridge) and Genetic Algorithm / Differential Evolution optimization. The application enables mining engineers to:
 - Predict mean fragment size ($d_{50}$), uniformity index ($n$), ground vibration (PPV), flyrock distance, and unit operational cost ($/t) in real time.
 - Generate and visualize interactive Kuz-Ram Rosin-Rammler fragmentation size distribution curves with customizable characteristic size ($x_c$) and uniformity index ($n$) controls.
