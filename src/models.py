@@ -14,6 +14,7 @@ from typing import Dict, Any, Tuple, Optional, List
 from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from xgboost import XGBRegressor
 
@@ -256,6 +257,40 @@ class BlastMLPipeline:
         instance.metrics = data["metrics"]
         instance.feature_names = data["feature_names"]
         return instance
+
+
+class ANN_RF_Ensemble:
+    """
+    Ensemble of ANN and Random Forest for simultaneous prediction of
+    fragmentation and ground vibration at Jwaneng Mine.
+
+    Performance: R² = 0.956 (fragmentation), 0.930 (vibration)
+    Key drivers (Tree-SHAP):
+        Fragmentation: powder_factor, burden
+        Vibration: burden, charge_per_delay, distance
+    Source: Jwaneng Mine, 120 production blasts.
+    Reference: Saubi et al. (2025). Scientific Reports, 15, 33871.
+    """
+    def __init__(self, ann_model=None, rf_model=None, ann_weight: float = 0.5):
+        self.ann_model = ann_model
+        self.rf_model = rf_model if rf_model is not None else RandomForestRegressor(n_estimators=100, random_state=42)
+        self.ann_weight = ann_weight
+        self.scaler = StandardScaler()
+
+    def fit(self, X, y_frag, y_vib):
+        X_scaled = self.scaler.fit_transform(X)
+        y = np.column_stack([y_frag, y_vib])
+        self.rf_model.fit(X_scaled, y)
+        if self.ann_model is not None and hasattr(self.ann_model, "fit"):
+            self.ann_model.fit(X_scaled, y)
+
+    def predict(self, X):
+        X_scaled = self.scaler.transform(X)
+        rf_preds = self.rf_model.predict(X_scaled)
+        if self.ann_model is not None and hasattr(self.ann_model, "predict"):
+            ann_preds = self.ann_model.predict(X_scaled)
+            return self.ann_weight * ann_preds + (1.0 - self.ann_weight) * rf_preds
+        return rf_preds
 
 
 if HAS_TORCH:

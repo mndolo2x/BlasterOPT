@@ -9,7 +9,7 @@ import numpy as np
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import engineer_features
-from src.models import BlastMLPipeline, HAS_TORCH
+from src.models import BlastMLPipeline, ANN_RF_Ensemble, HAS_TORCH
 from src.predict import predict_single_blast, predict_physics_fallback
 
 if HAS_TORCH:
@@ -66,6 +66,19 @@ def test_ml_pipeline_train_predict(sample_dataset, tmp_path):
     saved_path = xgb_pipeline.save_models(save_dir)
     assert os.path.exists(saved_path)
     assert os.path.exists(os.path.join(save_dir, "best_fragmentation_model.pkl"))
+
+
+def test_ann_rf_ensemble():
+    """Test ANN_RF_Ensemble instantiation, fit, and predict return shapes."""
+    X = np.random.randn(20, 5)
+    y_frag = np.random.randn(20)
+    y_vib = np.random.randn(20)
+
+    ensemble = ANN_RF_Ensemble()
+    ensemble.fit(X, y_frag, y_vib)
+    preds = ensemble.predict(X)
+
+    assert preds.shape == (20, 2)
 
 
 def test_ga_ann_model():
