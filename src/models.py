@@ -319,6 +319,29 @@ if HAS_TORCH:
             x = self.dropout(x)
             return self.output(x)
 
+    class PSOANNModel(nn.Module):
+        """
+        PSO-ANN for fragmentation prediction at Orapa Mine.
+
+        Architecture: 7-65-30-1 (7 inputs, 65 hidden1, 30 hidden2, 1 output)
+        Performance: Optimal fragmentation ~86%
+        Key drivers: rock_factor (15.3%), blastability_index (14.7%),
+                     spacing_to_burden_ratio (14.7%)
+        Source: Orapa Mine, 120 blasting events.
+        Reference: Saubi et al. (2025). Journal of Mining Institute, 275, 179-195.
+        """
+        def __init__(self, input_size=7):
+            super().__init__()
+            self.hidden1 = nn.Linear(input_size, 65)
+            self.hidden2 = nn.Linear(65, 30)
+            self.output = nn.Linear(30, 1)
+            self.relu = nn.ReLU()
+
+        def forward(self, x):
+            x = self.relu(self.hidden1(x))
+            x = self.relu(self.hidden2(x))
+            return self.output(x)
+
 
 MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
