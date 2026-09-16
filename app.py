@@ -45,6 +45,7 @@ from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_un
 from src.agent.guardrails import get_guardrail_trips
 from src.agent.voice_interface import process_voice_turn, start_voice_session
 from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode
+from src.agent.audit import get_interaction_history, get_decision_history, export_audit_log_json
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -164,6 +165,7 @@ page = st.sidebar.radio(
         get_translation("nav_agent", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_guardrail_log", lang_code),
+        get_translation("nav_audit_log", lang_code),
         get_translation("nav_visualize", lang_code),
     ],
 )
@@ -214,6 +216,8 @@ page_keys = {
     get_translation("nav_pattern", "tn"): "pattern",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
     get_translation("nav_guardrail_log", "tn"): "guardrail_log",
+    get_translation("nav_audit_log", "en"): "audit_log",
+    get_translation("nav_audit_log", "tn"): "audit_log",
     get_translation("nav_visualize", "en"): "visualize",
     get_translation("nav_visualize", "tn"): "visualize",
 }
@@ -1927,6 +1931,83 @@ elif active_module == "agent":
             render_expert_mode(bench_id=bench_ctx_sel)
         elif mode_sel == "Voice Assistant (Offline)":
             render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
+
+
+# --- MODULE: AGENT AUDIT LOG ---
+elif active_module == "audit_log":
+    st.header("📜 Conversational Agent Regulatory Audit Log")
+    st.markdown(
+        "Append-only immutable audit trail recording every agent interaction, tool invocation, "
+        "and operator decision/override. Mandated for 7-year regulatory retention under the "
+        "**Mines, Quarries, Works and Machinery Act (Cap. 44:02)**."
+    )
+
+    tab_a1, tab_a2 = st.tabs(["💬 Conversation Interactions Log", "⚙️ Engineering Decisions & Overrides"])
+
+    col_flt1, col_flt2 = st.columns(2)
+    with col_flt1:
+        filter_sess = st.text_input("Filter by Session ID", value="")
+    with col_flt2:
+        filter_user = st.text_input("Filter by User ID", value="")
+
+    with tab_a1:
+        st.subheader("Recent Agent Conversation Interactions")
+        interactions = get_interaction_history(
+            session_id=filter_sess if filter_sess else None,
+            user_id=filter_user if filter_user else None,
+            limit=100,
+        )
+
+        if interactions:
+            df_inter = pd.DataFrame(interactions)
+            st.dataframe(df_inter, use_container_width=True)
+
+            csv_data = df_inter.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📄 Export Interactions CSV",
+                data=csv_data,
+                file_name="BlasterOPT_Agent_Interactions_Audit.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("No interaction logs recorded for current filter criteria.")
+
+    with tab_a2:
+        st.subheader("Recent Engineering Decisions & Overrides")
+        decisions = get_decision_history(
+            session_id=filter_sess if filter_sess else None,
+            user_id=filter_user if filter_user else None,
+            limit=100,
+        )
+
+        if decisions:
+            df_dec = pd.DataFrame(decisions)
+            st.dataframe(df_dec, use_container_width=True)
+
+            csv_dec_data = df_dec.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📄 Export Decisions CSV",
+                data=csv_dec_data,
+                file_name="BlasterOPT_Agent_Decisions_Audit.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("No decision override logs recorded for current filter criteria.")
+
+    st.markdown("---")
+    st.subheader("🏛️ Regulatory Submission Package Export")
+    if st.button("Generate Regulatory Audit Package (JSON Format) 🚀", type="primary"):
+        export_file = export_audit_log_json()
+        with open(export_file, "r", encoding="utf-8") as f:
+            export_content = f.read()
+
+        st.success(f"Audit package generated successfully at `{export_file}`!")
+        st.download_button(
+            label="📄 Download Official Regulatory Audit Package (.json)",
+            data=export_content,
+            file_name="Botswana_Mines_Act_Cap4402_Agent_Audit_Package.json",
+            mime="application/json",
+        )
 
 
 # --- MODULE: GUARDRAIL LOG ---
