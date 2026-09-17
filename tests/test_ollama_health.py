@@ -8,6 +8,7 @@ from src.agent.ollama_health import (
     check_ollama_installed,
     check_ollama_running,
     check_required_models,
+    check_model_generation,
     list_ollama_models,
     test_ollama_generation,
     full_ollama_health_check,
@@ -104,6 +105,22 @@ def test_list_ollama_models(mock_get):
     assert res["count"] == 2
     assert "llama3:8b" in res["models"]
     assert "mistral:7b" in res["models"]
+    assert res["error"] is None
+
+
+@patch("requests.post")
+def test_check_model_generation_success(mock_post):
+    """Test check_model_generation returning successful working response."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": "OK"}
+    mock_post.return_value = mock_resp
+
+    res = check_model_generation(model_name="llama3.1:8b")
+    assert res["working"] is True
+    assert res["model"] == "llama3.1:8b"
+    assert res["response"] == "OK"
+    assert res["response_time_ms"] >= 0.0
     assert res["error"] is None
 
 

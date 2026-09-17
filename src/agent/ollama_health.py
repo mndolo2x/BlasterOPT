@@ -250,6 +250,81 @@ def list_ollama_models(host: str = DEFAULT_OLLAMA_HOST) -> Dict[str, Any]:
         }
 
 
+def check_model_generation(
+    model_name: str,
+    base_url: str = "http://localhost:11434"
+) -> Dict[str, Any]:
+    """
+    Test if a specific model can generate a response. Send prompt "Say 'OK'" to
+    f"{base_url}/api/generate" with stream=False and timeout=30.
+
+    Parameters:
+    -----------
+    model_name : str
+        Name of model to test (e.g. 'llama3.1:8b').
+    base_url : str, default="http://localhost:11434"
+        Ollama server base URL.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        {
+            "working": bool,
+            "model": str,
+            "response": Optional[str],
+            "response_time_ms": float,
+            "error": Optional[str]
+        }
+    """
+    url = f"{base_url.rstrip('/')}/api/generate"
+    payload = {
+        "model": model_name,
+        "prompt": "Say 'OK'",
+        "stream": False
+    }
+
+    start_time = time.time()
+    try:
+        resp = requests.post(url, json=payload, timeout=30.0)
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
+
+        if resp.status_code == 200:
+            res_data = resp.json()
+            gen_text = res_data.get("response", "")
+            return {
+                "working": True,
+                "model": model_name,
+                "response": gen_text,
+                "response_time_ms": response_time_ms,
+                "error": None
+            }
+        return {
+            "working": False,
+            "model": model_name,
+            "response": None,
+            "response_time_ms": response_time_ms,
+            "error": f"Ollama /api/generate returned HTTP {resp.status_code}: {resp.text[:100]}"
+        }
+    except requests.exceptions.Timeout:
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
+        return {
+            "working": False,
+            "model": model_name,
+            "response": None,
+            "response_time_ms": response_time_ms,
+            "error": f"Generation for model '{model_name}' timed out after 30 seconds."
+        }
+    except Exception as e:
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
+        return {
+            "working": False,
+            "model": model_name,
+            "response": None,
+            "response_time_ms": response_time_ms,
+            "error": f"Generation test error: {e}"
+        }
+
+
 def test_ollama_generation(
     model: str = "llama3:8b",
     host: str = DEFAULT_OLLAMA_HOST,
@@ -257,69 +332,14 @@ def test_ollama_generation(
 ) -> Dict[str, Any]:
     """
     Tests text generation via local Ollama server with strict timeout.
-
-    Parameters:
-    -----------
-    model : str, default="llama3:8b"
-        Name of model to test generation.
-    host : str, default="http://localhost:11434"
-        Ollama server base URL endpoint.
-    prompt : str, default="Hi"
-        Minimal test prompt.
-
-    Returns:
-    --------
-    Dict[str, Any]
-        {
-            "success": bool,
-            "response": Optional[str],
-            "latency_ms": float,
-            "error": Optional[str]
-        }
     """
-    url = f"{host.rstrip('/')}/api/generate"
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False
+    res = check_model_generation(model_name=model, base_url=host)
+    return {
+        "success": res["working"],
+        "response": res["response"],
+        "latency_ms": res["response_time_ms"],
+        "error": res["error"]
     }
-
-    start_time = time.time()
-    try:
-        resp = requests.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
-        latency_ms = (time.time() - start_time) * 1000.0
-
-        if resp.status_code == 200:
-            res_data = resp.json()
-            gen_text = res_data.get("response", "")
-            return {
-                "success": True,
-                "response": gen_text,
-                "latency_ms": round(latency_ms, 2),
-                "error": None
-            }
-        return {
-            "success": False,
-            "response": None,
-            "latency_ms": round(latency_ms, 2),
-            "error": f"Ollama /api/generate returned HTTP {resp.status_code}: {resp.text[:100]}"
-        }
-    except requests.exceptions.Timeout:
-        latency_ms = (time.time() - start_time) * 1000.0
-        return {
-            "success": False,
-            "response": None,
-            "latency_ms": round(latency_ms, 2),
-            "error": f"Generation for model '{model}' timed out after 5 seconds."
-        }
-    except Exception as e:
-        latency_ms = (time.time() - start_time) * 1000.0
-        return {
-            "success": False,
-            "response": None,
-            "latency_ms": round(latency_ms, 2),
-            "error": f"Generation test error: {e}"
-        }
 
 
 def full_ollama_health_check(
