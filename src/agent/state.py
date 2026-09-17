@@ -5,7 +5,11 @@ Defines the AgentState TypedDict used across LangGraph conversation graph nodes.
 """
 
 from typing import TypedDict, Annotated, List, Dict, Optional
-from langgraph.graph.message import add_messages
+try:
+    from langgraph.graph.message import add_messages
+except ImportError:
+    def add_messages(left: list, right: list) -> list:
+        return list(left) + list(right)
 
 
 class AgentState(TypedDict):

@@ -4,10 +4,16 @@ Main Dashboard and Interactive Mining Analytics Suite.
 """
 
 import os
+import sys
 import glob
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# Ensure repository root directory is on Python path for Streamlit Cloud deployments
+repo_root = os.path.dirname(os.path.abspath(__file__))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features

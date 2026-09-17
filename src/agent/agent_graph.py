@@ -15,7 +15,14 @@ Implements Nodes 1 to 8:
 import re
 import logging
 from typing import Dict, Any, List, Optional
-from langgraph.graph import StateGraph, END, START
+try:
+    from langgraph.graph import StateGraph, END, START
+    HAS_LANGGRAPH = True
+except ImportError:
+    HAS_LANGGRAPH = False
+    StateGraph = None
+    END = "END"
+    START = "START"
 
 from src.agent.state import AgentState
 from src.agent.guardrails import validate_input, validate_output, log_guardrail_trip
@@ -458,10 +465,67 @@ def create_initial_state(user_message: str, user_role: str = "engineer") -> Agen
     }
 
 
+class FallbackAgentApp:
+    """Fallback graph executor when langgraph is not installed in the environment."""
+
+    def invoke(self, state: AgentState) -> AgentState:
+        # Run input guardrail
+        state_update = input_guardrail_node(state)
+        state.update(state_update)
+
+        if state.get("last_tool_call") == "GUARDRAIL_BLOCKED":
+            res_up = response_node(state)
+            state.update(res_up)
+            return state
+
+        # Run knowledge router
+        state = knowledge_router_node(state)
+        k_intent = state.get("knowledge_intent")
+
+        if k_intent == "term_lookup":
+            state = term_lookup_node(state)
+            state = knowledge_response_node(state)
+        elif k_intent == "translation":
+            state = translation_node(state)
+            state = knowledge_response_node(state)
+        elif k_intent == "general_question":
+            state = general_question_node(state)
+            state = knowledge_response_node(state)
+        else:
+            intent_res = intent_classifier_node(state)
+            state.update(intent_res)
+            intent = state.get("tool_results", {}).get("intent", "guided_design")
+
+            if intent == "guided_design":
+                d_res = guided_design_node(state)
+                state.update(d_res)
+                exp_res = explanation_node(state)
+                state.update(exp_res)
+            elif intent == "expert_design":
+                d_res = expert_design_node(state)
+                state.update(d_res)
+                exp_res = explanation_node(state)
+                state.update(exp_res)
+            else:
+                exec_res = tool_executor_node(state)
+                state.update(exec_res)
+
+        out_guard = output_guardrail_node(state)
+        state.update(out_guard)
+
+        final_res = response_node(state)
+        state.update(final_res)
+        return state
+
+
 def build_agent_graph() -> Any:
     """
-    Constructs and compiles the LangGraph StateGraph.
+    Constructs and compiles the LangGraph StateGraph (or returns FallbackAgentApp if langgraph missing).
     """
+    if not HAS_LANGGRAPH:
+        logger.warning("langgraph is not installed. Using FallbackAgentApp execution runner.")
+        return FallbackAgentApp()
+
     graph = StateGraph(AgentState)
 
     # Add Nodes
