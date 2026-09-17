@@ -19,10 +19,69 @@ from langgraph.graph import StateGraph, END, START
 
 from src.agent.state import AgentState
 from src.agent.guardrails import validate_input, validate_output, log_guardrail_trip
-from src.agent.tool_registry import TOOL_REGISTRY, BlastDesignInput, BlastDesign
+from src.agent.tool_registry import TOOL_REGISTRY, BlastDesignInput, BlastDesign, PA_DEP_GLOSSARY, ISEE_GLOSSARY
 from src.agent.llm_config import select_llm
 
 logger = logging.getLogger(__name__)
+
+
+def knowledge_router_node(state: AgentState) -> AgentState:
+    """
+    Detect if the user's message is a knowledge question and route it
+    to the appropriate knowledge tool.
+
+    Categories:
+    - term_lookup: "What is powder factor?", "Define burden"
+    - translation_en_tn: "How do you say X in Setswana?", "Translate X to Setswana"
+    - translation_tn_en: "What does X mean in English?", "Translate X to English"
+    - general_question: "Why is stemming important?", "Explain fragmentation"
+    - not_knowledge: The message is about designing a blast or taking action
+    """
+    messages = state.get("messages", [])
+    if not messages:
+        state["knowledge_intent"] = "not_knowledge"
+        return state
+
+    last_msg_obj = messages[-1]
+    last_message = (_get_msg_content(last_msg_obj) if last_msg_obj else "").lower()
+
+    # Detect translation requests
+    if any(phrase in last_message for phrase in [
+        "in setswana", "to setswana", "translate", "how do you say",
+        "setswana word for", "in english", "to english"
+    ]):
+        if "setswana" in last_message and ("to" in last_message or "in" in last_message):
+            state["knowledge_intent"] = "translation"
+            state["knowledge_direction"] = "en_tn" if "to setswana" in last_message or "in setswana" in last_message else "tn_en"
+        else:
+            state["knowledge_intent"] = "translation"
+            state["knowledge_direction"] = "en_tn"  # default
+        return state
+
+    # Detect term lookup requests
+    if any(phrase in last_message for phrase in [
+        "what is", "what does", "define", "definition of", "meaning of",
+        "explain the term", "tell me about"
+    ]):
+        # Check if the message contains a known blast term from PA_DEP_GLOSSARY or ISEE_GLOSSARY
+        term_index = list(PA_DEP_GLOSSARY.keys()) + list(ISEE_GLOSSARY.keys())
+        for term in term_index:
+            if term in last_message:
+                state["knowledge_intent"] = "term_lookup"
+                state["knowledge_term"] = term
+                return state
+
+    # Detect general knowledge questions
+    if any(phrase in last_message for phrase in [
+        "why is", "why does", "how does", "what happens",
+        "difference between", "compare"
+    ]):
+        state["knowledge_intent"] = "general_question"
+        return state
+
+    # Not a knowledge question
+    state["knowledge_intent"] = "not_knowledge"
+    return state
 
 
 def _get_msg_content(msg: Any) -> str:
@@ -297,6 +356,7 @@ def build_agent_graph() -> Any:
 
     # Add Nodes
     graph.add_node("input_guardrail", input_guardrail_node)
+    graph.add_node("knowledge_router", knowledge_router_node)
     graph.add_node("intent_classifier", intent_classifier_node)
     graph.add_node("guided_design", guided_design_node)
     graph.add_node("expert_design", expert_design_node)
@@ -311,8 +371,10 @@ def build_agent_graph() -> Any:
     graph.add_conditional_edges(
         "input_guardrail",
         route_after_input_guardrail,
-        {"response": "response", "intent_classifier": "intent_classifier"},
+        {"response": "response", "intent_classifier": "knowledge_router"},
     )
+
+    graph.add_edge("knowledge_router", "intent_classifier")
 
     graph.add_conditional_edges(
         "intent_classifier",

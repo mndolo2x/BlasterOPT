@@ -19,3 +19,6 @@ class AgentState(TypedDict):
     guardrail_trips: List[dict]
     session_id: str
     language: str  # "en" or "tn"
+    knowledge_intent: Optional[str]
+    knowledge_direction: Optional[str]
+    knowledge_term: Optional[str]
