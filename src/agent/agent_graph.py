@@ -437,6 +437,27 @@ def route_after_intent(state: AgentState) -> str:
 
 # --- BUILD STATE GRAPH ---
 
+def build_agent() -> Any:
+    """Alias for build_agent_graph() for agent initialization."""
+    return build_agent_graph()
+
+
+def create_initial_state(user_message: str, user_role: str = "engineer") -> AgentState:
+    """Helper function to create initial agent state."""
+    return {
+        "messages": [{"role": "user", "content": user_message}],
+        "user_id": "DEFAULT_USER",
+        "user_role": user_role,
+        "current_bench_id": None,
+        "current_design": None,
+        "last_tool_call": None,
+        "tool_results": None,
+        "guardrail_trips": [],
+        "session_id": "SESS_INIT",
+        "language": "en",
+    }
+
+
 def build_agent_graph() -> Any:
     """
     Constructs and compiles the LangGraph StateGraph.
