@@ -44,7 +44,7 @@ from src.explainability_audit import log_explanation, get_recent_explanations, g
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 from src.agent.guardrails import get_guardrail_trips
 from src.agent.voice_interface import process_voice_turn, start_voice_session
-from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode
+from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode, render_knowledge_qa
 from src.agent.audit import get_interaction_history, get_decision_history, export_audit_log_json
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1908,7 +1908,7 @@ elif active_module == "agent":
 
         mode_sel = st.radio(
             "Interface Mode",
-            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)"],
+            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)", "Knowledge Q&A (Lyntas/Pula)"],
             index=0,
         )
 
@@ -1931,6 +1931,8 @@ elif active_module == "agent":
             render_expert_mode(bench_id=bench_ctx_sel)
         elif mode_sel == "Voice Assistant (Offline)":
             render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
+        elif mode_sel == "Knowledge Q&A (Lyntas/Pula)":
+            render_knowledge_qa(user_role=user_role_sel)
 
 
 # --- MODULE: AGENT AUDIT LOG ---

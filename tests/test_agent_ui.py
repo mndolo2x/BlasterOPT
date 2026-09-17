@@ -9,6 +9,7 @@ from src.agent.agent_ui import (
     render_guided_mode,
     render_expert_mode,
     render_voice_mode,
+    render_knowledge_qa,
 )
 
 
@@ -18,6 +19,7 @@ def test_agent_ui_rendering_imports_and_callable():
     assert callable(render_guided_mode)
     assert callable(render_expert_mode)
     assert callable(render_voice_mode)
+    assert callable(render_knowledge_qa)
 
 
 @patch("streamlit.session_state", new_callable=dict)

@@ -236,3 +236,79 @@ def render_voice_mode(user_id: str = "VOICE_USER_01"):
 
                 st.subheader("🔊 Synthesized Audio Response:")
                 st.audio(v_res["audio"], format="audio/wav", autoplay=True)
+
+
+def render_knowledge_qa(user_role: str = "engineer"):
+    """
+    Renders Knowledge Q&A section where users can:
+    - Type a mining/blast engineering question or translation request
+    - View agent's answer with clear source attribution (Lyntas, PA DEP, ISEE, Autshumato, Pula-8B)
+    - Toggle language between English and Setswana
+    """
+    st.subheader("📚 Mining & Blast Engineering Knowledge Base Q&A")
+    st.markdown(
+        "Search regulatory blast definitions (PA DEP § 211.101, ISEE Handbook), domain terminology "
+        "(Lyntas Mining Corpus), translate terminology with Autshumato English-Setswana parallel text, "
+        "or ask domain engineering questions using the Pula-8B causal model."
+    )
+
+    col_lang, col_role = st.columns([1, 1])
+    with col_lang:
+        lang_toggle = st.radio("🌐 Display Language / Puo:", ["English (en)", "Setswana (tn)"], horizontal=True)
+        selected_lang = "tn" if "Setswana" in lang_toggle else "en"
+    with col_role:
+        st.info(f"Active Role Context: **{user_role.title()}**")
+
+    q_input = st.text_input(
+        "Type your question, definition request, or translation (e.g. 'What is powder factor?', 'How do you say diamond in Setswana?', 'Why is stemming important?'):",
+        key="knowledge_q_input"
+    )
+
+    if st.button("🔍 Query Knowledge Base", type="primary", key="btn_query_kb") or q_input:
+        if not q_input.strip():
+            st.warning("Please enter a valid question or query term.")
+            return
+
+        with st.spinner("Querying knowledge base, translation corpora, and Pula-8B language model..."):
+            app = _get_agent_graph_app()
+            state: AgentState = {
+                "messages": [{"role": "user", "content": q_input}],
+                "user_id": "KB_UI_USER",
+                "user_role": user_role,
+                "current_bench_id": None,
+                "current_design": None,
+                "last_tool_call": None,
+                "tool_results": None,
+                "guardrail_trips": [],
+                "session_id": "SESS_KB_UI",
+                "language": selected_lang,
+            }
+
+            res_state = app.invoke(state)
+            messages = res_state.get("messages", [])
+            intent = res_state.get("knowledge_intent", "not_knowledge")
+            results = res_state.get("tool_results", {})
+
+            if messages:
+                last_msg = messages[-1]
+                response_content = last_msg.content if hasattr(last_msg, "content") else (last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg))
+            else:
+                response_content = "No response generated."
+
+            st.markdown("### 💡 Agent Response")
+            st.markdown(response_content)
+
+            st.markdown("---")
+            st.markdown("### 🏷️ Knowledge Source & Model Provenance")
+            if intent == "term_lookup":
+                source = results.get("source", "Lyntas Mining Terminology / PA DEP § 211.101 / ISEE Handbook")
+                st.success(f"**Knowledge Source:** `{source}`")
+                st.json({"term": results.get("term"), "category": results.get("category"), "source": source})
+            elif intent == "translation":
+                st.success("**Knowledge Source:** `NWU-CTexT Autshumato English-Setswana Parallel Corpus`")
+                st.json({"direction": results.get("direction"), "engine": "Autshumato Corpus Matcher"})
+            elif intent == "general_question":
+                st.success("**Knowledge Source:** `Pula-8B Causal Model (OxxoCodes/Pula-8B-v0.1) & Mining Knowledge Graph`")
+                st.json({"model": "OxxoCodes/Pula-8B-v0.1", "context": "Botswana Open-Pit Mining Domain"})
+            else:
+                st.info("**Knowledge Source:** `BlasterOPT AI Decision Support Core`")

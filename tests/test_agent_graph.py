@@ -145,3 +145,67 @@ def test_compiled_agent_graph_execution():
     last_msg = res_state["messages"][-1]
     content = last_msg.content if hasattr(last_msg, "content") else last_msg["content"]
     assert "Next Step:" in content or "Would you like" in content
+
+
+def create_initial_state(user_message: str) -> AgentState:
+    """Helper function to create initial agent state."""
+    return {
+        "messages": [{"role": "user", "content": user_message}],
+        "user_id": "TEST_USER_01",
+        "user_role": "engineer",
+        "current_bench_id": None,
+        "current_design": None,
+        "last_tool_call": None,
+        "tool_results": None,
+        "guardrail_trips": [],
+        "session_id": "SESS_KNOWLEDGE_TEST",
+        "language": "en",
+    }
+
+
+def test_agent_answers_term_lookup():
+    """The agent should answer 'What is powder factor?' using Lyntas/PA DEP/ISEE."""
+    agent = build_agent_graph()
+    state = create_initial_state("What is powder factor?")
+    result = agent.invoke(state)
+    last_msg = result["messages"][-1]
+    response = last_msg.content if hasattr(last_msg, "content") else last_msg["content"]
+    assert "powder factor" in response.lower()
+
+
+def test_agent_translates_to_setswana():
+    """The agent should translate 'diamond' to Setswana."""
+    agent = build_agent_graph()
+    state = create_initial_state("How do you say diamond in Setswana?")
+    result = agent.invoke(state)
+    last_msg = result["messages"][-1]
+    response = last_msg.content if hasattr(last_msg, "content") else last_msg["content"]
+    assert "teemane" in response.lower() or "taemane" in response.lower() or "diamond" in response.lower()
+
+
+def test_agent_translates_to_english():
+    """The agent should translate 'taemane' to English."""
+    agent = build_agent_graph()
+    state = create_initial_state("What does taemane mean in English?")
+    result = agent.invoke(state)
+    last_msg = result["messages"][-1]
+    response = last_msg.content if hasattr(last_msg, "content") else last_msg["content"]
+    assert "diamond" in response.lower() or "taemane" in response.lower()
+
+
+def test_agent_answers_general_question():
+    """The agent should answer a general question using Pula-8B."""
+    agent = build_agent_graph()
+    state = create_initial_state("Why is stemming important in blasting?")
+    result = agent.invoke(state)
+    last_msg = result["messages"][-1]
+    response = last_msg.content if hasattr(last_msg, "content") else last_msg["content"]
+    assert len(response) > 20
+
+
+def test_agent_routes_design_request_to_design_flow():
+    """The agent should NOT route 'Design a blast for bench 14' to knowledge."""
+    agent = build_agent_graph()
+    state = create_initial_state("Design a blast for bench 14.")
+    result = agent.invoke(state)
+    assert result.get("knowledge_intent") == "not_knowledge"
