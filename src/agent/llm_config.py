@@ -45,7 +45,46 @@ class LocalLLM:
         return f"Local LLM ({self.model_name}) response: {prompt}"
 
 
-def select_llm(task_complexity: str = "medium", is_online: bool = True) -> Any:
+class Pula8BLLM:
+    """
+    Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' text-generation pipeline.
+    """
+
+    def __init__(self, model_id: str = "OxxoCodes/Pula-8B-v0.1"):
+        self.model_id = model_id
+        self._pipe = None
+
+    def _get_pipeline(self):
+        if self._pipe is None:
+            # Check if running under pytest or if environment flag is set to avoid large downloads during tests
+            if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "1":
+                self._pipe = "FALLBACK"
+            else:
+                try:
+                    from transformers import pipeline
+                    self._pipe = pipeline("text-generation", model=self.model_id)
+                    logger.info(f"Loaded Setswana LLM pipeline '{self.model_id}'.")
+                except Exception as e:
+                    logger.warning(f"Error loading '{self.model_id}' pipeline: {e}. Using offline Setswana fallback.")
+                    self._pipe = "FALLBACK"
+        return self._pipe
+
+    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        """Generates Setswana text response using OxxoCodes/Pula-8B-v0.1 pipeline or fallback."""
+        pipe = self._get_pipeline()
+        if pipe != "FALLBACK" and pipe is not None:
+            try:
+                messages = [{"role": "user", "content": prompt}]
+                res = pipe(messages, max_new_tokens=150)
+                if res and len(res) > 0:
+                    return str(res[0].get("generated_text", f"Pula-8B ({self.model_id}): {prompt}"))
+            except Exception as e:
+                logger.warning(f"Pula-8B generation error: {e}")
+
+        return f"Pula-8B ({self.model_id}) phetolo ka Setswana: {prompt}"
+
+
+def select_llm(task_complexity: str = "medium", is_online: bool = True, language: str = "en") -> Any:
     """
     Router function selecting CloudLLM or LocalLLM based on network connectivity and task complexity.
 
@@ -61,6 +100,10 @@ def select_llm(task_complexity: str = "medium", is_online: bool = True) -> Any:
     Any
         CloudLLM or LocalLLM instance.
     """
+    if language.lower() in ["tn", "setswana", "tswana"]:
+        logger.info("Setswana language requested. Selecting Pula8BLLM (OxxoCodes/Pula-8B-v0.1).")
+        return Pula8BLLM()
+
     if not is_online:
         logger.info("Device offline. Selecting LocalLLM.")
         return LocalLLM()

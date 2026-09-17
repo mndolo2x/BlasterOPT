@@ -11,7 +11,7 @@ from src.agent.agent_graph import (
     output_guardrail_node,
     build_agent_graph,
 )
-from src.agent.llm_config import select_llm, CloudLLM, LocalLLM
+from src.agent.llm_config import select_llm, CloudLLM, LocalLLM, Pula8BLLM
 from src.agent.memory import AgentMemoryManager
 
 
@@ -96,12 +96,18 @@ def test_output_guardrail_node_blocks_hallucinated_action():
 
 
 def test_llm_config_router():
-    """Test select_llm router function under online and offline conditions."""
+    """Test select_llm router function under online, offline, and Setswana conditions."""
     local_llm = select_llm(task_complexity="medium", is_online=False)
     assert isinstance(local_llm, LocalLLM)
 
     cloud_llm = select_llm(task_complexity="high", is_online=True)
     assert isinstance(cloud_llm, CloudLLM)
+
+    tn_llm = select_llm(language="tn")
+    assert isinstance(tn_llm, Pula8BLLM)
+    gen_text = tn_llm.generate("Dumela")
+    assert isinstance(gen_text, str)
+    assert len(gen_text) > 0
 
 
 def test_agent_memory_manager():

@@ -1,12 +1,32 @@
 {
   "metadata": {
     "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) Compliance Audit",
-    "export_timestamp": "2026-09-17T07:52:19.858587+00:00",
+    "export_timestamp": "2026-09-17T08:32:16.717630+00:00",
     "retention_policy": "7 Years Mandatory Persistence",
-    "total_interactions": 6,
-    "total_decisions": 6
+    "total_interactions": 8,
+    "total_decisions": 8
   },
   "interactions": [
+    {
+      "id": 8,
+      "timestamp": "2026-09-17T08:32:16.700954+00:00",
+      "session_id": "SESS_AUDIT_TEST_01",
+      "user_id": "ENG_AUDIT_01",
+      "user_message": "Design blast for bench 14",
+      "agent_response": "Generated design for bench 14",
+      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
+      "guardrail_trips_json": "[]"
+    },
+    {
+      "id": 7,
+      "timestamp": "2026-09-17T08:17:48.206585+00:00",
+      "session_id": "SESS_AUDIT_TEST_01",
+      "user_id": "ENG_AUDIT_01",
+      "user_message": "Design blast for bench 14",
+      "agent_response": "Generated design for bench 14",
+      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
+      "guardrail_trips_json": "[]"
+    },
     {
       "id": 6,
       "timestamp": "2026-09-17T07:52:19.828402+00:00",
@@ -69,6 +89,28 @@
     }
   ],
   "decisions": [
+    {
+      "id": 8,
+      "timestamp": "2026-09-17T08:32:16.708615+00:00",
+      "session_id": "SESS_AUDIT_TEST_02",
+      "user_id": "BLASTER_01",
+      "design_id": "DES_JWA_101",
+      "decision": "OVERRIDE_STEMMING",
+      "reason_code": "HIGH_AIRBLAST_RISK",
+      "original_value": "{\"stemming_m\": 4.5}",
+      "new_value": "{\"stemming_m\": 5.5}"
+    },
+    {
+      "id": 7,
+      "timestamp": "2026-09-17T08:17:48.215524+00:00",
+      "session_id": "SESS_AUDIT_TEST_02",
+      "user_id": "BLASTER_01",
+      "design_id": "DES_JWA_101",
+      "decision": "OVERRIDE_STEMMING",
+      "reason_code": "HIGH_AIRBLAST_RISK",
+      "original_value": "{\"stemming_m\": 4.5}",
+      "new_value": "{\"stemming_m\": 5.5}"
+    },
     {
       "id": 6,
       "timestamp": "2026-09-17T07:52:19.840528+00:00",
