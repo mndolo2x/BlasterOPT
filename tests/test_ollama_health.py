@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from src.agent.ollama_health import (
     check_ollama_installed,
     check_ollama_running,
+    check_required_models,
     list_ollama_models,
     test_ollama_generation,
     full_ollama_health_check,
@@ -64,6 +65,26 @@ def test_check_ollama_running_offline(mock_get):
     assert res["base_url"] == "http://localhost:11434"
     assert res["response_time_ms"] >= 0.0
     assert "offline" in res["error"].lower() or "connection" in res["error"].lower()
+
+
+@patch("requests.get")
+def test_check_required_models(mock_get):
+    """Test check_required_models evaluating presence and missing models."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "models": [
+            {"name": "llama3.1:8b"},
+            {"name": "mistral:7b"},
+        ]
+    }
+    mock_get.return_value = mock_resp
+
+    res = check_required_models(required_models=["llama3.1:8b", "llama3.2:3b"])
+    assert res["all_present"] is False
+    assert "llama3.1:8b" in res["present"]
+    assert "llama3.2:3b" in res["missing"]
+    assert "llama3.1:8b" in res["available"]
 
 
 @patch("requests.get")

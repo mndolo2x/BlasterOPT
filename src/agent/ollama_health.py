@@ -134,6 +134,75 @@ def check_ollama_running(base_url: str = "http://localhost:11434") -> Dict[str, 
         }
 
 
+def check_required_models(
+    required_models: List[str],
+    base_url: str = "http://localhost:11434"
+) -> Dict[str, Any]:
+    """
+    Checks if required models (e.g. 'llama3.1:8b', 'llama3.2:3b') are pulled/downloaded in Ollama.
+    Uses GET f"{base_url}/api/tags" with 5s timeout.
+
+    Parameters:
+    -----------
+    required_models : List[str]
+        List of required model names/tags.
+    base_url : str, default="http://localhost:11434"
+        Ollama server base URL.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        {
+            "all_present": bool,
+            "present": List[str],
+            "missing": List[str],
+            "available": List[str],
+            "error": Optional[str]
+        }
+    """
+    url = f"{base_url.rstrip('/')}/api/tags"
+    try:
+        resp = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        if resp.status_code == 200:
+            data = resp.json()
+            models_list = data.get("models", [])
+            avail_names = [m.get("name", "") for m in models_list if m.get("name")]
+
+            present = []
+            missing = []
+
+            for req in required_models:
+                # Flexible matching for tag prefixes or exact matches
+                if any(req == m or req in m or m in req for m in avail_names):
+                    present.append(req)
+                else:
+                    missing.append(req)
+
+            all_present = (len(missing) == 0)
+            return {
+                "all_present": all_present,
+                "present": present,
+                "missing": missing,
+                "available": avail_names,
+                "error": None
+            }
+        return {
+            "all_present": False,
+            "present": [],
+            "missing": list(required_models),
+            "available": [],
+            "error": f"Ollama /api/tags returned status code {resp.status_code}"
+        }
+    except Exception as e:
+        return {
+            "all_present": False,
+            "present": [],
+            "missing": list(required_models),
+            "available": [],
+            "error": f"Error querying required models: {e}"
+        }
+
+
 def list_ollama_models(host: str = DEFAULT_OLLAMA_HOST) -> Dict[str, Any]:
     """
     Lists all models currently available/pulled in local Ollama server.
