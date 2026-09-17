@@ -47,37 +47,52 @@ class LocalLLM:
 
 class Pula8BLLM:
     """
-    Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' text-generation pipeline.
+    Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' AutoTokenizer & AutoModelForCausalLM.
     """
 
     def __init__(self, model_id: str = "OxxoCodes/Pula-8B-v0.1"):
         self.model_id = model_id
-        self._pipe = None
+        self._tokenizer = None
+        self._model = None
+        self._is_fallback = False
 
-    def _get_pipeline(self):
-        if self._pipe is None:
-            # Check if running under pytest or if environment flag is set to avoid large downloads during tests
+    def _get_model_and_tokenizer(self):
+        if self._tokenizer is None or self._model is None:
             if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "1":
-                self._pipe = "FALLBACK"
+                self._is_fallback = True
             else:
                 try:
-                    from transformers import pipeline
-                    self._pipe = pipeline("text-generation", model=self.model_id)
-                    logger.info(f"Loaded Setswana LLM pipeline '{self.model_id}'.")
+                    from transformers import AutoTokenizer, AutoModelForCausalLM
+                    self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+                    self._model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
+                    logger.info(f"Loaded Setswana model & tokenizer for '{self.model_id}'.")
                 except Exception as e:
-                    logger.warning(f"Error loading '{self.model_id}' pipeline: {e}. Using offline Setswana fallback.")
-                    self._pipe = "FALLBACK"
-        return self._pipe
+                    logger.warning(f"Error loading '{self.model_id}': {e}. Using offline Setswana fallback.")
+                    self._is_fallback = True
+        return self._tokenizer, self._model
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generates Setswana text response using OxxoCodes/Pula-8B-v0.1 pipeline or fallback."""
-        pipe = self._get_pipeline()
-        if pipe != "FALLBACK" and pipe is not None:
+        """Generates Setswana text response using OxxoCodes/Pula-8B-v0.1 apply_chat_template or fallback."""
+        tokenizer, model = self._get_model_and_tokenizer()
+        if not self._is_fallback and tokenizer is not None and model is not None:
             try:
-                messages = [{"role": "user", "content": prompt}]
-                res = pipe(messages, max_new_tokens=150)
-                if res and len(res) > 0:
-                    return str(res[0].get("generated_text", f"Pula-8B ({self.model_id}): {prompt}"))
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": prompt})
+
+                inputs = tokenizer.apply_chat_template(
+                    messages,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                ).to(model.device)
+
+                outputs = model.generate(**inputs, max_new_tokens=100)
+                gen_text = tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+                if gen_text:
+                    return gen_text.strip()
             except Exception as e:
                 logger.warning(f"Pula-8B generation error: {e}")
 

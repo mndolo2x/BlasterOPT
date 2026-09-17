@@ -100,7 +100,7 @@ def test_bind_tools_returns_registry_with_bound_functions():
     registry = bind_tools()
 
     assert isinstance(registry, ToolRegistry)
-    assert len(registry.keys()) == 16
+    assert len(registry.keys()) == 20
 
     for tool_name in registry.keys():
         spec = registry.get_tool(tool_name)

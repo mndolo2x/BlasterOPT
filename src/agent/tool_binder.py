@@ -25,6 +25,10 @@ from src.agent.tool_registry import (
     _route_for_approval_handler,
     _log_decision_handler,
     _query_knowledge_graph_handler,
+    _lookup_blast_term_handler,
+    _translate_en_tn_handler,
+    _translate_tn_en_handler,
+    _answer_mining_question_handler,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,10 @@ def bind_tools(registry: ToolRegistry = TOOL_REGISTRY) -> ToolRegistry:
     registry["route_for_approval"]["function"] = _route_for_approval_handler
     registry["log_decision"]["function"] = _log_decision_handler
     registry["query_knowledge_graph"]["function"] = _query_knowledge_graph_handler
+    registry["lookup_blast_term"]["function"] = _lookup_blast_term_handler
+    registry["translate_en_tn"]["function"] = _translate_en_tn_handler
+    registry["translate_tn_en"]["function"] = _translate_tn_en_handler
+    registry["answer_mining_question"]["function"] = _answer_mining_question_handler
 
     logger.info("Successfully bound functions to all TOOL_REGISTRY entries.")
     return registry

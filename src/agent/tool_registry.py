@@ -120,6 +120,23 @@ class QuestionInput(BaseModel):
     question: str = Field(..., description="Natural language engineering question")
 
 
+class TermInput(BaseModel):
+    term: str = Field(..., description="The blast engineering or mining term to look up")
+
+
+class TranslationInput(BaseModel):
+    text: str = Field(..., description="Text content to translate")
+
+
+class TermDefinitionResult(BaseModel):
+    term: str = Field(..., description="The queried term")
+    definition: str = Field(..., description="Technical definition")
+    plain_language: str = Field(..., description="Plain language explanation")
+    setswana: Optional[str] = Field(None, description="Setswana translation")
+    category: str = Field("Glossary", description="Term category")
+    source: str = Field("Blaster's Handbook / PA DEP", description="Information source")
+
+
 # --- Tool Registry Core Architecture ---
 
 class ToolSpec(BaseModel):
@@ -536,6 +553,67 @@ ISEE_GLOSSARY: Dict[str, str] = {
 }
 
 
+def _lookup_blast_term_handler(term: str) -> Dict[str, Any]:
+    """Look up definition of a blast engineering term."""
+    q_term = term.lower().strip()
+
+    # Search PA DEP
+    for k, v in PA_DEP_GLOSSARY.items():
+        if k in q_term or q_term in k:
+            from src.autshumato_translator import translate_phrase
+            tn_str = translate_phrase(k, source_lang="en", target_lang="tn")
+            return TermDefinitionResult(
+                term=k.title(),
+                definition=v,
+                plain_language=f"In simple terms, {k} refers to: {v}",
+                setswana=tn_str if tn_str != k else None,
+                category="PA DEP § 211.101 Regulation",
+                source="Pennsylvania DEP Regulations",
+            ).model_dump()
+
+    # Search ISEE
+    for k, v in ISEE_GLOSSARY.items():
+        if k in q_term or q_term in k:
+            from src.autshumato_translator import translate_phrase
+            tn_str = translate_phrase(k, source_lang="en", target_lang="tn")
+            return TermDefinitionResult(
+                term=k.title(),
+                definition=v,
+                plain_language=f"In simple terms, {k} refers to: {v}",
+                setswana=tn_str if tn_str != k else None,
+                category="ISEE Blaster's Handbook",
+                source="ISEE Blaster's Handbook 18th Edition",
+            ).model_dump()
+
+    return TermDefinitionResult(
+        term=term,
+        definition=f"Mining and blast engineering term for '{term}'.",
+        plain_language=f"General mining term: {term}",
+        setswana=None,
+        category="General Mining",
+        source="BlasterOPT Knowledge Base",
+    ).model_dump()
+
+
+def _translate_en_tn_handler(text: str) -> str:
+    """Translate English text to Setswana using Autshumato corpus."""
+    from src.autshumato_translator import translate_phrase
+    return translate_phrase(text, source_lang="en", target_lang="tn")
+
+
+def _translate_tn_en_handler(text: str) -> str:
+    """Translate Setswana text to English using Autshumato corpus."""
+    from src.autshumato_translator import translate_phrase
+    return translate_phrase(text, source_lang="tn", target_lang="en")
+
+
+def _answer_mining_question_handler(question: str) -> str:
+    """Answer a general mining question using Pula-8B language model."""
+    from src.agent.llm_config import Pula8BLLM
+    pula = Pula8BLLM()
+    return pula.generate(question)
+
+
 def _query_knowledge_graph_handler(question: str) -> str:
     """Queries Pennsylvania DEP § 211.101, ISEE Handbook glossary, knowledge graph, and HuggingFace dataset."""
     query_term = question.lower().strip()
@@ -604,6 +682,10 @@ def bind_tools(registry: Optional[ToolRegistry] = None) -> ToolRegistry:
     target["route_for_approval"]["function"] = _route_for_approval_handler
     target["log_decision"]["function"] = _log_decision_handler
     target["query_knowledge_graph"]["function"] = _query_knowledge_graph_handler
+    target["lookup_blast_term"]["function"] = _lookup_blast_term_handler
+    target["translate_en_tn"]["function"] = _translate_en_tn_handler
+    target["translate_tn_en"]["function"] = _translate_tn_en_handler
+    target["answer_mining_question"]["function"] = _answer_mining_question_handler
     return target
 
 
@@ -738,6 +820,38 @@ TOOL_REGISTRY.register_tool(
     input_schema=QuestionInput,
     output_schema=str,
     handler=_query_knowledge_graph_handler,
+)
+
+TOOL_REGISTRY.register_tool(
+    name="lookup_blast_term",
+    description="Look up the definition of a blast engineering term (e.g., 'powder factor', 'burden', 'stemming'). Returns the technical definition, plain language explanation, and Setswana translation if available.",
+    input_schema=TermInput,
+    output_schema=TermDefinitionResult,
+    handler=_lookup_blast_term_handler,
+)
+
+TOOL_REGISTRY.register_tool(
+    name="translate_en_tn",
+    description="Translate text from English to Setswana.",
+    input_schema=TranslationInput,
+    output_schema=str,
+    handler=_translate_en_tn_handler,
+)
+
+TOOL_REGISTRY.register_tool(
+    name="translate_tn_en",
+    description="Translate text from Setswana to English.",
+    input_schema=TranslationInput,
+    output_schema=str,
+    handler=_translate_tn_en_handler,
+)
+
+TOOL_REGISTRY.register_tool(
+    name="answer_mining_question",
+    description="Answer a general question about mining, blasting, or geology using the Pula-8B language model. Use this when the question is not a simple term lookup or translation request.",
+    input_schema=QuestionInput,
+    output_schema=str,
+    handler=_answer_mining_question_handler,
 )
 
 # Bind tool functions
