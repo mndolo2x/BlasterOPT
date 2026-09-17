@@ -116,3 +116,7 @@ def test_tool_execution_via_registry():
 
     res_vib = TOOL_REGISTRY.execute_tool("predict_vibration", {"bench_id": "BENCH_01"})
     assert "ppv_mm_s" in res_vib
+
+    res_kg = TOOL_REGISTRY.execute_tool("query_knowledge_graph", {"question": "What is ANFO?"})
+    assert "ISEE Handbook" in res_kg or "Knowledge Graph Result" in res_kg
+    assert "ammonium nitrate" in res_kg.lower()
