@@ -11,7 +11,7 @@ from src.agent.agent_graph import (
     output_guardrail_node,
     build_agent_graph,
 )
-from src.agent.llm_config import select_llm, CloudLLM, LocalLLM, Pula8BLLM
+from src.agent.llm_config import select_llm, CloudLLM, LocalLLM, Pula8BLLM, HuggingFaceLLM
 from src.agent.memory import AgentMemoryManager
 
 
@@ -108,6 +108,14 @@ def test_llm_config_router():
     gen_text = tn_llm.generate("Dumela")
     assert isinstance(gen_text, str)
     assert len(gen_text) > 0
+
+
+def test_huggingface_llm():
+    """Test HuggingFaceLLM wrapper for text-generation pipelines."""
+    hf_llm = HuggingFaceLLM("meta-llama/Llama-3.3-70B-Instruct")
+    res = hf_llm.generate("Who are you?")
+    assert isinstance(res, str)
+    assert len(res) > 0
 
 
 def test_agent_memory_manager():

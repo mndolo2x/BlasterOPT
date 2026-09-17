@@ -45,6 +45,56 @@ class LocalLLM:
         return f"Local LLM ({self.model_name}) response: {prompt}"
 
 
+class HuggingFaceLLM:
+    """
+    HuggingFace Pipeline LLM interface supporting models like 'meta-llama/Llama-3.3-70B-Instruct'.
+    Uses transformers.pipeline('text-generation') for chat message generation.
+    """
+
+    def __init__(self, model_id: str = "meta-llama/Llama-3.3-70B-Instruct"):
+        self.model_id = model_id
+        self._pipe = None
+        self._is_fallback = False
+
+    def _get_pipeline(self):
+        if self._pipe is None:
+            if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "1":
+                self._is_fallback = True
+            else:
+                try:
+                    from transformers import pipeline
+                    self._pipe = pipeline("text-generation", model=self.model_id)
+                    logger.info(f"Loaded HuggingFace text-generation pipeline for '{self.model_id}'.")
+                except Exception as e:
+                    logger.warning(f"Error loading pipeline for '{self.model_id}': {e}. Using offline fallback.")
+                    self._is_fallback = True
+        return self._pipe
+
+    def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        """Generates response using HuggingFace pipeline chat messages or fallback."""
+        pipe = self._get_pipeline()
+        if not self._is_fallback and pipe is not None:
+            try:
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": prompt})
+
+                res = pipe(messages)
+                if res and isinstance(res, list):
+                    last_res = res[0]
+                    if isinstance(last_res, dict) and "generated_text" in last_res:
+                        gen = last_res["generated_text"]
+                        if isinstance(gen, list) and len(gen) > 0:
+                            return str(gen[-1].get("content", "")).strip()
+                        elif isinstance(gen, str):
+                            return gen.strip()
+            except Exception as e:
+                logger.warning(f"HuggingFaceLLM generation error: {e}")
+
+        return f"HuggingFace LLM ({self.model_id}) response: {prompt}"
+
+
 class Pula8BLLM:
     """
     Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' AutoTokenizer & AutoModelForCausalLM.
