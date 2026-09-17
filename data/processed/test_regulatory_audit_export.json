@@ -1,12 +1,22 @@
 {
   "metadata": {
     "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) Compliance Audit",
-    "export_timestamp": "2026-09-17T09:36:30.752388+00:00",
+    "export_timestamp": "2026-09-17T10:17:50.603595+00:00",
     "retention_policy": "7 Years Mandatory Persistence",
-    "total_interactions": 11,
-    "total_decisions": 11
+    "total_interactions": 12,
+    "total_decisions": 12
   },
   "interactions": [
+    {
+      "id": 12,
+      "timestamp": "2026-09-17T10:17:50.581473+00:00",
+      "session_id": "SESS_AUDIT_TEST_01",
+      "user_id": "ENG_AUDIT_01",
+      "user_message": "Design blast for bench 14",
+      "agent_response": "Generated design for bench 14",
+      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
+      "guardrail_trips_json": "[]"
+    },
     {
       "id": 11,
       "timestamp": "2026-09-17T09:36:30.736402+00:00",
@@ -119,6 +129,17 @@
     }
   ],
   "decisions": [
+    {
+      "id": 12,
+      "timestamp": "2026-09-17T10:17:50.591650+00:00",
+      "session_id": "SESS_AUDIT_TEST_02",
+      "user_id": "BLASTER_01",
+      "design_id": "DES_JWA_101",
+      "decision": "OVERRIDE_STEMMING",
+      "reason_code": "HIGH_AIRBLAST_RISK",
+      "original_value": "{\"stemming_m\": 4.5}",
+      "new_value": "{\"stemming_m\": 5.5}"
+    },
     {
       "id": 11,
       "timestamp": "2026-09-17T09:36:30.743513+00:00",
