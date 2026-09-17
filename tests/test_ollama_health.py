@@ -46,9 +46,10 @@ def test_check_ollama_running_success(mock_get):
     mock_resp.status_code = 200
     mock_get.return_value = mock_resp
 
-    res = check_ollama_running()
+    res = check_ollama_running(base_url="http://localhost:11434")
     assert res["running"] is True
-    assert res["status_code"] == 200
+    assert res["base_url"] == "http://localhost:11434"
+    assert res["response_time_ms"] >= 0.0
     assert res["error"] is None
 
 
@@ -58,9 +59,10 @@ def test_check_ollama_running_offline(mock_get):
     import requests
     mock_get.side_effect = requests.exceptions.ConnectionError("Connection refused")
 
-    res = check_ollama_running()
+    res = check_ollama_running(base_url="http://localhost:11434")
     assert res["running"] is False
-    assert res["status_code"] is None
+    assert res["base_url"] == "http://localhost:11434"
+    assert res["response_time_ms"] >= 0.0
     assert "offline" in res["error"].lower() or "connection" in res["error"].lower()
 
 

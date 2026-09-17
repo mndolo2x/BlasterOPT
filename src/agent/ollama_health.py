@@ -71,59 +71,65 @@ def check_ollama_installed() -> Dict[str, Any]:
         }
 
 
-def check_ollama_running(host: str = DEFAULT_OLLAMA_HOST) -> Dict[str, Any]:
+def check_ollama_running(base_url: str = "http://localhost:11434") -> Dict[str, Any]:
     """
-    Checks if the local Ollama API server is running and responding to GET requests.
+    Checks if the Ollama service is running and reachable using GET f"{base_url}/api/tags".
 
     Parameters:
     -----------
-    host : str, default="http://localhost:11434"
-        Ollama server base URL endpoint.
+    base_url : str, default="http://localhost:11434"
+        Ollama server base URL.
 
     Returns:
     --------
     Dict[str, Any]
         {
             "running": bool,
-            "host": str,
-            "status_code": Optional[int],
+            "base_url": str,
+            "response_time_ms": float,
             "error": Optional[str]
         }
     """
+    url = f"{base_url.rstrip('/')}/api/tags"
+    start_time = time.time()
     try:
-        resp = requests.get(host, timeout=DEFAULT_TIMEOUT)
+        resp = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
         if resp.status_code == 200:
             return {
                 "running": True,
-                "host": host,
-                "status_code": 200,
+                "base_url": base_url,
+                "response_time_ms": response_time_ms,
                 "error": None
             }
         return {
             "running": False,
-            "host": host,
-            "status_code": resp.status_code,
+            "base_url": base_url,
+            "response_time_ms": response_time_ms,
             "error": f"Ollama server returned HTTP status code {resp.status_code}"
         }
     except requests.exceptions.Timeout:
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
         return {
             "running": False,
-            "host": host,
-            "status_code": None,
+            "base_url": base_url,
+            "response_time_ms": response_time_ms,
             "error": "Connection to Ollama server timed out after 5 seconds."
         }
     except requests.exceptions.ConnectionError:
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
         return {
             "running": False,
-            "host": host,
-            "status_code": None,
-            "error": f"Could not connect to Ollama server at '{host}'. Server is offline."
+            "base_url": base_url,
+            "response_time_ms": response_time_ms,
+            "error": f"Could not connect to Ollama server at '{base_url}'. Server is offline."
         }
     except Exception as e:
+        response_time_ms = round((time.time() - start_time) * 1000.0, 2)
         return {
             "running": False,
-            "host": host,
-            "status_code": None,
+            "base_url": base_url,
+            "response_time_ms": response_time_ms,
             "error": f"Error checking Ollama status: {e}"
         }
 
