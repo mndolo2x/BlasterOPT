@@ -476,6 +476,34 @@ def _log_decision_handler(query_params: Dict[str, Any] = {}) -> str:
     return "Decision immutably recorded in audit log database."
 
 
+# Pennsylvania DEP § 211.101 Blasting Regulatory Terms
+PA_DEP_GLOSSARY: Dict[str, str] = {
+    "access point": "A point in outer or inner perimeter security allowing entry to or exit from a magazine site.",
+    "airblast": "An airborne shock wave resulting from an explosion, also known as air overpressure (may or may not be audible).",
+    "at-the-hole communication": "Communication between driller and blaster-in-charge describing borehole condition (e.g. cones with messages or verbal description).",
+    "blast area": "The area around the blast site that must be cleared and secured to prevent injury to persons and property damage.",
+    "blast site": "The specific location where explosive charges are loaded into blast holes.",
+    "blaster": "An individual licensed by the Department under Chapter 210 to detonate explosives and supervise blasting activities.",
+    "blaster-in-charge": "The blaster designated to have supervision and control over all blasting activities related to a blast.",
+    "blasting activity": "Actions associated with the use of explosives from delivery to worksite until all postblast measures are completed (priming, loading, stemming, wiring, detonating).",
+    "cube root scaled distance": "Ds1/3 = D / (W)^(1/3), where D is horizontal distance in feet and W is maximum charge weight in pounds per delay (< 8 ms). Used to estimate airblast levels.",
+    "delay interval": "The designed time interval, usually in milliseconds, between successive detonations.",
+    "detonator": "A device containing initiating or primary explosive used for initiating detonation (electric caps, nonelectric caps, delay connectors, detonating cord).",
+    "explosives": "Chemical compounds or mixtures whose primary purpose is to function by explosion (dynamite, black powder, detonating cord, PETN).",
+    "flyrock": "Overburden, stone, clay or material cast from the blast site through the air or along the ground beyond the blast area or permit boundary.",
+    "indoor magazine": "A magazine located entirely within a secure intrusion-resistant and theft-resistant building.",
+    "inner perimeter security": "Measures taken to increase intrusion resistance encircling an individual or group of magazines.",
+    "misfire": "Incomplete detonation of explosives.",
+    "outer perimeter security": "Measures taken to increase intrusion resistance encircling the area where magazines are situated.",
+    "particle velocity": "A measure of the intensity of ground vibration, specifically the time rate of change of the amplitude of ground vibration.",
+    "peak particle velocity": "The maximum intensity of particle velocity ground vibration.",
+    "primer": "A cartridge or package of high explosives into which a detonator has been inserted or attached.",
+    "square root scaled distance": "Ds = D / (W)^(1/2), where D is horizontal distance in feet and W is maximum charge weight in pounds per delay (< 8 ms). Used to estimate ground vibration.",
+    "stemming": "Inert material placed in a blast hole after an explosive charge to confine explosion gases to the blast hole, or to separate decked charges.",
+    "structure": "Everything built or constructed for occupancy, use, or ornamentation (bridges, offices, water towers, silos, dwellings).",
+    "utility line": "An electric cable, fiber optic line, pipeline or conduit used to transport or transmit electricity, gases, liquids, or information.",
+}
+
 # ISEE Blaster's Handbook Glossary Definitions
 ISEE_GLOSSARY: Dict[str, str] = {
     "acceptor": "A charge of explosives or blasting agent receiving an impulse from an exploding donor charge.",
@@ -509,10 +537,21 @@ ISEE_GLOSSARY: Dict[str, str] = {
 
 
 def _query_knowledge_graph_handler(question: str) -> str:
-    """Queries ISEE Blaster's Handbook glossary, mining knowledge graph, and HuggingFace domain dataset."""
+    """Queries Pennsylvania DEP § 211.101, ISEE Handbook glossary, knowledge graph, and HuggingFace dataset."""
     query_term = question.lower().strip()
 
-    # 1. Search ISEE Blaster's Handbook Glossary
+    # 1. Search PA DEP § 211.101 Regulatory Definitions
+    dep_matches = []
+    for term, defn in PA_DEP_GLOSSARY.items():
+        if term in query_term or any(w in query_term.split() for w in term.split() if len(w) > 3):
+            dep_matches.append(f"**{term.title()}** (PA DEP § 211.101): {defn}")
+        if len(dep_matches) >= 3:
+            break
+
+    if dep_matches:
+        return f"Knowledge Graph Result for '{question}': " + " | ".join(dep_matches)
+
+    # 2. Search ISEE Blaster's Handbook Glossary
     isee_matches = []
     for term, defn in ISEE_GLOSSARY.items():
         if term in query_term or any(w in query_term.split() for w in term.split() if len(w) > 3):

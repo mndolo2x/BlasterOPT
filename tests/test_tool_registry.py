@@ -120,3 +120,7 @@ def test_tool_execution_via_registry():
     res_kg = TOOL_REGISTRY.execute_tool("query_knowledge_graph", {"question": "What is ANFO?"})
     assert "ISEE Handbook" in res_kg or "Knowledge Graph Result" in res_kg
     assert "ammonium nitrate" in res_kg.lower()
+
+    res_dep = TOOL_REGISTRY.execute_tool("query_knowledge_graph", {"question": "What is cube root scaled distance?"})
+    assert "PA DEP § 211.101" in res_dep or "Knowledge Graph Result" in res_dep
+    assert "airblast" in res_dep.lower()
