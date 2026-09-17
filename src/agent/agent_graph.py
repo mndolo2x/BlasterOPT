@@ -32,8 +32,7 @@ def knowledge_router_node(state: AgentState) -> AgentState:
 
     Categories:
     - term_lookup: "What is powder factor?", "Define burden"
-    - translation_en_tn: "How do you say X in Setswana?", "Translate X to Setswana"
-    - translation_tn_en: "What does X mean in English?", "Translate X to English"
+    - translation: "How do you say X in Setswana?", "Translate X to Setswana"
     - general_question: "Why is stemming important?", "Explain fragmentation"
     - not_knowledge: The message is about designing a blast or taking action
     """
@@ -63,7 +62,6 @@ def knowledge_router_node(state: AgentState) -> AgentState:
         "what is", "what does", "define", "definition of", "meaning of",
         "explain the term", "tell me about"
     ]):
-        # Check if the message contains a known blast term from PA_DEP_GLOSSARY or ISEE_GLOSSARY
         term_index = list(PA_DEP_GLOSSARY.keys()) + list(ISEE_GLOSSARY.keys())
         for term in term_index:
             if term in last_message:
@@ -81,6 +79,86 @@ def knowledge_router_node(state: AgentState) -> AgentState:
 
     # Not a knowledge question
     state["knowledge_intent"] = "not_knowledge"
+    return state
+
+
+def extract_translation_text(message: str) -> str:
+    """Helper function to clean translation request phrases from message."""
+    text = message
+    for phrase in [
+        "how do you say", "translate", "to setswana", "in setswana",
+        "to english", "in english", "what is the setswana word for"
+    ]:
+        text = re.sub(phrase, "", text, flags=re.IGNORECASE)
+    return text.strip(" ?.\"'")
+
+
+def term_lookup_node(state: AgentState) -> AgentState:
+    """Execute a term lookup using TOOL_REGISTRY."""
+    term = state.get("knowledge_term")
+    if not term:
+        state["tool_results"] = {"error": "No term found in message"}
+        return state
+
+    result = TOOL_REGISTRY.execute_tool("lookup_blast_term", {"term": term})
+    if result:
+        state["tool_results"] = result
+    else:
+        state["tool_results"] = {"error": f"Term '{term}' not found in vocabulary"}
+    return state
+
+
+def translation_node(state: AgentState) -> AgentState:
+    """Execute a translation using Autshumato corpus and Pula-8B fallback."""
+    messages = state.get("messages", [])
+    last_msg = _get_msg_content(messages[-1]) if messages else ""
+    text_to_translate = extract_translation_text(last_msg)
+
+    direction = state.get("knowledge_direction", "en_tn")
+    tool_name = "translate_en_tn" if direction == "en_tn" else "translate_tn_en"
+
+    result = TOOL_REGISTRY.execute_tool(tool_name, {"text": text_to_translate})
+    state["tool_results"] = {"translation": result, "direction": direction}
+    return state
+
+
+def general_question_node(state: AgentState) -> AgentState:
+    """Answer a general mining question using Pula-8B / Knowledge Graph."""
+    messages = state.get("messages", [])
+    question = _get_msg_content(messages[-1]) if messages else ""
+    answer = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": question})
+    state["tool_results"] = {"answer": answer}
+    return state
+
+
+def knowledge_response_node(state: AgentState) -> AgentState:
+    """Format the knowledge result into a natural language response."""
+    intent = state.get("knowledge_intent")
+    results = state.get("tool_results", {})
+
+    if intent == "term_lookup":
+        if "error" in results:
+            response = f"I could not find that term in my vocabulary. {results['error']}"
+        else:
+            response = f"**{results.get('term', '')}**\n\n{results.get('definition', '')}"
+            if results.get("plain_language"):
+                response += f"\n\n**In plain language:** {results['plain_language']}"
+            if results.get("setswana"):
+                response += f"\n\n**Setswana:** {results['setswana']}"
+
+    elif intent == "translation":
+        if "error" in results:
+            response = f"Translation failed: {results['error']}"
+        else:
+            response = f"**Translation ({results.get('direction', 'en_tn')}):** {results.get('translation', '')}"
+
+    elif intent == "general_question":
+        response = results.get("answer", "I don't have an answer for that.")
+
+    else:
+        response = "I'm not sure how to answer that."
+
+    state["messages"] = list(state.get("messages", [])) + [{"role": "assistant", "content": response}]
     return state
 
 
@@ -329,6 +407,17 @@ def response_node(state: AgentState) -> Dict[str, Any]:
 def route_after_input_guardrail(state: AgentState) -> str:
     if state.get("last_tool_call") == "GUARDRAIL_BLOCKED":
         return "response"
+    return "knowledge_router"
+
+
+def route_after_knowledge_router(state: AgentState) -> str:
+    intent = state.get("knowledge_intent")
+    if intent == "term_lookup":
+        return "term_lookup"
+    elif intent == "translation":
+        return "translation"
+    elif intent == "general_question":
+        return "general_question"
     return "intent_classifier"
 
 
@@ -357,6 +446,10 @@ def build_agent_graph() -> Any:
     # Add Nodes
     graph.add_node("input_guardrail", input_guardrail_node)
     graph.add_node("knowledge_router", knowledge_router_node)
+    graph.add_node("term_lookup", term_lookup_node)
+    graph.add_node("translation", translation_node)
+    graph.add_node("general_question", general_question_node)
+    graph.add_node("knowledge_response", knowledge_response_node)
     graph.add_node("intent_classifier", intent_classifier_node)
     graph.add_node("guided_design", guided_design_node)
     graph.add_node("expert_design", expert_design_node)
@@ -371,10 +464,24 @@ def build_agent_graph() -> Any:
     graph.add_conditional_edges(
         "input_guardrail",
         route_after_input_guardrail,
-        {"response": "response", "intent_classifier": "knowledge_router"},
+        {"response": "response", "knowledge_router": "knowledge_router"},
     )
 
-    graph.add_edge("knowledge_router", "intent_classifier")
+    graph.add_conditional_edges(
+        "knowledge_router",
+        route_after_knowledge_router,
+        {
+            "term_lookup": "term_lookup",
+            "translation": "translation",
+            "general_question": "general_question",
+            "intent_classifier": "intent_classifier",
+        },
+    )
+
+    graph.add_edge("term_lookup", "knowledge_response")
+    graph.add_edge("translation", "knowledge_response")
+    graph.add_edge("general_question", "knowledge_response")
+    graph.add_edge("knowledge_response", "output_guardrail")
 
     graph.add_conditional_edges(
         "intent_classifier",
