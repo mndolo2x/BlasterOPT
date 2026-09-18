@@ -28,6 +28,7 @@ from src.agent.state import AgentState
 from src.agent.guardrails import validate_input, validate_output, log_guardrail_trip
 from src.agent.tool_registry import TOOL_REGISTRY, BlastDesignInput, BlastDesign, PA_DEP_GLOSSARY, ISEE_GLOSSARY
 from src.agent.llm_config import select_llm
+from src.agent.ollama_health import full_health_check
 
 logger = logging.getLogger(__name__)
 
@@ -521,7 +522,23 @@ class FallbackAgentApp:
 def build_agent_graph() -> Any:
     """
     Constructs and compiles the LangGraph StateGraph (or returns FallbackAgentApp if langgraph missing).
+    Checks Ollama availability at startup and logs health status and recommendations.
     """
+    try:
+        health = full_health_check()
+        if health.get("can_use_offline_llm"):
+            present_models = health.get("models", {}).get("present", [])
+            print(f"✓ Ollama is available. Offline LLM: {present_models}")
+            logger.info(f"Ollama is available. Offline LLM: {present_models}")
+        else:
+            status = health.get("overall_status", "unknown")
+            recs = health.get("recommendations", [])
+            print(f"⚠ Ollama is not available. Status: {status}")
+            print(f"  Recommendations: {recs}")
+            logger.warning(f"Ollama is not available. Status: {status}. Recommendations: {recs}")
+    except Exception as e:
+        logger.warning(f"Error during Ollama startup health check: {e}")
+
     if not HAS_LANGGRAPH:
         logger.warning("langgraph is not installed. Using FallbackAgentApp execution runner.")
         return FallbackAgentApp()
