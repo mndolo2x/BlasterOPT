@@ -3,6 +3,7 @@ Unit tests for Ollama Health Check and Verification Module (src/agent/ollama_hea
 """
 
 import pytest
+import requests
 from unittest.mock import patch, MagicMock
 from src.agent.ollama_health import (
     check_ollama_installed,
@@ -15,16 +16,19 @@ from src.agent.ollama_health import (
     full_ollama_health_check,
     check_offline_capability,
 )
+from src.agent.llm_config import OllamaClient
 
 
 @patch("shutil.which")
 @patch("subprocess.run")
 def test_check_ollama_installed_success(mock_run, mock_which):
-    """Test check_ollama_installed when binary is installed."""
+    """Test check_ollama_installed when binary is installed and returns dict with correct keys."""
     mock_which.return_value = "/usr/local/bin/ollama"
     mock_run.return_value = MagicMock(stdout="ollama version is 0.1.24\n", stderr="")
 
     res = check_ollama_installed()
+    assert isinstance(res, dict)
+    assert set(res.keys()) == {"installed", "path", "version", "error"}
     assert res["installed"] is True
     assert res["path"] == "/usr/local/bin/ollama"
     assert "0.1.24" in res["version"]
@@ -127,6 +131,18 @@ def test_check_model_generation_success(mock_post):
 
 
 @patch("requests.post")
+def test_check_model_generation_timeout_graceful(mock_post):
+    """Test check_model_generation handles timeouts gracefully."""
+    mock_post.side_effect = requests.exceptions.Timeout("Request timed out after 30s")
+
+    res = check_model_generation(model_name="llama3.1:8b")
+    assert res["working"] is False
+    assert res["model"] == "llama3.1:8b"
+    assert res["response"] is None
+    assert "timed out" in res["error"].lower()
+
+
+@patch("requests.post")
 def test_test_ollama_generation_success(mock_post):
     """Test test_ollama_generation returning successful text response."""
     mock_resp = MagicMock()
@@ -204,3 +220,33 @@ def test_full_health_check_status_not_installed(mock_inst):
     assert res["overall_status"] == "not_installed"
     assert res["can_use_offline_llm"] is False
     assert "Install Ollama" in res["recommendations"][0]
+
+
+@patch("src.agent.ollama_health.check_ollama_installed")
+@patch("src.agent.ollama_health.check_ollama_running")
+def test_full_health_check_status_offline(mock_run, mock_inst):
+    """Test full_health_check returning 'offline' when server is not running."""
+    mock_inst.return_value = {"installed": True, "path": "/usr/bin/ollama", "version": "0.1.24", "error": None}
+    mock_run.return_value = {"running": False, "base_url": "http://localhost:11434", "response_time_ms": 0.0, "error": "Connection refused"}
+
+    res = full_health_check()
+    assert res["overall_status"] == "offline"
+    assert res["can_use_offline_llm"] is False
+    assert any("Start Ollama service" in rec for rec in res["recommendations"])
+
+
+@patch("src.agent.ollama_health.full_health_check")
+def test_ollama_client_generate_with_fallback(mock_full_health):
+    """Test OllamaClient.generate_with_fallback falls back to cloud when Ollama is unavailable."""
+    mock_full_health.return_value = {
+        "can_use_offline_llm": False,
+        "recommendations": ["Ollama server is offline."]
+    }
+
+    client = OllamaClient(base_url="http://localhost:11434")
+    assert client.is_available is False
+
+    mock_fallback = MagicMock(return_value="Cloud Response")
+    res = client.generate_with_fallback("Test prompt", cloud_fallback=mock_fallback)
+    assert res == "Cloud Response"
+    mock_fallback.assert_called_once_with("Test prompt")
