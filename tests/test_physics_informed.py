@@ -172,3 +172,51 @@ def test_pinn_trainer_validation_early_stopping_and_curriculum():
     assert len(res["loss_history"]) > 0
     assert "val_r2" in res["loss_history"][0]
     assert "lr" in res["loss_history"][0]
+
+
+def test_pinn_evaluator_comprehensive_and_comparison():
+    """
+    Tests standard metrics, physics consistency scoring, OOD extrapolation evaluation,
+    and comparative benchmark of PINN vs standard GA-ANN.
+    """
+    np.random.seed(42)
+    n_samples = 30
+
+    X_test = np.random.uniform(1.0, 10.0, size=(n_samples, 12))
+    X_test[:, 3] = np.random.uniform(19.0, 25.0, size=n_samples) # Bench height > 18m
+    X_test[:, 6] = np.random.uniform(1.25, 2.00, size=n_samples) # Powder factor > 1.20
+    X_test[:, 7] = np.random.uniform(200.0, 800.0, size=n_samples)
+    X_test[:, 8] = 8.0
+    X_test[:, 10] = np.random.uniform(100.0, 1000.0, size=n_samples)
+
+    Y_test = np.random.uniform(10.0, 300.0, size=(n_samples, 4))
+
+    pinn_model = PhysicsInformedGAANN(input_dim=12, output_dim=4)
+    evaluator = PINNEvaluator(model=pinn_model)
+
+    in_dist_res = evaluator.evaluate_in_distribution(X_test, Y_test)
+    assert "mean_r2" in in_dist_res
+    assert "mean_rmse" in in_dist_res
+    assert "mean_mae" in in_dist_res
+
+    phys_res = evaluator.evaluate_physics_consistency(X_test)
+    assert "physics_consistency_score_pct" in phys_res
+    assert "kuzram_d50_mae_mm" in phys_res
+
+    extrap_res = evaluator.evaluate_extrapolation(X_test, Y_test, target_metric="bench_height_gt_18m")
+    assert "ood_mean_r2" in extrap_res
+
+    class StandardGAANN:
+        def predict(self, x):
+            return np.tile([500.0, 50.0, 200.0, 20.0], (len(x), 1))
+
+    comp_res = evaluator.compare_pinn_vs_standard_gaann(
+        standard_model=StandardGAANN(),
+        ood_x=X_test,
+        ood_y=Y_test,
+        target_metric="extrapolation_bench_height"
+    )
+
+    assert "pinn_metrics" in comp_res
+    assert "standard_gaann_metrics" in comp_res
+    assert "winner" in comp_res
