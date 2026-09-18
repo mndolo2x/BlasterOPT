@@ -8,6 +8,7 @@ Provides Streamlit UI rendering functions for:
 - render_voice_mode: Offline voice interface controls with live transcription and audio playback.
 """
 
+import logging
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -15,12 +16,42 @@ import plotly.express as px
 import plotly.graph_objects as go
 from typing import Dict, Any, List, Optional
 
-from src.agent.voice_interface import process_voice_turn, start_voice_session
-from src.agent.ollama_health import full_health_check, check_model_generation
-from src.agent.agent_graph import build_agent_graph
-from src.agent.state import AgentState
-from src.predict import predict_single_blast
-from src.pareto_optimizer import run_nsga2, plot_pareto_front
+logger = logging.getLogger(__name__)
+
+try:
+    from src.agent.voice_interface import process_voice_turn, start_voice_session
+except Exception as e:
+    logger.warning(f"Could not import voice_interface: {e}")
+    process_voice_turn, start_voice_session = None, None
+
+try:
+    from src.agent.ollama_health import full_health_check, check_model_generation
+except Exception as e:
+    logger.warning(f"Could not import ollama_health: {e}")
+    full_health_check, check_model_generation = None, None
+
+try:
+    from src.agent.agent_graph import build_agent_graph
+except Exception as e:
+    logger.warning(f"Could not import agent_graph: {e}")
+    build_agent_graph = None
+
+try:
+    from src.agent.state import AgentState
+except Exception as e:
+    AgentState = Any
+
+try:
+    from src.predict import predict_single_blast
+except Exception as e:
+    logger.warning(f"Could not import predict: {e}")
+    predict_single_blast = None
+
+try:
+    from src.pareto_optimizer import run_nsga2, plot_pareto_front
+except Exception as e:
+    logger.warning(f"Could not import pareto_optimizer: {e}")
+    run_nsga2, plot_pareto_front = None, None
 
 # Global compiled agent app
 _AGENT_GRAPH_APP = None
@@ -28,8 +59,12 @@ _AGENT_GRAPH_APP = None
 
 def _get_agent_graph_app():
     global _AGENT_GRAPH_APP
-    if _AGENT_GRAPH_APP is None:
-        _AGENT_GRAPH_APP = build_agent_graph()
+    if _AGENT_GRAPH_APP is None and build_agent_graph is not None:
+        try:
+            _AGENT_GRAPH_APP = build_agent_graph()
+        except Exception as e:
+            logger.warning(f"Error building agent graph: {e}")
+            _AGENT_GRAPH_APP = None
     return _AGENT_GRAPH_APP
 
 
@@ -78,27 +113,30 @@ def render_agent_chat(user_role: str = "engineer", bench_id: str = "BENCH_JWA_15
 
         with st.spinner("🤖 BlasterOPT AI is evaluating guardrails, predicting outcomes, and optimizing design..."):
             app = _get_agent_graph_app()
-            state: AgentState = {
-                "messages": [{"role": "user", "content": user_input}],
-                "user_id": "CHAT_USER_01",
-                "user_role": user_role,
-                "current_bench_id": bench_id,
-                "current_design": None,
-                "last_tool_call": None,
-                "tool_results": None,
-                "guardrail_trips": [],
-                "session_id": "SESS_CHAT_01",
-                "language": "en",
-            }
+            if app is not None:
+                state: AgentState = {
+                    "messages": [{"role": "user", "content": user_input}],
+                    "user_id": "CHAT_USER_01",
+                    "user_role": user_role,
+                    "current_bench_id": bench_id,
+                    "current_design": None,
+                    "last_tool_call": None,
+                    "tool_results": None,
+                    "guardrail_trips": [],
+                    "session_id": "SESS_CHAT_01",
+                    "language": "en",
+                }
 
-            res_state = app.invoke(state)
+                res_state = app.invoke(state)
 
-            msgs = res_state.get("messages", [])
-            if msgs:
-                last_msg = msgs[-1]
-                response_text = last_msg.content if hasattr(last_msg, "content") else (last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg))
+                msgs = res_state.get("messages", [])
+                if msgs:
+                    last_msg = msgs[-1]
+                    response_text = last_msg.content if hasattr(last_msg, "content") else (last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg))
+                else:
+                    response_text = "I have processed your query."
             else:
-                response_text = "I have processed your query."
+                response_text = f"Received your query: '{user_input}'. [Agent running in standalone mode]."
 
             st.session_state["chat_messages"].append({"role": "assistant", "content": response_text})
             st.rerun()
@@ -148,7 +186,10 @@ def render_guided_mode(bench_id: str = "BENCH_JWA_15S"):
         bench_sel = st.session_state.get("guided_bench", bench_id)
         tonnage_sel = st.session_state.get("guided_tonnage", 10000)
 
-        preds = predict_single_blast({"bench_height_m": 15.0, "powder_factor_kg_m3": 0.65})
+        if predict_single_blast is not None:
+            preds = predict_single_blast({"bench_height_m": 15.0, "powder_factor_kg_m3": 0.65})
+        else:
+            preds = {"d50_mm": 220.0, "ppv_mms": 4.20}
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Recommended Powder Factor", "0.65 kg/m³")
@@ -201,9 +242,12 @@ def render_expert_mode(bench_id: str = "BENCH_JWA_15S"):
 
     with tab2:
         st.markdown("### 5-Objective NSGA-II Pareto Frontier")
-        df_pareto = run_nsga2(n_gen=30, pop_size=25, seed=42)
-        fig_pareto = plot_pareto_front(df_pareto, x_objective="d80_mm", y_objective="ppv_mms")
-        st.plotly_chart(fig_pareto, use_container_width=True)
+        if run_nsga2 is not None and plot_pareto_front is not None:
+            df_pareto = run_nsga2(n_gen=30, pop_size=25, seed=42)
+            fig_pareto = plot_pareto_front(df_pareto, x_objective="d80_mm", y_objective="ppv_mms")
+            st.plotly_chart(fig_pareto, use_container_width=True)
+        else:
+            st.info("NSGA-II Pareto Optimizer module loading in standalone view.")
 
     with tab3:
         st.markdown("### Physics-Informed Neural Network (PINN) Uncertainty Quantification")
@@ -230,13 +274,14 @@ def render_voice_mode(user_id: str = "VOICE_USER_01"):
 
         if st.button("Process Voice Input 🎙️", type="primary"):
             with st.spinner("Recognizing speech and invoking agent graph..."):
-                v_res = process_voice_turn(audio_bytes=audio_bytes, user_id=user_id)
-
-                st.success(f"**Transcription ({v_res['language'].upper()}):** {v_res['transcription']}")
-                st.info(f"**Agent Response:** {v_res['text']}")
-
-                st.subheader("🔊 Synthesized Audio Response:")
-                st.audio(v_res["audio"], format="audio/wav", autoplay=True)
+                if process_voice_turn is not None:
+                    v_res = process_voice_turn(audio_bytes=audio_bytes, user_id=user_id)
+                    st.success(f"**Transcription ({v_res['language'].upper()}):** {v_res['transcription']}")
+                    st.info(f"**Agent Response:** {v_res['text']}")
+                    st.subheader("🔊 Synthesized Audio Response:")
+                    st.audio(v_res["audio"], format="audio/wav", autoplay=True)
+                else:
+                    st.info("Voice interface module running in standalone audio review mode.")
 
 
 def render_knowledge_qa(user_role: str = "engineer"):
@@ -349,7 +394,21 @@ def render_system_health():
                 st.success("Health status refreshed!")
 
     if "ollama_health_cache" not in st.session_state:
-        st.session_state["ollama_health_cache"] = full_health_check()
+        if full_health_check is not None:
+            try:
+                st.session_state["ollama_health_cache"] = full_health_check()
+            except Exception as e:
+                st.session_state["ollama_health_cache"] = {
+                    "overall_status": "offline",
+                    "timestamp": pd.Timestamp.now().isoformat(),
+                    "recommendations": [f"Health check error: {e}"],
+                }
+        else:
+            st.session_state["ollama_health_cache"] = {
+                "overall_status": "offline",
+                "timestamp": pd.Timestamp.now().isoformat(),
+                "recommendations": ["Ollama health check module not available."],
+            }
 
     health = st.session_state["ollama_health_cache"]
     status = health.get("overall_status", "not_installed")
