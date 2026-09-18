@@ -139,3 +139,36 @@ def test_pinn_trainer_and_extrapolation():
     extrap_res = evaluator.evaluate_extrapolation(ood_x, target_metric="powder_factor_kg_m3")
     assert "d50_physics_mae_mm" in extrap_res
     assert "extrapolation_status" in extrap_res
+
+
+def test_pinn_trainer_validation_early_stopping_and_curriculum():
+    """
+    Tests validation early stopping, CosineAnnealingLR, best model R2 saving, and curriculum mode in PINNTrainer.
+    """
+    np.random.seed(42)
+    n_train = 60
+    n_val = 20
+
+    X_train = np.random.uniform(1.0, 10.0, size=(n_train, 12))
+    X_train[:, 6] = np.random.uniform(0.30, 0.95, size=n_train)
+    X_train[:, 7] = np.random.uniform(200.0, 800.0, size=n_train)
+    X_train[:, 8] = 8.0
+    X_train[:, 10] = np.random.uniform(100.0, 1000.0, size=n_train)
+    Y_train = np.random.uniform(10.0, 300.0, size=(n_train, 4))
+
+    X_val = np.random.uniform(1.0, 10.0, size=(n_val, 12))
+    X_val[:, 6] = np.random.uniform(0.30, 0.95, size=n_val)
+    X_val[:, 7] = np.random.uniform(200.0, 800.0, size=n_val)
+    X_val[:, 8] = 8.0
+    X_val[:, 10] = np.random.uniform(100.0, 1000.0, size=n_val)
+    Y_val = np.random.uniform(10.0, 300.0, size=(n_val, 4))
+
+    # Test with curriculum learning, validation data, and early stopping patience
+    trainer = PINNTrainer(epochs=30, batch_size=16, patience=10, curriculum=True)
+    res = trainer.train(X_train, Y_train, X_val, Y_val)
+
+    assert "best_val_r2" in res
+    assert "loss_history" in res
+    assert len(res["loss_history"]) > 0
+    assert "val_r2" in res["loss_history"][0]
+    assert "lr" in res["loss_history"][0]
