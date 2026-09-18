@@ -1,0 +1,423 @@
+{
+  "readings": [
+    {
+      "timestamp": "2026-09-18T17:43:17.273550",
+      "blast_id": "BLAST_DEMO_001",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 543.2671247897306,
+      "ppv_mm_s": 6.724530050249735,
+      "charge_per_delay_kg": 785.0384088698767,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 69.75101461834959,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.274045",
+      "blast_id": "BLAST_DEMO_002",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1148.2500217304118,
+      "ppv_mm_s": 1.1103075211729236,
+      "charge_per_delay_kg": 482.7682615040224,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 43.94220566903776,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.274407",
+      "blast_id": "BLAST_DEMO_003",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 918.5936389019754,
+      "ppv_mm_s": 1.224747666376627,
+      "charge_per_delay_kg": 358.6032684038303,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 35.24849527056211,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.275388",
+      "blast_id": "BLAST_DEMO_004",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 778.5914084068884,
+      "ppv_mm_s": 3.6861266359520877,
+      "charge_per_delay_kg": 710.5398159072942,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 71.69576428046753,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.276030",
+      "blast_id": "BLAST_DEMO_005",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 313.81957246455835,
+      "ppv_mm_s": 12.459750086534491,
+      "charge_per_delay_kg": 564.0914962437607,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 66.80858047314277,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.276838",
+      "blast_id": "BLAST_DEMO_006",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 313.7942463530128,
+      "ppv_mm_s": 8.893781194407193,
+      "charge_per_delay_kg": 373.2229409068673,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 67.80532256184443,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.279080",
+      "blast_id": "BLAST_DEMO_007",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 210.98779277660944,
+      "ppv_mm_s": 25.98495306604796,
+      "charge_per_delay_kg": 597.1061460667621,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 69.70716560086757,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.279840",
+      "blast_id": "BLAST_DEMO_008",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1059.484953063682,
+      "ppv_mm_s": 0.977049846857769,
+      "charge_per_delay_kg": 320.63311266913104,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 38.33200932803407,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.280562",
+      "blast_id": "BLAST_DEMO_009",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 781.1707623303693,
+      "ppv_mm_s": 3.66085590152931,
+      "charge_per_delay_kg": 845.5922412472693,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 51.13095778449227,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.281323",
+      "blast_id": "BLAST_DEMO_010",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 893.4762066858477,
+      "ppv_mm_s": 1.6742167100020837,
+      "charge_per_delay_kg": 455.26798896001014,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 40.21410767863084,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.282094",
+      "blast_id": "BLAST_DEMO_011",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 171.61371901059258,
+      "ppv_mm_s": 43.65807907866999,
+      "charge_per_delay_kg": 697.5133706123892,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 73.83965416440171,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.282899",
+      "blast_id": "BLAST_DEMO_012",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1168.405344770094,
+      "ppv_mm_s": 1.3058589411609227,
+      "charge_per_delay_kg": 487.0266456536466,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 63.04841570724011,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.283709",
+      "blast_id": "BLAST_DEMO_013",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1024.0647728404429,
+      "ppv_mm_s": 1.7632327936700112,
+      "charge_per_delay_kg": 612.0408127066864,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 49.890411118369215,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.284586",
+      "blast_id": "BLAST_DEMO_014",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 372.95606621218997,
+      "ppv_mm_s": 8.945848337363598,
+      "charge_per_delay_kg": 628.0261676059678,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 37.860125762871064,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.285428",
+      "blast_id": "BLAST_DEMO_015",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 340.91621556745565,
+      "ppv_mm_s": 7.561114750295279,
+      "charge_per_delay_kg": 410.9126733153162,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 48.9942044772048,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.286208",
+      "blast_id": "BLAST_DEMO_016",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 342.5747353461055,
+      "ppv_mm_s": 13.914689515681134,
+      "charge_per_delay_kg": 881.7507766587352,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 49.633249491203614,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.287137",
+      "blast_id": "BLAST_DEMO_017",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 469.45435510751463,
+      "ppv_mm_s": 8.857468791929767,
+      "charge_per_delay_kg": 765.0796940166688,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 67.83227802521289,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.288115",
+      "blast_id": "BLAST_DEMO_018",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 700.9942532138498,
+      "ppv_mm_s": 4.681745671116238,
+      "charge_per_delay_kg": 863.6993649385134,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 63.69008621098459,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.289039",
+      "blast_id": "BLAST_DEMO_019",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 603.5422695742216,
+      "ppv_mm_s": 5.626549200617537,
+      "charge_per_delay_kg": 836.8964102565893,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 74.9245734159347,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.289942",
+      "blast_id": "BLAST_DEMO_020",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 455.790597207944,
+      "ppv_mm_s": 7.407041346511897,
+      "charge_per_delay_kg": 658.7399872866511,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 56.249671632287715,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.290862",
+      "blast_id": "BLAST_DEMO_021",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 792.4455394584984,
+      "ppv_mm_s": 3.2903405615576062,
+      "charge_per_delay_kg": 853.12454101387,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 40.38174106722358,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.291898",
+      "blast_id": "BLAST_DEMO_022",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 296.4685536846439,
+      "ppv_mm_s": 9.335194312863422,
+      "charge_per_delay_kg": 353.09550123115173,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 67.09601542503478,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.292899",
+      "blast_id": "BLAST_DEMO_023",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 456.75188096197905,
+      "ppv_mm_s": 5.53969406948871,
+      "charge_per_delay_kg": 417.5897174514871,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 69.23532718776039,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.293909",
+      "blast_id": "BLAST_DEMO_024",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 534.6799354583763,
+      "ppv_mm_s": 3.2560599430161,
+      "charge_per_delay_kg": 327.13637334632284,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 60.25747389062733,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.294948",
+      "blast_id": "BLAST_DEMO_025",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 628.8734834278878,
+      "ppv_mm_s": 3.7633369196118642,
+      "charge_per_delay_kg": 495.1981984579586,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 69.69352309795525,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.296133",
+      "blast_id": "BLAST_DEMO_026",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 974.4347594626643,
+      "ppv_mm_s": 1.6619871805183901,
+      "charge_per_delay_kg": 533.2063738136892,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 57.220801836397584,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.297385",
+      "blast_id": "BLAST_DEMO_027",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 359.65747126627775,
+      "ppv_mm_s": 7.859315489830092,
+      "charge_per_delay_kg": 462.80941906433753,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 58.52297732218973,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.298717",
+      "blast_id": "BLAST_DEMO_028",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 689.9461603342921,
+      "ppv_mm_s": 4.5459364533647975,
+      "charge_per_delay_kg": 797.2425054911575,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 54.23934582613474,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.299948",
+      "blast_id": "BLAST_DEMO_029",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 772.0352973051446,
+      "ppv_mm_s": 2.2540067427022037,
+      "charge_per_delay_kg": 514.0519960161536,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 36.143860703484286,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.301112",
+      "blast_id": "BLAST_DEMO_030",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 198.77293335599762,
+      "ppv_mm_s": 17.98439500163368,
+      "charge_per_delay_kg": 468.56070581242847,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 39.8551142146987,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.302417",
+      "blast_id": "BLAST_DEMO_031",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 787.9220944965103,
+      "ppv_mm_s": 2.453030349846254,
+      "charge_per_delay_kg": 625.6176498949491,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 36.41431335590304,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.303844",
+      "blast_id": "BLAST_DEMO_032",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 329.0503298716561,
+      "ppv_mm_s": 8.03960916764655,
+      "charge_per_delay_kg": 384.5545349848576,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 63.63846850687012,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.305057",
+      "blast_id": "BLAST_DEMO_033",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 218.30417263454348,
+      "ppv_mm_s": 26.601071314514602,
+      "charge_per_delay_kg": 781.3181884524238,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 49.1460191484347,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.306524",
+      "blast_id": "BLAST_DEMO_034",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1146.3298141159999,
+      "ppv_mm_s": 0.9631282698314572,
+      "charge_per_delay_kg": 344.73038620786247,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 57.885681102411624,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:17.307903",
+      "blast_id": "BLAST_DEMO_035",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 1163.9136347282874,
+      "ppv_mm_s": 2.2398834444926368,
+      "charge_per_delay_kg": 892.1321619603103,
+      "dominant_frequency_hz": 28.5,
+      "gsi_of_transmission_strata": 75.84049132667418,
+      "rock_type": "Kimberlite_Hard"
+    },
+    {
+      "timestamp": "2026-09-18T17:43:20.912237",
+      "blast_id": "BLAST_POST_SHOT_999",
+      "site_id": "SITE_DEBSWANA_JWANENG_CUT8",
+      "distance_m": 420.0,
+      "ppv_mm_s": 8.2,
+      "charge_per_delay_kg": 640.0,
+      "dominant_frequency_hz": null,
+      "gsi_of_transmission_strata": null,
+      "rock_type": "Kimberlite_Hard"
+    }
+  ],
+  "calibrated_params": {
+    "SITE_DEBSWANA_JWANENG_CUT8::Kimberlite_Hard": {
+      "K": 881.1996931020972,
+      "B": 1.6644645057501273,
+      "gsi_a": 1.0,
+      "gsi_b": 0.0,
+      "r_squared": 0.9816369288394042,
+      "rmse": 1.170728777601975,
+      "confidence_interval_95": {
+        "K": [
+          727.4564578899585,
+          1042.0364970681062
+        ],
+        "B": [
+          1.6075124817279525,
+          1.7171160028281702
+        ]
+      },
+      "sample_count": 36,
+      "last_updated": "2026-09-18T17:43:24.764048",
+      "rock_type": "Kimberlite_Hard"
+    }
+  }
+}
