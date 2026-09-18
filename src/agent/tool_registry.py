@@ -608,10 +608,10 @@ def _translate_tn_en_handler(text: str) -> str:
 
 
 def _answer_mining_question_handler(question: str) -> str:
-    """Answer a general mining question using Pula-8B language model."""
-    from src.agent.llm_config import Pula8BLLM
-    pula = Pula8BLLM()
-    return pula.generate(question)
+    """Answer a general mining question using OllamaCloudClient extensive knowledge model or Pula-8B."""
+    from src.agent.llm_config import OllamaCloudClient
+    cloud_ollama = OllamaCloudClient(model="llama3.1:8b")
+    return cloud_ollama.generate(question)
 
 
 def _query_knowledge_graph_handler(question: str) -> str:

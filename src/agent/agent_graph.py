@@ -131,7 +131,7 @@ def translation_node(state: AgentState) -> AgentState:
 
 
 def general_question_node(state: AgentState) -> AgentState:
-    """Answer a general mining question using Pula-8B / Knowledge Graph."""
+    """Answer a general mining question using OllamaCloudClient / Pula-8B / Knowledge Graph."""
     messages = state.get("messages", [])
     question = _get_msg_content(messages[-1]) if messages else ""
     answer = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": question})

@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, Optional, Callable
 import requests
 from src.agent.ollama_health import full_health_check
-from src.agent.ollama_client import OllamaClient
+from src.agent.ollama_client import OllamaClient, OllamaCloudClient
 
 logger = logging.getLogger(__name__)
 
