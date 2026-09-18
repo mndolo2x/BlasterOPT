@@ -11,7 +11,7 @@ from src.agent.agent_graph import (
     output_guardrail_node,
     build_agent_graph,
 )
-from src.agent.llm_config import select_llm, CloudLLM, LocalLLM, Pula8BLLM, HuggingFaceLLM
+from src.agent.llm_config import select_llm, CloudLLM, LocalLLM, Pula8BLLM, HuggingFaceLLM, OllamaClient
 from src.agent.memory import AgentMemoryManager
 
 
@@ -116,6 +116,35 @@ def test_huggingface_llm():
     res = hf_llm.generate("Who are you?")
     assert isinstance(res, str)
     assert len(res) > 0
+
+
+def test_ollama_client_generate_and_fallback():
+    """Test OllamaClient availability, generate, and fallback handling."""
+    from unittest.mock import patch, MagicMock
+
+    with patch("src.agent.llm_config.full_health_check") as mock_health:
+        mock_health.return_value = {"can_use_offline_llm": True}
+        client = OllamaClient(model="llama3.1:8b")
+        assert client.is_available is True
+
+        with patch("requests.post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {"response": "Local response"}
+            mock_post.return_value = mock_resp
+
+            ans = client.generate("Hello")
+            assert ans == "Local response"
+
+    # Test Fallback when Ollama unavailable
+    with patch("src.agent.llm_config.full_health_check") as mock_health:
+        mock_health.return_value = {"can_use_offline_llm": False}
+        client_off = OllamaClient(model="llama3.1:8b")
+        assert client_off.is_available is False
+
+        fallback_fn = lambda p: f"Cloud response for {p}"
+        res_fb = client_off.generate_with_fallback("Hello", cloud_fallback=fallback_fn)
+        assert res_fb == "Cloud response for Hello"
 
 
 def test_agent_memory_manager():
