@@ -14,7 +14,9 @@ from typing import Dict, Any, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+import os
+
+DEFAULT_OLLAMA_HOST = os.getenv("OLLAMA_HOST") or os.getenv("OLLAMA_CLOUD_URL") or "http://localhost:11434"
 DEFAULT_TIMEOUT = 5.0  # Strict 5 second timeout limit for health checks
 
 
@@ -360,8 +362,10 @@ def _check_cloud_fallback() -> Tuple[bool, Optional[str]]:
 
 def full_health_check(
     required_models: Optional[List[str]] = None,
-    base_url: str = "http://localhost:11434"
+    base_url: Optional[str] = None
 ) -> Dict[str, Any]:
+    if base_url is None:
+        base_url = DEFAULT_OLLAMA_HOST
     """
     Run the full health check pipeline and return a comprehensive status.
 
