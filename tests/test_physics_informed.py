@@ -23,6 +23,12 @@ from src.physics_informed.pinn_model import PhysicsInformedGAANN
 from src.physics_informed.loss import CompositePhysicsLoss
 from src.physics_informed.trainer import PINNTrainer
 from src.physics_informed.evaluator import PINNEvaluator
+from src.physics_informed.visualizer import (
+    plot_physics_loss_curves,
+    plot_extrapolation_comparison,
+    plot_physics_consistency_scatter,
+    plot_prediction_intervals_uncertainty,
+)
 
 
 def test_differentiable_physics_equations():
@@ -220,3 +226,25 @@ def test_pinn_evaluator_comprehensive_and_comparison():
     assert "pinn_metrics" in comp_res
     assert "standard_gaann_metrics" in comp_res
     assert "winner" in comp_res
+
+
+def test_pinn_visualizers():
+    """
+    Tests Plotly visualization functions in src/physics_informed/visualizer.py.
+    """
+    fig_loss = plot_physics_loss_curves([])
+    assert fig_loss is not None
+
+    pfs = np.linspace(0.4, 1.6, 20)
+    pure_preds = np.full(20, 250.0)
+    pinn_preds = 280.0 - 100.0 * (pfs ** 0.8)
+    analytical = 275.0 - 95.0 * (pfs ** 0.8)
+
+    fig_extrap = plot_extrapolation_comparison(pfs, pure_preds, pinn_preds, analytical)
+    assert fig_extrap is not None
+
+    fig_scatter = plot_physics_consistency_scatter(pinn_preds, analytical)
+    assert fig_scatter is not None
+
+    fig_ci = plot_prediction_intervals_uncertainty(pfs, pinn_preds, pinn_preds - 15.0, pinn_preds + 15.0)
+    assert fig_ci is not None
