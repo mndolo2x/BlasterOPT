@@ -13,8 +13,10 @@ except ImportError:
 
 from src.physics_informed.physics_equations import (
     kuz_ram_x50_torch,
+    swebrec_distribution_torch,
     usbm_ppv_torch,
     kuz_ram_x50_numpy,
+    swebrec_distribution_numpy,
     usbm_ppv_numpy,
 )
 from src.physics_informed.pinn_model import PhysicsInformedGAANN
@@ -35,9 +37,33 @@ def test_differentiable_physics_equations():
     # NumPy calculations
     x50_np = kuz_ram_x50_numpy(a_val, k_val, q_val)
     ppv_np = usbm_ppv_numpy(d_val, q_val)
+    v0_val = q_val / k_val
+    x50_v0_np = kuz_ram_x50_numpy(a_val, k_val, q_val, rock_volume_v0=v0_val)
+    swebrec_np = swebrec_distribution_numpy(x_sieve=200.0, x50=220.0, x_max=1000.0)
 
     assert x50_np > 0.0
     assert ppv_np > 0.0
+    assert abs(x50_v0_np - x50_np) < 1e-2
+    assert 0.0 <= swebrec_np <= 100.0
+
+    if HAS_TORCH:
+        a_t = torch.tensor([a_val], dtype=torch.float32, requires_grad=True)
+        k_t = torch.tensor([k_val], dtype=torch.float32, requires_grad=True)
+        q_t = torch.tensor([q_val], dtype=torch.float32, requires_grad=True)
+        v0_t = torch.tensor([v0_val], dtype=torch.float32, requires_grad=True)
+        sieve_t = torch.tensor([200.0], dtype=torch.float32, requires_grad=True)
+        x50_param_t = torch.tensor([220.0], dtype=torch.float32)
+        xmax_t = torch.tensor([1000.0], dtype=torch.float32)
+
+        x50_v0_t = kuz_ram_x50_torch(a_t, k_t, q_t, rock_volume_v0=v0_t)
+        swebrec_t = swebrec_distribution_torch(sieve_t, x50_param_t, xmax_t)
+
+        assert abs(x50_v0_t.item() - x50_np) < 1e-2
+        assert abs(swebrec_t.item() - swebrec_np) < 1e-2
+
+        # Test autograd backward pass
+        swebrec_t.backward()
+        assert sieve_t.grad is not None
 
     if HAS_TORCH:
         a_t = torch.tensor([a_val], dtype=torch.float32, requires_grad=True)
