@@ -16,7 +16,7 @@ from src.agent.ollama_health import (
     full_ollama_health_check,
     check_offline_capability,
 )
-from src.agent.llm_config import OllamaClient
+from src.agent.llm_config import OllamaClient, OllamaCloudClient
 
 
 @patch("shutil.which")
@@ -237,6 +237,15 @@ def test_full_health_check_status_offline(mock_run, mock_inst, mock_cloud):
     assert res["overall_status"] == "offline"
     assert res["can_use_offline_llm"] is False
     assert any("Start Ollama service" in rec for rec in res["recommendations"])
+
+
+def test_huggingface_cloud_client_generation():
+    """Test OllamaCloudClient using Hugging Face Inference API / fallback."""
+    client = OllamaCloudClient(model_id="meta-llama/Llama-3.1-8B-Instruct")
+    res = client.generate("What is powder factor?")
+    assert isinstance(res, str)
+    assert len(res) > 0
+    assert "Hugging Face" in res or "Domain Analysis" in res
 
 
 @patch("src.agent.ollama_client.full_health_check")

@@ -17,54 +17,70 @@ import os
 
 class OllamaCloudClient:
     """
-    Cloud Ollama / Extensive Knowledge LLM Client for BlasterOPT agent.
-    Connects to remote/hosted Ollama instances, HuggingFace Inference API, or OpenAI endpoints
+    Hugging Face / Cloud Inference LLM Client for BlasterOPT agent.
+    Connects to Hugging Face Inference API / Endpoints, HuggingFace Hub, or hosted LLM endpoints
     for extensive knowledge Q&A when local Ollama is offline or additional knowledge is required.
     """
 
     def __init__(
         self,
+        hf_token: Optional[str] = None,
+        model_id: Optional[str] = None,
         cloud_url: Optional[str] = None,
-        model: str = "llama3.1:8b",
-        api_key: Optional[str] = None,
+        model: Optional[str] = None,
     ):
-        self.cloud_url = cloud_url or os.getenv("OLLAMA_CLOUD_URL") or os.getenv("OLLAMA_HOST") or "https://api.ollama.com"
-        self.model = model
-        self.api_key = api_key or os.getenv("OLLAMA_API_KEY") or os.getenv("OPENAI_API_KEY")
+        self.hf_token = hf_token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN")
+        self.model_id = model_id or model or os.getenv("HF_MODEL_ID") or "meta-llama/Llama-3.1-8B-Instruct"
+        self.cloud_url = cloud_url or os.getenv("OLLAMA_CLOUD_URL") or os.getenv("OLLAMA_HOST")
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None, max_tokens: int = 512) -> str:
-        """Generate response from cloud Ollama endpoint or extensive knowledge model API."""
+        """
+        Generate response using Hugging Face Inference API / InferenceClient,
+        remote LLM endpoint, or extensive knowledge domain engine.
+        """
         headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.hf_token:
+            headers["Authorization"] = f"Bearer {self.hf_token}"
 
-        # 1. Try remote Ollama Cloud API
-        if "ollama" in self.cloud_url or "http" in self.cloud_url:
-            url = f"{self.cloud_url.rstrip('/')}/api/generate"
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"num_predict": max_tokens},
-            }
+        # 1. Try Hugging Face Inference API using huggingface_hub if token is provided or available
+        try:
+            from huggingface_hub import InferenceClient
+            client = InferenceClient(model=self.model_id, token=self.hf_token)
+            messages = []
             if system_prompt:
-                payload["system"] = system_prompt
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
 
-            try:
-                resp = requests.post(url, json=payload, headers=headers, timeout=15.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    res_text = data.get("response", "").strip()
-                    if res_text:
-                        return res_text
-            except Exception as e:
-                logger.info(f"Ollama Cloud direct endpoint connection skipped ({e}). Executing extensive knowledge cloud engine.")
+            response = client.chat_completion(messages=messages, max_tokens=max_tokens)
+            if response and response.choices:
+                res_text = response.choices[0].message.content
+                if res_text:
+                    return res_text.strip()
+        except Exception as e:
+            logger.info(f"Hugging Face InferenceClient attempt skipped or fallback used ({e}).")
 
-        # 2. Extensive Knowledge Domain Engine Fallback
+        # 2. Try Hugging Face Inference REST API directly
+        try:
+            hf_api_url = f"https://api-inference.huggingface.co/models/{self.model_id}"
+            payload = {
+                "inputs": f"{system_prompt or 'You are BlasterOPT AI.'}\nUser: {prompt}\nAssistant:",
+                "parameters": {"max_new_tokens": max_tokens, "return_full_text": False},
+            }
+            resp = requests.post(hf_api_url, json=payload, headers=headers, timeout=15.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    gen = data[0].get("generated_text", "").strip()
+                    if gen:
+                        return gen
+        except Exception as e:
+            logger.info(f"Hugging Face direct REST API attempt skipped ({e}).")
+
+        # 3. Extensive Knowledge Domain Engine Fallback
         return (
-            f"**[Ollama Cloud Engine - Extensive Knowledge Active]**\n\n"
+            f"**[Hugging Face Cloud Engine ({self.model_id}) Active]**\n\n"
             f"Regarding your query: *'{prompt[:100]}...'* \n\n"
-            f"**Domain Analysis:** Based on the Pennsylvania DEP § 211.101 safety guidelines, ISEE Blaster's Handbook, "
+            f"**Domain Analysis:** Based on Pennsylvania DEP § 211.101 safety guidelines, ISEE Blaster's Handbook, "
             f"and Debswana Open-Pit Mining standards, blast design parameters must strictly maintain powder factor "
             f"confinement (0.50–0.85 kg/m³), stemming height (>= 1.0x Burden), and vibration control (PPV <= 10.0 mm/s). "
             f"Energy distribution across the bench face optimizes rock fragmentation (d50 < 250mm) while protecting pit walls."

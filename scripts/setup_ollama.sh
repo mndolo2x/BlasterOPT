@@ -27,6 +27,12 @@
 # 4. 5-SECOND NON-BLOCKING HEALTH CHECK CONSTRAINT:
 #    System health checks must complete within a strict 5-second timeout window to prevent
 #    blocking Streamlit UI rendering or delaying critical pit floor blast design decisions.
+#
+# 5. HUGGING FACE INFERENCE & HUB INTEGRATION:
+#    To host or run models via Hugging Face Hub / Inference Endpoints:
+#    Set environment variables:
+#    export HF_TOKEN="your_huggingface_api_token"
+#    export HF_MODEL_ID="meta-llama/Llama-3.1-8B-Instruct"
 # ==============================================================================
 
 set -e

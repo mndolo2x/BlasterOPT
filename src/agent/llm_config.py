@@ -17,20 +17,39 @@ logger = logging.getLogger(__name__)
 
 class CloudLLM:
     """
-    Cloud LLM interface (GPT-4o / Claude 3.5 Sonnet) for complex reasoning tasks.
+    Cloud LLM interface supporting Hugging Face Inference API / Endpoints (e.g. 'meta-llama/Llama-3.1-8B-Instruct'),
+    OpenAI GPT-4o, and Anthropic Claude.
     """
 
-    def __init__(self, model_name: str = "gpt-4o", api_key: Optional[str] = None):
-        self.model_name = model_name
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+    def __init__(self, model_name: Optional[str] = None, api_key: Optional[str] = None, endpoint_url: Optional[str] = None):
+        self.model_name = model_name or os.getenv("HF_MODEL_ID") or "meta-llama/Llama-3.1-8B-Instruct"
+        self.api_key = api_key or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+        self.endpoint_url = endpoint_url or os.getenv("HF_ENDPOINT_URL") or os.getenv("OPENAI_BASE_URL")
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generates response using Cloud LLM or fallback if key missing."""
-        if not self.api_key:
-            logger.warning("Cloud LLM API key missing. Falling back to rule-based parser.")
-            return f"[Cloud LLM Simulated Response for: {prompt[:50]}...]"
+        """Generates response using Hugging Face Inference API, custom endpoint, or fallback."""
+        if self.api_key or self.endpoint_url:
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
 
-        # Real/simulated API call logic
+            target_url = self.endpoint_url or f"https://api-inference.huggingface.co/models/{self.model_name}"
+            payload = {
+                "inputs": f"{system_prompt or 'You are BlasterOPT AI.'}\nUser: {prompt}\nAssistant:",
+                "parameters": {"max_new_tokens": 512, "return_full_text": False},
+            }
+            try:
+                resp = requests.post(target_url, json=payload, headers=headers, timeout=20.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        gen = data[0].get("generated_text", "").strip()
+                        if gen:
+                            return gen
+            except Exception as e:
+                logger.warning(f"Hugging Face Cloud LLM endpoint request error: {e}")
+
+        # Fallback analysis
         return f"Cloud LLM ({self.model_name}) analysis: {prompt}"
 
 
