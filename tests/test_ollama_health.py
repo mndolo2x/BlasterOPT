@@ -11,6 +11,7 @@ from src.agent.ollama_health import (
     check_model_generation,
     list_ollama_models,
     test_ollama_generation,
+    full_health_check,
     full_ollama_health_check,
 )
 
@@ -141,20 +142,44 @@ def test_test_ollama_generation_success(mock_post):
 
 @patch("src.agent.ollama_health.check_ollama_installed")
 @patch("src.agent.ollama_health.check_ollama_running")
-@patch("src.agent.ollama_health.list_ollama_models")
-@patch("src.agent.ollama_health.test_ollama_generation")
-def test_full_ollama_health_check_aggregated(mock_gen, mock_list, mock_run, mock_inst):
-    """Test full_ollama_health_check aggregating all status metrics."""
+@patch("src.agent.ollama_health.check_required_models")
+@patch("src.agent.ollama_health.check_model_generation")
+def test_full_health_check_status_healthy(mock_gen, mock_req, mock_run, mock_inst):
+    """Test full_health_check returning 'healthy' when everything works."""
     mock_inst.return_value = {"installed": True, "path": "/usr/bin/ollama", "version": "0.1.24", "error": None}
-    mock_run.return_value = {"running": True, "host": "http://localhost:11434", "status_code": 200, "error": None}
-    mock_list.return_value = {"models": ["llama3:8b"], "details": [], "count": 1, "error": None}
-    mock_gen.return_value = {"success": True, "response": "OK", "latency_ms": 12.0, "error": None}
+    mock_run.return_value = {"running": True, "base_url": "http://localhost:11434", "response_time_ms": 10.0, "error": None}
+    mock_req.return_value = {"all_present": True, "present": ["llama3.1:8b", "llama3.2:3b"], "missing": [], "available": ["llama3.1:8b", "llama3.2:3b"], "error": None}
+    mock_gen.return_value = {"working": True, "model": "llama3.1:8b", "response": "OK", "response_time_ms": 150.0, "error": None}
 
-    res = full_ollama_health_check(required_models=["llama3:8b"])
-    assert res["healthy"] is True
-    assert res["installed"] is True
-    assert res["running"] is True
-    assert "llama3:8b" in res["models"]
-    assert len(res["missing_models"]) == 0
-    assert res["generation_working"] is True
-    assert res["total_latency_ms"] < 5000.0
+    res = full_health_check()
+    assert res["overall_status"] == "healthy"
+    assert res["can_use_offline_llm"] is True
+    assert len(res["recommendations"]) == 0
+
+
+@patch("src.agent.ollama_health.check_ollama_installed")
+@patch("src.agent.ollama_health.check_ollama_running")
+@patch("src.agent.ollama_health.check_required_models")
+@patch("src.agent.ollama_health.check_model_generation")
+def test_full_health_check_status_degraded(mock_gen, mock_req, mock_run, mock_inst):
+    """Test full_health_check returning 'degraded' when models are missing."""
+    mock_inst.return_value = {"installed": True, "path": "/usr/bin/ollama", "version": "0.1.24", "error": None}
+    mock_run.return_value = {"running": True, "base_url": "http://localhost:11434", "response_time_ms": 10.0, "error": None}
+    mock_req.return_value = {"all_present": False, "present": ["llama3.1:8b"], "missing": ["llama3.2:3b"], "available": ["llama3.1:8b"], "error": None}
+    mock_gen.return_value = {"working": True, "model": "llama3.1:8b", "response": "OK", "response_time_ms": 150.0, "error": None}
+
+    res = full_health_check()
+    assert res["overall_status"] == "degraded"
+    assert res["can_use_offline_llm"] is True
+    assert len(res["recommendations"]) >= 1
+
+
+@patch("src.agent.ollama_health.check_ollama_installed")
+def test_full_health_check_status_not_installed(mock_inst):
+    """Test full_health_check returning 'not_installed' when Ollama is missing."""
+    mock_inst.return_value = {"installed": False, "path": None, "version": None, "error": "Not found"}
+
+    res = full_health_check()
+    assert res["overall_status"] == "not_installed"
+    assert res["can_use_offline_llm"] is False
+    assert "Install Ollama" in res["recommendations"][0]

@@ -342,77 +342,125 @@ def test_ollama_generation(
     }
 
 
-def full_ollama_health_check(
+from datetime import datetime, timezone
+
+
+def full_health_check(
     required_models: Optional[List[str]] = None,
-    host: str = DEFAULT_OLLAMA_HOST
+    base_url: str = "http://localhost:11434"
 ) -> Dict[str, Any]:
     """
-    Executes complete Ollama health check suite (installed, running, model availability, test generation)
-    ensuring overall execution completes within <= 5 seconds.
+    Run the full health check pipeline and return a comprehensive status.
 
     Parameters:
     -----------
     required_models : Optional[List[str]], optional
-        List of required model names (e.g. ["llama3:8b"]).
-    host : str, default="http://localhost:11434"
-        Ollama server base URL endpoint.
+        List of required models (defaults to ['llama3.1:8b', 'llama3.2:3b']).
+    base_url : str, default="http://localhost:11434"
+        Ollama server base URL.
 
     Returns:
     --------
     Dict[str, Any]
-        Aggregated health status dictionary.
+        {
+            "overall_status": str,  # "healthy", "degraded", "offline", "not_installed"
+            "timestamp": str,  # ISO format
+            "installed": dict,
+            "running": dict,
+            "models": dict,
+            "generation_test": dict,
+            "recommendations": list,
+            "can_use_offline_llm": bool
+        }
     """
-    start_time = time.time()
+    if required_models is None:
+        required_models = ["llama3.1:8b", "llama3.2:3b"]
 
+    timestamp = datetime.now(timezone.utc).isoformat()
+    recommendations = []
+
+    # 1. Check installed
     inst_res = check_ollama_installed()
-    run_res = check_ollama_running(host=host)
-
-    if not run_res["running"]:
-        total_time_ms = (time.time() - start_time) * 1000.0
+    if not inst_res["installed"]:
+        recommendations.append("Install Ollama from https://ollama.com.")
         return {
-            "healthy": False,
-            "installed": inst_res["installed"],
-            "running": False,
-            "version": inst_res.get("version"),
-            "host": host,
-            "models": [],
-            "missing_models": required_models or [],
-            "generation_working": False,
-            "total_latency_ms": round(total_time_ms, 2),
-            "summary": "Ollama server is not running.",
-            "error": run_res.get("error") or inst_res.get("error")
+            "overall_status": "not_installed",
+            "timestamp": timestamp,
+            "installed": inst_res,
+            "running": {"running": False, "base_url": base_url, "response_time_ms": 0.0, "error": "Ollama not installed."},
+            "models": {"all_present": False, "present": [], "missing": required_models, "available": [], "error": "Ollama not installed."},
+            "generation_test": {"working": False, "model": required_models[0] if required_models else "None", "response": None, "response_time_ms": 0.0, "error": "Ollama not installed."},
+            "recommendations": recommendations,
+            "can_use_offline_llm": False,
         }
 
-    models_res = list_ollama_models(host=host)
-    avail_models = models_res.get("models", [])
+    # 2. Check running
+    run_res = check_ollama_running(base_url=base_url)
+    if not run_res["running"]:
+        recommendations.append("Start Ollama service using 'ollama serve' or system service manager.")
+        return {
+            "overall_status": "offline",
+            "timestamp": timestamp,
+            "installed": inst_res,
+            "running": run_res,
+            "models": {"all_present": False, "present": [], "missing": required_models, "available": [], "error": "Ollama server offline."},
+            "generation_test": {"working": False, "model": required_models[0] if required_models else "None", "response": None, "response_time_ms": 0.0, "error": "Ollama server offline."},
+            "recommendations": recommendations,
+            "can_use_offline_llm": False,
+        }
 
-    missing = []
-    if required_models:
-        for req in required_models:
-            if not any(req in m for m in avail_models):
-                missing.append(req)
+    # 3. Check models
+    models_res = check_required_models(required_models=required_models, base_url=base_url)
+    if not models_res["all_present"]:
+        for m in models_res["missing"]:
+            recommendations.append(f"Pull missing model using 'ollama pull {m}'.")
 
-    gen_working = False
-    gen_err = None
-    if avail_models:
-        test_model = avail_models[0]
-        gen_res = test_ollama_generation(model=test_model, host=host)
-        gen_working = gen_res["success"]
-        gen_err = gen_res.get("error")
+    # 4. Check generation
+    test_target_model = models_res["present"][0] if models_res["present"] else (models_res["available"][0] if models_res["available"] else required_models[0])
+    gen_res = check_model_generation(model_name=test_target_model, base_url=base_url)
 
-    total_time_ms = (time.time() - start_time) * 1000.0
-    is_healthy = inst_res["installed"] and run_res["running"] and (len(missing) == 0) and gen_working
+    if not gen_res["working"]:
+        recommendations.append(f"Verify model '{test_target_model}' execution or re-pull model.")
+
+    # Determine overall status
+    all_models_present = models_res["all_present"]
+    gen_ok = gen_res["working"]
+
+    if all_models_present and gen_ok:
+        overall_status = "healthy"
+        can_use_offline = True
+    else:
+        overall_status = "degraded"
+        can_use_offline = gen_ok  # can use if at least 1 model generates
 
     return {
-        "healthy": is_healthy,
-        "installed": inst_res["installed"],
-        "running": True,
-        "version": inst_res.get("version"),
+        "overall_status": overall_status,
+        "timestamp": timestamp,
+        "installed": inst_res,
+        "running": run_res,
+        "models": models_res,
+        "generation_test": gen_res,
+        "recommendations": recommendations,
+        "can_use_offline_llm": can_use_offline,
+    }
+
+
+def full_ollama_health_check(
+    required_models: Optional[List[str]] = None,
+    host: str = DEFAULT_OLLAMA_HOST
+) -> Dict[str, Any]:
+    """Legacy alias wrapping full_health_check."""
+    res = full_health_check(required_models=required_models, base_url=host)
+    return {
+        "healthy": res["overall_status"] == "healthy",
+        "installed": res["installed"]["installed"],
+        "running": res["running"]["running"],
+        "version": res["installed"].get("version"),
         "host": host,
-        "models": avail_models,
-        "missing_models": missing,
-        "generation_working": gen_working,
-        "total_latency_ms": round(total_time_ms, 2),
-        "summary": "Ollama offline LLM runner is fully operational." if is_healthy else "Ollama issue detected.",
-        "error": gen_err or models_res.get("error")
+        "models": res["models"].get("available", []),
+        "missing_models": res["models"].get("missing", []),
+        "generation_working": res["generation_test"].get("working", False),
+        "total_latency_ms": res["running"].get("response_time_ms", 0.0),
+        "summary": f"Ollama status: {res['overall_status'].upper()}.",
+        "error": res.get("recommendations", [None])[0] if res.get("recommendations") else None,
     }
