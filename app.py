@@ -50,7 +50,8 @@ from src.explainability_audit import log_explanation, get_recent_explanations, g
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 from src.agent.guardrails import get_guardrail_trips
 from src.agent.voice_interface import process_voice_turn, start_voice_session
-from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode, render_knowledge_qa
+from src.agent.agent_ui import render_agent_chat, render_guided_mode, render_expert_mode, render_voice_mode, render_knowledge_qa, render_system_health
+from src.agent.ollama_health import full_health_check
 from src.agent.audit import get_interaction_history, get_decision_history, export_audit_log_json
 import plotly.express as px
 import plotly.graph_objects as go
@@ -145,6 +146,20 @@ if voice_mode_active:
                 # Play synthesized speech response
                 st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
+# Sidebar Ollama Status Indicator
+st.sidebar.markdown("---")
+if "sidebar_ollama_status" not in st.session_state:
+    st.session_state["sidebar_ollama_status"] = full_health_check()
+
+ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
+ollama_icons = {
+    "healthy": "🟢 Ollama: Operational",
+    "degraded": "🟡 Ollama: Degraded",
+    "offline": "🔴 Ollama: Offline",
+    "not_installed": "⚪ Ollama: Not Installed",
+}
+st.sidebar.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
+
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select Module",
@@ -172,6 +187,7 @@ page = st.sidebar.radio(
         get_translation("nav_pattern", lang_code),
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_audit_log", lang_code),
+        get_translation("nav_system_health", lang_code),
         get_translation("nav_visualize", lang_code),
     ],
 )
@@ -224,6 +240,8 @@ page_keys = {
     get_translation("nav_guardrail_log", "tn"): "guardrail_log",
     get_translation("nav_audit_log", "en"): "audit_log",
     get_translation("nav_audit_log", "tn"): "audit_log",
+    get_translation("nav_system_health", "en"): "system_health",
+    get_translation("nav_system_health", "tn"): "system_health",
     get_translation("nav_visualize", "en"): "visualize",
     get_translation("nav_visualize", "tn"): "visualize",
 }
@@ -2055,6 +2073,11 @@ elif active_module == "guardrail_log":
         st.dataframe(df_trips, use_container_width=True)
     else:
         st.info("No guardrail trips recorded for the selected filter.")
+
+
+# --- MODULE: OLLAMA SYSTEM HEALTH ---
+elif active_module == "system_health":
+    render_system_health()
 
 
 # --- MODULE 6: 2D BLAST PATTERN & DELAYS ---

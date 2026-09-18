@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 from typing import Dict, Any, List, Optional
 
 from src.agent.voice_interface import process_voice_turn, start_voice_session
+from src.agent.ollama_health import full_health_check, check_model_generation
 from src.agent.agent_graph import build_agent_graph
 from src.agent.state import AgentState
 from src.predict import predict_single_blast
@@ -312,3 +313,132 @@ def render_knowledge_qa(user_role: str = "engineer"):
                 st.json({"model": "OxxoCodes/Pula-8B-v0.1", "context": "Botswana Open-Pit Mining Domain"})
             else:
                 st.info("**Knowledge Source:** `BlasterOPT AI Decision Support Core`")
+
+
+def render_system_health():
+    """
+    Renders the Ollama System Health Check page in Streamlit:
+    - Overall Status colored indicator (green/yellow/red/grey).
+    - Installation Status (path, version).
+    - Service Status (running, base_url, response_time_ms).
+    - Model Status table (required models, present/missing, available sizes).
+    - Generation Test with live prompt.
+    - Actionable recommendations.
+    - Refresh button.
+    """
+    st.subheader("🖥️ Ollama Local LLM System Health & Status")
+    st.markdown(
+        "Monitors local offline LLM runner status for pit floor autonomy. "
+        "Verifies system binary installation, REST service connectivity, required model tags, "
+        "and real-time text generation response latency."
+    )
+
+    if st.button("🔄 Refresh Health Check Status", type="primary", key="btn_refresh_ollama"):
+        st.session_state["ollama_health_cache"] = full_health_check()
+        st.success("Health status refreshed!")
+
+    if "ollama_health_cache" not in st.session_state:
+        st.session_state["ollama_health_cache"] = full_health_check()
+
+    health = st.session_state["ollama_health_cache"]
+    status = health.get("overall_status", "not_installed")
+
+    st.markdown("---")
+    st.markdown("### 📊 Overall Offline LLM Status Indicator")
+
+    status_color_map = {
+        "healthy": ("#00C853", "🟢 HEALTHY - Offline LLM Runner Fully Operational"),
+        "degraded": ("#FFD600", "🟡 DEGRADED - Ollama Running, but Some Models Missing or Test Failed"),
+        "offline": ("#D50000", "🔴 OFFLINE - Ollama Installed but Service Is Not Running"),
+        "not_installed": ("#757575", "⚪ NOT INSTALLED - Ollama Executable Binary Missing"),
+    }
+
+    color, status_text = status_color_map.get(status, ("#757575", f"⚪ UNKNOWN - {status}"))
+
+    st.markdown(
+        f"""
+        <div style="background-color: {color}22; border-left: 8px solid {color}; padding: 16px; border-radius: 6px; margin-bottom: 20px;">
+            <h3 style="color: {color}; margin: 0;">{status_text}</h3>
+            <p style="margin: 5px 0 0 0; color: #555;"><b>Checked at:</b> {health.get('timestamp', 'N/A')}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_s1, col_s2 = st.columns(2)
+
+    with col_s1:
+        st.markdown("### 🛠️ 1. Installation Status")
+        inst = health.get("installed", {})
+        if inst.get("installed"):
+            st.success("✅ **Ollama Executable:** Installed")
+            st.write(f"**Binary Path:** `{inst.get('path', 'N/A')}`")
+            st.write(f"**Version:** `{inst.get('version', 'N/A')}`")
+        else:
+            st.error("❌ **Ollama Executable:** Not Found")
+            st.info(f"**Details:** {inst.get('error')}")
+
+    with col_s2:
+        st.markdown("### 🌐 2. Service Status")
+        run_info = health.get("running", {})
+        if run_info.get("running"):
+            st.success("✅ **Ollama API Service:** Online & Reachable")
+            st.write(f"**Base Endpoint:** `{run_info.get('base_url', 'http://localhost:11434')}`")
+            st.write(f"**Ping Latency:** `{run_info.get('response_time_ms', 0.0):.1f} ms`")
+        else:
+            st.error("❌ **Ollama API Service:** Offline")
+            st.info(f"**Error Details:** {run_info.get('error')}")
+
+    st.markdown("---")
+    st.markdown("### 📦 3. Required Models Availability Status")
+
+    models_info = health.get("models", {})
+    req_models = ["llama3.1:8b", "llama3.2:3b"]
+    avail_models = models_info.get("available", [])
+
+    model_rows = []
+    for rm in req_models:
+        is_present = any(rm in m or m in rm for m in avail_models)
+        status_str = "✅ Present" if is_present else "❌ Missing"
+        model_rows.append({
+            "Required Model Tag": rm,
+            "Role in BlasterOPT": "Primary Offline Agent" if "3.1" in rm else "Edge Fallback Agent",
+            "Availability Status": status_str,
+        })
+
+    st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
+    st.write(f"**All Local Available Models ({len(avail_models)}):** `{', '.join(avail_models) if avail_models else 'None'}`")
+
+    st.markdown("---")
+    st.markdown("### ⚡ 4. Live Text Generation Test")
+
+    gen_test = health.get("generation_test", {})
+    test_model = gen_test.get("model", "llama3.1:8b")
+
+    col_gt1, col_gt2 = st.columns([1, 2])
+    with col_gt1:
+        selected_test_model = st.selectbox("Select Model for Live Test Prompt", avail_models if avail_models else [test_model])
+        if st.button("🚀 Run Generation Test (Prompt: 'Say OK')", type="primary"):
+            with st.spinner("Testing model inference..."):
+                gen_res = check_model_generation(model_name=selected_test_model)
+                st.session_state["live_gen_res"] = gen_res
+
+    with col_gt2:
+        res_display = st.session_state.get("live_gen_res", gen_test)
+        if res_display.get("working"):
+            st.success(f"✅ **Generation Working for `{res_display.get('model')}`**")
+            st.write(f"**Response:** `{res_display.get('response')}`")
+            st.write(f"**Inference Latency:** `{res_display.get('response_time_ms', 0.0):.1f} ms`")
+        else:
+            st.error("❌ **Generation Test Failed**")
+            st.info(f"**Error:** {res_display.get('error')}")
+
+    st.markdown("---")
+    st.markdown("### 💡 5. Actionable Next Steps & Recommendations")
+
+    recs = health.get("recommendations", [])
+    if recs:
+        for r in recs:
+            st.warning(f"👉 **Action Item:** {r}")
+    else:
+        st.success("🎉 **No Actions Needed:** All offline LLM checks are healthy and operational!")
