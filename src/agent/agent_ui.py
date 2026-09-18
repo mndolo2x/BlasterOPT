@@ -333,9 +333,20 @@ def render_system_health():
         "and real-time text generation response latency."
     )
 
-    if st.button("🔄 Refresh Health Check Status", type="primary", key="btn_refresh_ollama"):
-        st.session_state["ollama_health_cache"] = full_health_check()
-        st.success("Health status refreshed!")
+    col_tb1, col_tb2 = st.columns([1, 1])
+    with col_tb1:
+        if st.button("🧪 Test Ollama Status Now", type="primary", key="btn_test_ollama"):
+            with st.spinner("Executing real-time Ollama full health check pipeline..."):
+                st.session_state["ollama_health_cache"] = full_health_check()
+                st.session_state["sidebar_ollama_status"] = st.session_state["ollama_health_cache"]
+                st.success("Full Ollama health check completed!")
+
+    with col_tb2:
+        if st.button("🔄 Refresh Health Check Status", key="btn_refresh_ollama"):
+            with st.spinner("Refreshing cached Ollama health metrics..."):
+                st.session_state["ollama_health_cache"] = full_health_check()
+                st.session_state["sidebar_ollama_status"] = st.session_state["ollama_health_cache"]
+                st.success("Health status refreshed!")
 
     if "ollama_health_cache" not in st.session_state:
         st.session_state["ollama_health_cache"] = full_health_check()
