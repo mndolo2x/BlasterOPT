@@ -189,6 +189,7 @@ if "sidebar_ollama_status" not in st.session_state:
 ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
 ollama_icons = {
     "healthy": "🟢 Ollama: Operational",
+    "cloud_active": "🟢 Ollama: Cloud Active",
     "degraded": "🟡 Ollama: Degraded",
     "offline": "🔴 Ollama: Offline",
     "not_installed": "⚪ Ollama: Not Installed",

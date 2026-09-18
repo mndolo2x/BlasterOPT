@@ -211,10 +211,12 @@ def test_check_offline_capability(mock_full):
     assert "Start Ollama service" in res_unavail["reason"]
 
 
+@patch("src.agent.ollama_health._check_cloud_fallback")
 @patch("src.agent.ollama_health.check_ollama_installed")
-def test_full_health_check_status_not_installed(mock_inst):
-    """Test full_health_check returning 'not_installed' when Ollama is missing."""
+def test_full_health_check_status_not_installed(mock_inst, mock_cloud):
+    """Test full_health_check returning 'not_installed' when Ollama and cloud are missing."""
     mock_inst.return_value = {"installed": False, "path": None, "version": None, "error": "Not found"}
+    mock_cloud.return_value = (False, None)
 
     res = full_health_check()
     assert res["overall_status"] == "not_installed"
@@ -222,12 +224,14 @@ def test_full_health_check_status_not_installed(mock_inst):
     assert "Install Ollama" in res["recommendations"][0]
 
 
+@patch("src.agent.ollama_health._check_cloud_fallback")
 @patch("src.agent.ollama_health.check_ollama_installed")
 @patch("src.agent.ollama_health.check_ollama_running")
-def test_full_health_check_status_offline(mock_run, mock_inst):
-    """Test full_health_check returning 'offline' when server is not running."""
+def test_full_health_check_status_offline(mock_run, mock_inst, mock_cloud):
+    """Test full_health_check returning 'offline' when server is not running and cloud unavailable."""
     mock_inst.return_value = {"installed": True, "path": "/usr/bin/ollama", "version": "0.1.24", "error": None}
     mock_run.return_value = {"running": False, "base_url": "http://localhost:11434", "response_time_ms": 0.0, "error": "Connection refused"}
+    mock_cloud.return_value = (False, None)
 
     res = full_health_check()
     assert res["overall_status"] == "offline"
@@ -235,7 +239,7 @@ def test_full_health_check_status_offline(mock_run, mock_inst):
     assert any("Start Ollama service" in rec for rec in res["recommendations"])
 
 
-@patch("src.agent.ollama_health.full_health_check")
+@patch("src.agent.ollama_client.full_health_check")
 def test_ollama_client_generate_with_fallback(mock_full_health):
     """Test OllamaClient.generate_with_fallback falls back to cloud when Ollama is unavailable."""
     mock_full_health.return_value = {

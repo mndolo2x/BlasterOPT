@@ -418,6 +418,7 @@ def render_system_health():
 
     status_color_map = {
         "healthy": ("#00C853", "🟢 HEALTHY - Offline LLM Runner Fully Operational"),
+        "cloud_active": ("#00C853", "🟢 CLOUD ACTIVE - Ollama Cloud Engine & Extensive Knowledge Operational"),
         "degraded": ("#FFD600", "🟡 DEGRADED - Ollama Running, but Some Models Missing or Test Failed"),
         "offline": ("#D50000", "🔴 OFFLINE - Ollama Installed but Service Is Not Running"),
         "not_installed": ("#757575", "⚪ NOT INSTALLED - Ollama Executable Binary Missing"),
