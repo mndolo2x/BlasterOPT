@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from src.agent.tool_registry import BlastDesign
 from src.regulatory import load_regulatory_limits
+from src.agent.ollama_health import check_offline_capability
 
 logger = logging.getLogger(__name__)
 

@@ -122,7 +122,7 @@ def test_ollama_client_generate_and_fallback():
     """Test OllamaClient availability, generate, and fallback handling."""
     from unittest.mock import patch, MagicMock
 
-    with patch("src.agent.llm_config.full_health_check") as mock_health:
+    with patch("src.agent.ollama_client.full_health_check") as mock_health:
         mock_health.return_value = {"can_use_offline_llm": True}
         client = OllamaClient(model="llama3.1:8b")
         assert client.is_available is True
@@ -137,7 +137,7 @@ def test_ollama_client_generate_and_fallback():
             assert ans == "Local response"
 
     # Test Fallback when Ollama unavailable
-    with patch("src.agent.llm_config.full_health_check") as mock_health:
+    with patch("src.agent.ollama_client.full_health_check") as mock_health:
         mock_health.return_value = {"can_use_offline_llm": False}
         client_off = OllamaClient(model="llama3.1:8b")
         assert client_off.is_available is False
