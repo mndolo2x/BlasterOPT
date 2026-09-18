@@ -10,9 +10,10 @@ from src.agent.ollama_health import (
     check_required_models,
     check_model_generation,
     list_ollama_models,
-    test_ollama_generation,
+    test_ollama_generation as ollama_gen_fn,
     full_health_check,
     full_ollama_health_check,
+    check_offline_capability,
 )
 
 
@@ -133,7 +134,7 @@ def test_test_ollama_generation_success(mock_post):
     mock_resp.json.return_value = {"response": "Hello from Llama 3!"}
     mock_post.return_value = mock_resp
 
-    res = test_ollama_generation(model="llama3:8b")
+    res = ollama_gen_fn(model="llama3:8b")
     assert res["success"] is True
     assert res["response"] == "Hello from Llama 3!"
     assert res["latency_ms"] >= 0.0
@@ -172,6 +173,26 @@ def test_full_health_check_status_degraded(mock_gen, mock_req, mock_run, mock_in
     assert res["overall_status"] == "degraded"
     assert res["can_use_offline_llm"] is True
     assert len(res["recommendations"]) >= 1
+
+
+@patch("src.agent.ollama_health.full_health_check")
+def test_check_offline_capability(mock_full):
+    """Test check_offline_capability when offline LLM is available vs unavailable."""
+    mock_full.return_value = {
+        "can_use_offline_llm": True,
+        "recommendations": []
+    }
+    res_avail = check_offline_capability()
+    assert res_avail["available"] is True
+    assert "Ollama is running" in res_avail["reason"]
+
+    mock_full.return_value = {
+        "can_use_offline_llm": False,
+        "recommendations": ["Start Ollama service."]
+    }
+    res_unavail = check_offline_capability()
+    assert res_unavail["available"] is False
+    assert "Start Ollama service" in res_unavail["reason"]
 
 
 @patch("src.agent.ollama_health.check_ollama_installed")

@@ -445,6 +445,33 @@ def full_health_check(
     }
 
 
+def check_offline_capability() -> Dict[str, Any]:
+    """
+    Check if offline generation is available.
+
+    Returns:
+    --------
+    Dict[str, Any]
+        {
+            "available": bool,
+            "reason": str
+        }
+    """
+    health = full_health_check()
+    if health.get("can_use_offline_llm", False):
+        return {
+            "available": True,
+            "reason": "Ollama is running with required models."
+        }
+    else:
+        recs = health.get("recommendations", [])
+        reason_msg = recs[0] if recs else (health.get("error") or "Unknown error.")
+        return {
+            "available": False,
+            "reason": reason_msg
+        }
+
+
 def full_ollama_health_check(
     required_models: Optional[List[str]] = None,
     host: str = DEFAULT_OLLAMA_HOST
