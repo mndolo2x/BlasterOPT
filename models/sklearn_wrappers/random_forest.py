@@ -2,65 +2,65 @@
 Random Forest Blast Prediction Model Wrapper (`models/sklearn_wrappers/random_forest.py`).
 """
 
-import numpy as np
 import pandas as pd
 from typing import Dict, Any, Optional, Union
 from sklearn.ensemble import RandomForestRegressor
 from models.base import BaseBlastModel, ModelMetadata
 
 
-class RandomForestBlastModel(BaseBlastModel):
-    """
-    Multi-output Random Forest regressor for blast outcome predictions.
-    """
-
-    def __init__(self, model_name: str = "RandomForestBlastModel", config: Optional[Dict[str, Any]] = None):
-        super().__init__(model_name=model_name, config=config)
-        n_estimators = self.config.get("n_estimators", 100)
-        max_depth = self.config.get("max_depth", 12)
-        random_state = self.config.get("random_state", 42)
-
-        self.model = RandomForestRegressor(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            random_state=random_state
-        )
+class RandomForestModel(BaseBlastModel):
+    def __init__(self, **kwargs):
+        super().__init__(model_name="RandomForestModel", config=kwargs)
+        self.model = RandomForestRegressor(**kwargs)
 
     @classmethod
     def get_metadata(cls) -> ModelMetadata:
         return ModelMetadata(
             name="random_forest",
-            display_name="Random Forest Regressor",
+            display_name="Random Forest",
             model_type="sklearn",
-            description="Multi-output decision tree ensemble model.",
+            description="Random Forest regressor for blast outcome prediction.",
             version="1.0.0",
-            author="BlastOpt Botswana Team",
+            author="BlastOpt Team",
+            input_features=["burden", "spacing", "powder_factor", "stemming", "rock_factor"],
+            output_features=["fragmentation_p80", "ppv", "airblast"],
+            supports_training=True,
+            supports_uncertainty=False,
             supports_explainability=True,
-            tags=["tree", "ensemble", "baseline"]
+            requires_gpu=False,
+            tags=["baseline", "tree-based"],
         )
 
-    def fit(self, X: Union[pd.DataFrame, np.ndarray], y: Union[pd.DataFrame, np.ndarray], **kwargs) -> "RandomForestBlastModel":
-        X_arr = X.values if isinstance(X, pd.DataFrame) else X
-        y_arr = y.values if isinstance(y, pd.DataFrame) else y
-        self.model.fit(X_arr, y_arr)
+    def fit(self, X, y, **kwargs):
+        self.model.fit(X, y)
         self.is_fitted = True
         return self
 
-    def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
-        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+    def predict(self, X):
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
         if not self.is_fitted:
-            n_samples = X_arr.shape[0] if X_arr.ndim > 1 else 1
-            preds = np.tile([220.0, 4.20, 110.0, 4.80], (n_samples, 1))
-        else:
-            preds = np.maximum(0.01, self.model.predict(X_arr))
+            preds = pd.DataFrame(
+                [[220.0, 4.20, 110.0]] * len(X_df),
+                columns=self.get_metadata().output_features,
+                index=X_df.index
+            )
+            return preds
 
-        if isinstance(X, pd.DataFrame):
-            return pd.DataFrame(preds, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_usd"])
-        return preds
+        preds = self.model.predict(X_df)
+        return pd.DataFrame(preds, columns=self.get_metadata().output_features, index=X_df.index)
 
-    def explain(self, X: Union[pd.DataFrame, np.ndarray]) -> Optional[Dict[str, Any]]:
-        if not self.is_fitted:
-            return None
-        importances = self.model.feature_importances_
-        feature_names = self.get_metadata().input_features
-        return {"feature_importances": dict(zip(feature_names[:len(importances)], importances.tolist()))}
+    def save(self, path):
+        import joblib
+        joblib.dump(self.model, path)
+
+    @classmethod
+    def load(cls, path):
+        import joblib
+        obj = cls()
+        obj.model = joblib.load(path)
+        obj.is_fitted = True
+        return obj
+
+
+# Alias for backward compatibility
+RandomForestBlastModel = RandomForestModel

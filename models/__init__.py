@@ -6,7 +6,7 @@ sklearn wrappers, custom physics & neural network models, and get_registry() sin
 
 from models.base import BaseBlastModel, ModelMetadata
 from models.registry import ModelRegistry, get_registry, register_model
-from models.sklearn_wrappers.random_forest import RandomForestBlastModel
+from models.sklearn_wrappers.random_forest import RandomForestModel, RandomForestBlastModel
 from models.sklearn_wrappers.xgboost import XGBoostBlastModel
 from models.sklearn_wrappers.ridge import RidgeBlastModel
 from models.custom.ga_ann import GAANNBlastModel
@@ -20,6 +20,7 @@ __all__ = [
     "ModelRegistry",
     "get_registry",
     "register_model",
+    "RandomForestModel",
     "RandomForestBlastModel",
     "XGBoostBlastModel",
     "RidgeBlastModel",
