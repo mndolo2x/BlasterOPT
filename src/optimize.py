@@ -159,10 +159,19 @@ class BlastOptimizer:
             preds = predict_single_blast(opt_inputs, model_pipeline=self.ml_pipeline)
             obj_score = self._objective_function(vec)
 
+            from src.domain.safety_checks import evaluate_safety
+            safety_rep = evaluate_safety(
+                preds,
+                limits={"max_ppv_mms": self.max_ppv, "max_flyrock_m": self.max_flyrock},
+                blast_params=opt_inputs,
+            )
+            preds["safety_report"] = safety_rep.model_dump()
+
             evaluated_candidates.append({
                 "score": obj_score,
                 "parameters": opt_inputs,
                 "outputs": preds,
+                "safety_report": safety_rep.model_dump(),
             })
 
         # Sort candidates by objective score (cost + penalties) and pick top 5 distinct designs
@@ -181,6 +190,7 @@ class BlastOptimizer:
                 break
 
         best_design = top_designs[0]
+        best_safety = best_design["outputs"].get("safety_report", {})
 
         return {
             "success": bool(result.success),
@@ -190,6 +200,10 @@ class BlastOptimizer:
             "top_5_designs": top_designs,
             "convergence_history": convergence_history,
             "optimization_message": str(result.message),
+            "safety_report": best_safety,
+            "overall_status": best_safety.get("overall_status", "SAFE"),
+            "requires_engineer_review": best_safety.get("requires_engineer_review", False),
+            "blocks_export": best_safety.get("blocks_export", False),
         }
 
 

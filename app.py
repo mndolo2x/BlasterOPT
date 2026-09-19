@@ -115,6 +115,8 @@ st.set_page_config(
 )
 
 from src.config import DEMO_MODE, get_provenance_badge
+from src.domain.safety_checks import evaluate_safety, SafetyReport
+from src.domain.approval import approve_design, check_approval_gate, get_approval_record
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
@@ -609,6 +611,24 @@ elif active_module == "predictor":
         m2.metric("Ground PPV", f"{predictions['ppv_mms']:.2f} mm/s")
         m3.metric("Flyrock Distance", f"{predictions['flyrock_m']:.1f} m")
         m4.metric("D&B Cost", f"${predictions['cost_per_tonne_usd']:.2f} / t")
+
+        # Uncertainty-Aware Safety Report
+        safety_dict = predictions.get("safety_report", {})
+        if safety_dict:
+            st.markdown("---")
+            st.subheader("🛡️ Uncertainty-Aware Safety & Limit Check Report")
+            ov_status = safety_dict.get("overall_status", "SAFE")
+
+            if ov_status == "SAFE":
+                st.success("✅ **OVERALL STATUS: SAFE** — All 95% upper confidence bounds comply strictly with site and regulatory thresholds.")
+            elif ov_status == "REQUIRES_REVIEW":
+                st.warning("⚠️ **OVERALL STATUS: REQUIRES REVIEW** — Mean predictions comply, but 95% upper confidence bounds cross threshold limits. Certified blaster review and mandatory override reasoning required.")
+            else:
+                st.error("🚨 **OVERALL STATUS: UNSAFE / INFEASIBLE** — Design violates maximum allowed safety limits. Action blocked.")
+
+            checks_df = pd.DataFrame(safety_dict.get("checks", []))
+            if not checks_df.empty:
+                st.dataframe(checks_df[["check_name", "predicted_value", "lower_95", "upper_95", "limit", "status", "reasoning"]], use_container_width=True)
 
         st.markdown("---")
         with st.expander("🔍 Why this prediction?", expanded=True):
@@ -1353,7 +1373,34 @@ elif active_module == "connectivity":
         pattern_id = st.text_input("Pattern Design ID", value="PATTERN_CUT8_BENCH15S")
         num_holes_push = st.number_input("Number of Holes in Pattern", 4, 200, 24)
 
-        if st.button("Push Design File to Rig", type="primary"):
+        st.markdown("---")
+        st.subheader("✍️ Certified Blaster Sign-off Gate")
+        signoff_id = st.text_input("Blaster Credential ID", value="BLASTER_BW_9021")
+        signoff_role = st.selectbox("Blaster Role", ["Certified Blaster", "Pit Supervisor", "Chief Mining Engineer"])
+        signoff_decision = st.radio("Sign-off Decision", ["APPROVED", "REJECTED"], index=0)
+        override_notes = st.text_area("Mandatory Override Reasoning (if REQUIRES_REVIEW)", value="")
+
+        if st.button("Record Official Sign-off Decision"):
+            try:
+                rec = approve_design(
+                    design_id=pattern_id,
+                    blaster_id=signoff_id,
+                    role=signoff_role,
+                    decision=signoff_decision,
+                    override_reasoning=override_notes,
+                )
+                st.success(f"Sign-off recorded! Digital Signature Hash: `{rec.signature_hash[:16]}...`")
+            except Exception as e:
+                st.error(f"Sign-off failed: {e}")
+
+        # Check approval gate status
+        is_approved, gate_msg = check_approval_gate(pattern_id, action="push_to_drill_rig")
+        if is_approved:
+            st.success(f"✅ {gate_msg}")
+        else:
+            st.warning(f"🔒 {gate_msg}")
+
+        if st.button("Push Design File to Rig", type="primary", disabled=not is_approved):
             design_payload = {"design_id": pattern_id, "num_holes": int(num_holes_push)}
             sync_res = sync_design_to_drill(
                 design_file=design_payload,

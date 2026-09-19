@@ -130,6 +130,11 @@ def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline
         if target not in results or results[target] is None or np.isnan(results[target]):
             results[target] = fallback[target]
 
+    # Evaluate uncertainty-aware safety report
+    from src.domain.safety_checks import evaluate_safety
+    safety_report = evaluate_safety(results, blast_params=input_params)
+    results["safety_report"] = safety_report.model_dump()
+
     return results
 
 
