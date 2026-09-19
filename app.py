@@ -389,10 +389,34 @@ elif active_module == "ml_manager":
 
     col_m1, col_m2 = st.columns([1, 2])
 
+    from models.registry import get_registry
+    registry = get_registry()
+    registered_models_meta = registry.list_models()
+
+    if not registered_models_meta:
+        st.error("No models registered. Check the models/ directory and logs.")
+        st.stop()
+
+    model_options = {m.display_name: m.name for m in registered_models_meta}
+
     with col_m1:
-        model_type = st.selectbox(
-            "Select Algorithm", ["random_forest", "xgboost", "ridge"]
-        )
+        selected_display = st.selectbox("Select Algorithm", list(model_options.keys()))
+        selected_name = model_options[selected_display]
+        model_type = selected_name
+        metadata = registry.get_metadata(selected_name)
+
+        # Show metadata and features
+        st.caption(f"**Description:** {metadata.description}")
+        st.caption(f"**Inputs:** {', '.join(metadata.input_features)}")
+        st.caption(f"**Outputs:** {', '.join(metadata.output_features)}")
+
+        # Show capability badges
+        if metadata.supports_uncertainty:
+            st.success("✅ Uncertainty quantification supported")
+        if metadata.supports_explainability:
+            st.success("✅ Explainability supported")
+        if metadata.requires_gpu:
+            st.warning("⚠️ Requires GPU for training")
         cv_folds = st.slider("Cross Validation Folds", 3, 10, 5)
 
         if st.button("Train Models", type="primary"):
