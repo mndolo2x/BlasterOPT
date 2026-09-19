@@ -45,6 +45,7 @@ class EnsembleModel(BaseBlastModel):
             ],
             output_features=["fragmentation_p80", "ppv", "airblast"],
             supports_training=True,
+            supports_pipeline_training=False,
             supports_uncertainty=True,
             supports_explainability=True,
             requires_gpu=False,

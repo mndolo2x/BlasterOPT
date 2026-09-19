@@ -32,6 +32,7 @@ class GAANNBlastModel(BaseBlastModel):
             ],
             output_features=["fragmentation_p80", "ppv", "airblast"],
             supports_training=True,
+            supports_pipeline_training=False,
             supports_uncertainty=False,
             supports_explainability=False,
             requires_gpu=True,

@@ -445,7 +445,8 @@ elif active_module == "ml_manager":
         st.error("No models registered. Check the models/ directory and logs.")
         st.stop()
 
-    model_options = {m.display_name: m.name for m in registered_models_meta}
+    trainable_meta = [m for m in registered_models_meta if getattr(m, "supports_pipeline_training", True)]
+    model_options = {m.display_name: m.name for m in trainable_meta} if trainable_meta else {m.display_name: m.name for m in registered_models_meta}
 
     with col_m1:
         selected_display = st.selectbox("Select Algorithm", list(model_options.keys()))

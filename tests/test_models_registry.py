@@ -44,6 +44,25 @@ def test_get_registry_singleton_and_discover():
     assert "site_calibration" in names
 
 
+def test_supports_pipeline_training_metadata_filter():
+    """
+    Test filtering models by supports_pipeline_training flag.
+    """
+    rf_meta = RandomForestModel.get_metadata()
+    pinn_meta = PINNModel.get_metadata()
+
+    assert rf_meta.supports_pipeline_training is True
+    assert pinn_meta.supports_pipeline_training is False
+
+    trainable = [m for m in get_registry().list_models() if m.supports_pipeline_training]
+    trainable_names = [m.name for m in trainable]
+
+    assert "random_forest" in trainable_names
+    assert "xgboost" in trainable_names
+    assert "ridge" in trainable_names
+    assert "pinn" not in trainable_names
+
+
 def test_custom_models_metadata_predict_and_save_load(tmp_path):
     """
     Test PINNModel, EnsembleModel, and SiteCalibrationModel metadata, predict, and save/load.

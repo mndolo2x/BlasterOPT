@@ -36,6 +36,7 @@ class ModelMetadata(BaseModel):
         description="Predicted output target names"
     )
     supports_training: bool = Field(default=True, description="Whether the model supports online re-training")
+    supports_pipeline_training: bool = Field(default=True, description="Whether model supports single-target cross-validation pipeline training")
     supports_uncertainty: bool = Field(default=False, description="Whether model predicts confidence intervals")
     supports_explainability: bool = Field(default=False, description="Whether model supports feature importance or SHAP explanations")
     requires_gpu: bool = Field(default=False, description="Whether GPU hardware is required")

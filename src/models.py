@@ -72,12 +72,20 @@ def get_model_instance(model_type: str = "random_forest", seed: int = 42):
         reg = get_registry()
         if model_key in [m.name for m in reg.list_models()]:
             cls_type = reg.get_model(model_key)
-            inst = cls_type()
+            try:
+                inst = cls_type()
+            except Exception as exc:
+                raise ValueError(
+                    f"Failed to initialize registered model '{model_key}' ({cls_type.__name__}): {exc}"
+                ) from exc
+
             if hasattr(inst, "fit") and hasattr(inst, "predict"):
                 return inst
             elif hasattr(inst, "model") and hasattr(inst.model, "fit"):
                 return inst.model
-    except Exception:
+    except Exception as exc:
+        if isinstance(exc, ValueError):
+            raise exc
         pass
 
     if model_key in ["random_forest", "rf"]:
