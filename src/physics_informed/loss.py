@@ -1,5 +1,5 @@
 """
-Composite Physics-Informed Loss Function Submodule.
+Composite Physics-Informed Loss Function Submodule with Adaptive Loss Weighting.
 L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm
 """
 
@@ -26,18 +26,27 @@ if HAS_TORCH:
         """
         Composite loss function combining data-driven MSE loss with soft physics penalty terms:
         L_total = L_data + lambda_kuzram * L_kuzram + lambda_usbm * L_usbm
+
+        Supports adaptive weighting: if physics loss dominates data loss, physics lambdas
+        are automatically scaled down so the data fit is not overwhelmed.
         """
 
         def __init__(
             self,
             lambda_kuzram: float = 0.25,
             lambda_usbm: float = 0.25,
+            adaptive_weighting: bool = True,
+            max_physics_ratio: float = 2.0,
             feature_index_map: Optional[Dict[str, int]] = None
         ):
             super().__init__()
             self.mse_loss = nn.MSELoss()
+            self.base_lambda_kuzram = lambda_kuzram
+            self.base_lambda_usbm = lambda_usbm
             self.lambda_kuzram = lambda_kuzram
             self.lambda_usbm = lambda_usbm
+            self.adaptive_weighting = adaptive_weighting
+            self.max_physics_ratio = max_physics_ratio
 
             # Default 12-feature input index map
             self.idx_map = feature_index_map or {
@@ -88,6 +97,24 @@ if HAS_TORCH:
             kuzram_loss = self.mse_loss(pred_d50, kuzram_target_d50)
             usbm_loss = self.mse_loss(pred_ppv, usbm_target_ppv)
 
+            # Adaptive Weighting: If physics loss dominates data_loss, reduce lambdas dynamically
+            if self.adaptive_weighting and data_loss.item() > 1e-6:
+                d_loss_val = data_loss.item()
+                k_loss_val = kuzram_loss.item()
+                u_loss_val = usbm_loss.item()
+
+                if k_loss_val > self.max_physics_ratio * d_loss_val:
+                    scale_k = (self.max_physics_ratio * d_loss_val) / max(1e-5, k_loss_val)
+                    self.lambda_kuzram = self.base_lambda_kuzram * scale_k
+                else:
+                    self.lambda_kuzram = self.base_lambda_kuzram
+
+                if u_loss_val > self.max_physics_ratio * d_loss_val:
+                    scale_u = (self.max_physics_ratio * d_loss_val) / max(1e-5, u_loss_val)
+                    self.lambda_usbm = self.base_lambda_usbm * scale_u
+                else:
+                    self.lambda_usbm = self.base_lambda_usbm
+
             # 5. Composite total loss
             total_loss = data_loss + self.lambda_kuzram * kuzram_loss + self.lambda_usbm * usbm_loss
 
@@ -96,6 +123,8 @@ if HAS_TORCH:
                 "data_loss": float(data_loss.item()),
                 "kuzram_physics_loss": float(kuzram_loss.item()),
                 "usbm_physics_loss": float(usbm_loss.item()),
+                "effective_lambda_kuzram": float(self.lambda_kuzram),
+                "effective_lambda_usbm": float(self.lambda_usbm),
             }
 
             return total_loss, loss_components
@@ -103,7 +132,7 @@ if HAS_TORCH:
 else:
     class CompositePhysicsLoss:
         """Fallback CompositePhysicsLoss when PyTorch is unavailable."""
-        def __init__(self, lambda_kuzram: float = 0.25, lambda_usbm: float = 0.25):
+        def __init__(self, lambda_kuzram: float = 0.25, lambda_usbm: float = 0.25, adaptive_weighting: bool = True):
             self.lambda_kuzram = lambda_kuzram
             self.lambda_usbm = lambda_usbm
 
