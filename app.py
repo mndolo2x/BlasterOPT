@@ -394,10 +394,16 @@ elif active_module == "ml_manager":
         from models.registry import get_registry
         diag_reg = get_registry()
 
-        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         m_col1.metric("Models Discovered", len(diag_reg.list_models()))
         m_col2.metric("Registry Scan Time", f"{diag_reg.scan_time_ms:.2f} ms")
         m_col3.metric("Load Errors", len(diag_reg.get_load_errors()))
+        with m_col4:
+            st.write("")
+            if st.button("🔄 Rescan Registry"):
+                diag_reg.discover()
+                st.success("Rescanned registry without app restart!")
+                st.rerun()
 
         st.subheader("Discovered Model Types")
         counts = diag_reg.get_model_counts_by_type()
