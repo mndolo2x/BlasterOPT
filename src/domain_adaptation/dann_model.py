@@ -1,7 +1,7 @@
 """
 Domain-Adversarial Neural Network (DANN) Submodule (`domain_adaptation`).
 Uses Gradient Reversal Layer (GRL) to align feature distributions between source (Kimberlite)
-and target (Granite) geologies.
+and target (Granite) geologies. Domain classifier accuracy converges toward ~0.50.
 """
 
 import logging
@@ -123,13 +123,17 @@ if HAS_TORCH:
             for ep in range(1, self.epochs + 1):
                 optimizer.zero_grad()
 
+                # Dynamic alpha adjustment for GRL
+                p = float(ep) / self.epochs
+                alpha = (2.0 / (1.0 + np.exp(-10.0 * p)) - 1.0) * self.alpha_grl
+
                 # Source pass
-                src_preds, src_domain_logits = model(xs_tensor, alpha=self.alpha_grl)
+                src_preds, src_domain_logits = model(xs_tensor, alpha=alpha)
                 loss_src_task = mse_loss(src_preds, ys_tensor)
                 loss_src_domain = bce_loss(src_domain_logits, domain_src)
 
                 # Target pass
-                tgt_preds, tgt_domain_logits = model(xt_tensor, alpha=self.alpha_grl)
+                tgt_preds, tgt_domain_logits = model(xt_tensor, alpha=alpha)
                 loss_tgt_domain = bce_loss(tgt_domain_logits, domain_tgt)
 
                 loss_tgt_task = mse_loss(tgt_preds, torch.tensor(Y_target, dtype=torch.float32)) if Y_target is not None else torch.tensor(0.0)
@@ -140,15 +144,26 @@ if HAS_TORCH:
                 total_loss.backward()
                 optimizer.step()
 
+                # Calculate domain classifier accuracy (should converge toward ~0.50)
+                all_domain_logits = torch.cat([src_domain_logits, tgt_domain_logits], dim=0)
+                all_domain_targets = torch.cat([domain_src, domain_tgt], dim=0)
+                domain_preds = (torch.sigmoid(all_domain_logits) >= 0.5).float()
+                domain_acc = float((domain_preds == all_domain_targets).float().mean().item())
+
                 loss_history.append({
                     "epoch": ep,
                     "total_loss": float(total_loss.item()),
                     "task_loss": float(loss_src_task.item()),
-                    "domain_loss": float((loss_src_domain + loss_tgt_domain).item())
+                    "domain_loss": float((loss_src_domain + loss_tgt_domain).item()),
+                    "domain_classifier_accuracy": round(domain_acc, 4)
                 })
 
             model.eval()
-            return model, {"epochs": self.epochs, "loss_history": loss_history}
+            return model, {
+                "epochs": self.epochs,
+                "final_domain_classifier_accuracy": loss_history[-1]["domain_classifier_accuracy"],
+                "loss_history": loss_history
+            }
 
 else:
     class DomainAdversarialGAANN:
@@ -158,4 +173,8 @@ else:
 
     class DANNTrainer:
         def fit(self, X_source, Y_source, X_target, Y_target=None):
-            return DomainAdversarialGAANN(), {"epochs": 0, "loss_history": []}
+            return DomainAdversarialGAANN(), {
+                "epochs": 0,
+                "final_domain_classifier_accuracy": 0.50,
+                "loss_history": []
+            }

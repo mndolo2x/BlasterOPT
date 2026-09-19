@@ -31,7 +31,7 @@ class DomainDataManager:
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Creates synthetic source (Kimberlite) and target (Granite) feature and target arrays.
-        Granite rock factor A is harder (~10.5 vs 8.0) and lower RMR (~55 vs 65).
+        Granite rock factor A is harder (~11.0 vs 8.0) and lower RMR (~50 vs 65).
         """
         np.random.seed(seed)
 
@@ -45,8 +45,8 @@ class DomainDataManager:
         X_source[:, 10] = np.random.uniform(100.0, 800.0, size=n_source)# Distance
 
         # Kimberlite targets: [d50_mm, ppv_mms, flyrock_m, cost_usd]
-        d50_src = 240.0 - 120.0 * X_source[:, 6] + np.random.normal(0, 5, n_source)
-        ppv_src = 1140.0 * ((X_source[:, 10] / np.sqrt(X_source[:, 7])) ** -1.60) + np.random.normal(0, 0.2, n_source)
+        d50_src = 240.0 - 120.0 * X_source[:, 6] + np.random.normal(0, 2, n_source)
+        ppv_src = 100.0 - 0.1 * X_source[:, 10] + np.random.normal(0, 1, n_source)
         Y_source = np.column_stack([d50_src, ppv_src, 80.0 + 30.0 * X_source[:, 6], 3.5 + 1.8 * X_source[:, 6]])
 
         # Target domain: Granite (Harder rock, A=11.0, RMR=50, higher vibration velocity & larger fragments)
@@ -58,9 +58,9 @@ class DomainDataManager:
         X_target[:, 9] = 50.0                                           # RMR (Granite)
         X_target[:, 10] = np.random.uniform(100.0, 800.0, size=n_target)
 
-        # Granite targets: Harder rock produces larger fragments for same PF, higher vibration transmission
-        d50_tgt = 320.0 - 140.0 * X_target[:, 6] + np.random.normal(0, 8, n_target)
-        ppv_tgt = 1450.0 * ((X_target[:, 10] / np.sqrt(X_target[:, 7])) ** -1.65) + np.random.normal(0, 0.4, n_target)
+        # Granite targets: Harder rock produces larger fragments for same PF
+        d50_tgt = 320.0 - 140.0 * X_target[:, 6] + np.random.normal(0, 2, n_target)
+        ppv_tgt = 120.0 - 0.12 * X_target[:, 10] + np.random.normal(0, 1, n_target)
         Y_target = np.column_stack([d50_tgt, ppv_tgt, 90.0 + 35.0 * X_target[:, 6], 4.2 + 2.2 * X_target[:, 6]])
 
         return X_source, Y_source, X_target, Y_target
