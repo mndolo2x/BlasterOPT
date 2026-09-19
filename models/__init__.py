@@ -1,11 +1,11 @@
 """
 Models Architecture Package (`models`).
 Contains BaseBlastModel interface, ModelMetadata, ModelRegistry with auto-discovery,
-sklearn wrappers, custom physics & neural network models, and YAML configs.
+sklearn wrappers, custom physics & neural network models, and get_registry() singleton.
 """
 
 from models.base import BaseBlastModel, ModelMetadata
-from models.registry import ModelRegistry, register_model
+from models.registry import ModelRegistry, get_registry, register_model
 from models.sklearn_wrappers.random_forest import RandomForestBlastModel
 from models.sklearn_wrappers.xgboost import XGBoostBlastModel
 from models.sklearn_wrappers.ridge import RidgeBlastModel
@@ -18,6 +18,7 @@ __all__ = [
     "BaseBlastModel",
     "ModelMetadata",
     "ModelRegistry",
+    "get_registry",
     "register_model",
     "RandomForestBlastModel",
     "XGBoostBlastModel",
