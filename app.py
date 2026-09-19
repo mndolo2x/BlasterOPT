@@ -391,8 +391,10 @@ elif active_module == "ml_manager":
 
     with tab_diag:
         st.subheader("📊 Model Registry Diagnostics")
+        import models.registry as reg_module
         from models.registry import get_registry
         diag_reg = get_registry()
+        st.caption(f"**Loaded Module Path:** `{getattr(reg_module, '__file__', 'Unknown')}`")
 
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         scan_ms = getattr(diag_reg, "scan_time_ms", 0.0)
@@ -407,7 +409,14 @@ elif active_module == "ml_manager":
                 st.rerun()
 
         st.subheader("Discovered Model Types")
-        counts = diag_reg.get_model_counts_by_type()
+        if hasattr(diag_reg, "get_model_counts_by_type"):
+            counts = diag_reg.get_model_counts_by_type()
+        else:
+            counts = {}
+            for m in diag_reg.list_models():
+                m_type = getattr(m, "model_type", "unknown")
+                counts[m_type] = counts.get(m_type, 0) + 1
+
         if counts:
             st.json(counts)
 
