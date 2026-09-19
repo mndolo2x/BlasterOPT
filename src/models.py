@@ -66,15 +66,26 @@ def get_model_instance(model_type: str = "random_forest", seed: int = 42):
         Scikit-learn or XGBoost regressor instance.
     """
     model_key = model_type.lower()
+
+    try:
+        from models.registry import get_registry
+        reg = get_registry()
+        if model_key in [m.name for m in reg.list_models()]:
+            cls_type = reg.get_model(model_key)
+            inst = cls_type()
+            if hasattr(inst, "fit") and hasattr(inst, "predict"):
+                return inst
+            elif hasattr(inst, "model") and hasattr(inst.model, "fit"):
+                return inst.model
+    except Exception:
+        pass
+
     if model_key in ["random_forest", "rf"]:
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
     elif model_key in ["xgboost", "xgb"]:
         return XGBRegressor(n_estimators=100, learning_rate=0.08, max_depth=6, random_state=seed, n_jobs=-1)
     elif model_key in ["ridge", "linear"]:
         return Ridge(alpha=1.0)
-    elif model_key in ["ga_ann", "pinn", "ensemble", "site_calibration"]:
-        # Fallback multi-output regressor for custom models during single-target CV
-        return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
     else:
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
 
@@ -103,11 +114,30 @@ class BlastMLPipeline:
 
         kf = KFold(n_splits=cv_folds, shuffle=True, random_state=self.seed)
 
+        # Normalize target column aliases if present in DataFrame
+        target_map = {
+            "d50_mm": ["d50_mm", "d50", "fragmentation_p80", "p80", "fragmentation"],
+            "ppv_mms": ["ppv_mms", "ppv", "vibration"],
+            "flyrock_m": ["flyrock_m", "flyrock", "airblast"],
+            "cost_per_tonne_usd": ["cost_per_tonne_usd", "cost", "cost_usd"]
+        }
+
         for target in TARGET_COLS:
-            if target not in df.columns:
+            col_found = None
+            if target in df.columns:
+                col_found = target
+            else:
+                for alias in target_map.get(target, []):
+                    if alias in df.columns:
+                        col_found = alias
+                        break
+
+            if col_found is None:
                 continue
 
-            y = df[target].values
+            y = df[col_found].values
+            if y.ndim > 1 and y.shape[1] == 1:
+                y = y.ravel()
             estimator = get_model_instance(self.model_type, self.seed)
 
             # Cross validation metrics
@@ -121,7 +151,10 @@ class BlastMLPipeline:
 
                 m = get_model_instance(self.model_type, self.seed)
                 m.fit(X_tr, y_tr)
-                preds = m.predict(X_val)
+                preds_raw = m.predict(X_val)
+                preds = preds_raw.values if isinstance(preds_raw, pd.DataFrame) else preds_raw
+                if preds.ndim > 1:
+                    preds = preds[:, 0]
 
                 r2_scores.append(r2_score(y_val, preds))
                 rmse_scores.append(np.sqrt(mean_squared_error(y_val, preds)))

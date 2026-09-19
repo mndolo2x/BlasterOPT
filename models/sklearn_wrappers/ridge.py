@@ -39,13 +39,15 @@ class RidgeBlastModel(BaseBlastModel):
         return self
 
     def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
-        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        X_arr = X_df.values
         if not self.is_fitted:
-            n_samples = X_arr.shape[0] if X_arr.ndim > 1 else 1
-            preds = np.tile([220.0, 4.20, 110.0, 4.80], (n_samples, 1))
+            preds = np.tile([220.0, 4.20, 110.0, 4.80], (len(X_df), 1))
         else:
             preds = np.maximum(0.01, self.model.predict(X_arr))
 
-        if isinstance(X, pd.DataFrame):
-            return pd.DataFrame(preds, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_usd"])
-        return preds
+        if isinstance(preds, np.ndarray) and preds.ndim == 1:
+            return pd.Series(preds, index=X_df.index)
+
+        cols = self.get_metadata().output_features if preds.shape[1] == 4 else [f"col_{i}" for i in range(preds.shape[1])]
+        return pd.DataFrame(preds, columns=cols, index=X_df.index)

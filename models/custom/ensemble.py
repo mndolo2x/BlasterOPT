@@ -52,15 +52,21 @@ class EnsembleModel(BaseBlastModel):
         )
 
     def fit(self, X, y, **kwargs):
-        X_arr = X.values if isinstance(X, pd.DataFrame) else X
-        y_arr = y.values if isinstance(y, pd.DataFrame) else y
+        X_arr = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+        y_arr = y.values if isinstance(y, pd.DataFrame) else np.asarray(y) if y is not None else None
         X_padded = _pad_features_to_12(X_arr)
 
-        if y_arr is not None and y_arr.shape[1] < 4:
-            y_padded = np.zeros((len(y_arr), 4))
-            y_padded[:, :y_arr.shape[1]] = y_arr
+        if y_arr is not None:
+            if y_arr.ndim == 1:
+                y_arr = y_arr.reshape(-1, 1)
+            n_cols = y_arr.shape[1]
+            if n_cols < 4:
+                y_padded = np.zeros((len(y_arr), 4))
+                y_padded[:, :n_cols] = y_arr
+            else:
+                y_padded = y_arr
         else:
-            y_padded = y_arr
+            y_padded = np.zeros((len(X_arr), 4))
 
         if hasattr(self.predictor, "ensemble_trainer"):
             self.predictor.ensemble_trainer.train_ensemble(X_padded, y_padded)

@@ -3,6 +3,7 @@ Random Forest Blast Prediction Model Wrapper (`models/sklearn_wrappers/random_fo
 """
 
 import pandas as pd
+import numpy as np
 from typing import Dict, Any, Optional, Union
 from sklearn.ensemble import RandomForestRegressor
 from models.base import BaseBlastModel, ModelMetadata
@@ -39,15 +40,15 @@ class RandomForestModel(BaseBlastModel):
     def predict(self, X):
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
         if not self.is_fitted:
-            preds = pd.DataFrame(
-                [[220.0, 4.20, 110.0]] * len(X_df),
-                columns=self.get_metadata().output_features,
-                index=X_df.index
-            )
-            return preds
+            preds = np.tile([220.0, 4.20, 110.0], (len(X_df), 1))
+        else:
+            preds = self.model.predict(X_df)
 
-        preds = self.model.predict(X_df)
-        return pd.DataFrame(preds, columns=self.get_metadata().output_features, index=X_df.index)
+        if isinstance(preds, np.ndarray) and preds.ndim == 1:
+            return pd.Series(preds, index=X_df.index)
+
+        cols = self.get_metadata().output_features if preds.shape[1] == 3 else [f"col_{i}" for i in range(preds.shape[1])]
+        return pd.DataFrame(preds, columns=cols, index=X_df.index)
 
     def save(self, path):
         import joblib
