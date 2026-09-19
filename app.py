@@ -387,7 +387,39 @@ elif active_module == "ml_manager":
 
     df = st.session_state["dataset"]
 
-    col_m1, col_m2 = st.columns([1, 2])
+    tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
+
+    with tab_diag:
+        st.subheader("📊 Model Registry Diagnostics")
+        from models.registry import get_registry
+        diag_reg = get_registry()
+
+        m_col1, m_col2, m_col3 = st.columns(3)
+        m_col1.metric("Models Discovered", len(diag_reg.list_models()))
+        m_col2.metric("Registry Scan Time", f"{diag_reg.scan_time_ms:.2f} ms")
+        m_col3.metric("Load Errors", len(diag_reg.get_load_errors()))
+
+        st.subheader("Discovered Model Types")
+        counts = diag_reg.get_model_counts_by_type()
+        if counts:
+            st.json(counts)
+
+        st.subheader("Registered Models")
+        for m in diag_reg.list_models():
+            st.markdown(f"**{m.display_name}** (`{m.name}`) — `{m.model_type.upper()}` — v{m.version}")
+            st.caption(f"**Description:** {m.description}")
+            st.caption(f"**Inputs:** {', '.join(m.input_features)} | **Outputs:** {', '.join(m.output_features)}")
+
+        st.subheader("Load Errors")
+        errors = diag_reg.get_load_errors()
+        if errors:
+            for e in errors:
+                st.error(f"{e}")
+        else:
+            st.success("No load errors encountered during filesystem auto-discovery.")
+
+    with tab_train:
+        col_m1, col_m2 = st.columns([1, 2])
 
     from models.registry import get_registry
     registry = get_registry()

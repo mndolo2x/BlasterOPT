@@ -1,9 +1,11 @@
 """
 Model Registry Submodule (`models/registry.py`).
 Scans models/ directory using inspect and importlib to auto-discover all BaseBlastModel subclasses.
+Tracks scan time and load errors for Model Registry Diagnostics UI page.
 Exposes singleton get_registry() for Streamlit UI dropdown auto-discovery.
 """
 
+import time
 import importlib
 import inspect
 import logging
@@ -24,11 +26,14 @@ class ModelRegistry:
         self._registry: Dict[str, Type[BaseBlastModel]] = {}
         self._metadata: Dict[str, ModelMetadata] = {}
         self._load_errors: List[Dict[str, str]] = []
+        self.scan_time_ms: float = 0.0
 
     def discover(self) -> None:
         """Scan models_dir and register all BaseBlastModel subclasses."""
+        start_time = time.perf_counter()
         if not self.models_dir.exists():
             logger.warning(f"Models directory '{self.models_dir}' does not exist.")
+            self.scan_time_ms = (time.perf_counter() - start_time) * 1000.0
             return
 
         for py_file in self.models_dir.rglob("*.py"):
@@ -38,6 +43,8 @@ class ModelRegistry:
                 continue
             module_path = self._file_to_module(py_file)
             self._try_register_module(module_path)
+
+        self.scan_time_ms = (time.perf_counter() - start_time) * 1000.0
 
     def _try_register_module(self, module_path: str) -> None:
         try:
@@ -70,6 +77,13 @@ class ModelRegistry:
     def get_available_models(self) -> List[Tuple[str, str]]:
         """Returns list of (display_name, model_name) tuples for Streamlit dropdown selection."""
         return sorted([(meta.display_name, meta.name) for meta in self._metadata.values()], key=lambda x: x[0])
+
+    def get_model_counts_by_type(self) -> Dict[str, int]:
+        """Returns dictionary of model count grouped by model_type."""
+        counts: Dict[str, int] = {}
+        for meta in self._metadata.values():
+            counts[meta.model_type] = counts.get(meta.model_type, 0) + 1
+        return counts
 
     def get_model(self, name: str) -> Type[BaseBlastModel]:
         if name not in self._registry:
