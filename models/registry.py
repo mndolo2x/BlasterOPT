@@ -1,15 +1,15 @@
 """
 Model Registry Submodule (`models/registry.py`).
 Implements auto-discovery, dynamic registration decorator, model instantiation,
-and YAML configuration loading.
+and Streamlit UI dropdown metadata mapping.
 """
 
 import os
 import yaml
 import importlib
 import logging
-from typing import Dict, Any, Type, Optional, List
-from models.base import BaseBlastModel
+from typing import Dict, Any, Type, Optional, List, Tuple
+from models.base import BaseBlastModel, ModelMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def register_model(name: str):
 
 class ModelRegistry:
     """
-    Registry for managing, instantiating, and discovering blast models.
+    Registry for managing, instantiating, and discovering blast models for Streamlit ML Manager.
     """
 
     _config_cache: Optional[Dict[str, Any]] = None
@@ -54,6 +54,7 @@ class ModelRegistry:
     def auto_discover(cls):
         """
         Auto-discovers and imports all model modules under models/ to trigger registration.
+        Handles import errors gracefully.
         """
         modules_to_import = [
             "models.sklearn_wrappers.random_forest",
@@ -69,13 +70,43 @@ class ModelRegistry:
             try:
                 importlib.import_module(mod_name)
             except Exception as e:
-                logger.warning(f"Auto-discovery failed to import {mod_name}: {e}")
+                logger.warning(f"Auto-discovery skipped broken/missing model module '{mod_name}': {e}")
 
     @classmethod
     def list_models(cls) -> List[str]:
-        """Lists names of all registered models."""
+        """Lists internal keys of all registered models."""
         cls.auto_discover()
         return list(_REGISTERED_MODELS.keys())
+
+    @classmethod
+    def get_available_models(cls) -> List[Tuple[str, str]]:
+        """
+        Returns list of (display_name, model_key) tuples for Streamlit dropdown selection.
+        All models (GA-ANN, PINN, Ensemble, Site Calibration, RandomForest, XGBoost, Ridge) appear automatically.
+        """
+        cls.auto_discover()
+        models_info = []
+        for key, cls_type in _REGISTERED_MODELS.items():
+            try:
+                meta = cls_type.get_metadata()
+                models_info.append((meta.display_name, key))
+            except Exception:
+                models_info.append((key.replace("_", " ").title(), key))
+        return sorted(models_info, key=lambda x: x[0])
+
+    @classmethod
+    def get_model_metadata_map(cls) -> Dict[str, ModelMetadata]:
+        """
+        Returns map of model_key -> ModelMetadata for Streamlit UI display.
+        """
+        cls.auto_discover()
+        meta_map = {}
+        for key, cls_type in _REGISTERED_MODELS.items():
+            try:
+                meta_map[key] = cls_type.get_metadata()
+            except Exception as e:
+                logger.warning(f"Could not retrieve metadata for {key}: {e}")
+        return meta_map
 
     @classmethod
     def get_model_class(cls, name: str) -> Type[BaseBlastModel]:
@@ -103,7 +134,7 @@ class ModelRegistry:
         return model_cls(model_name=name, config=cfg)
 
 
-# Register built-in models
+# Explicitly register built-in models
 from models.sklearn_wrappers.random_forest import RandomForestBlastModel
 from models.sklearn_wrappers.xgboost import XGBoostBlastModel
 from models.sklearn_wrappers.ridge import RidgeBlastModel

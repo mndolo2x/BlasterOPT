@@ -3,8 +3,9 @@ Physics-Informed Neural Network (PINN) Model Wrapper (`models/custom/pinn.py`).
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
-from models.base import BaseBlastModel
+import pandas as pd
+from typing import Dict, Any, Optional, Union
+from models.base import BaseBlastModel, ModelMetadata
 from src.physics_informed import PhysicsInformedGAANN, PINNTrainer, PINNEvaluator
 
 
@@ -29,16 +30,50 @@ class PINNBlastModel(BaseBlastModel):
             lambda_usbm=self.lambda_usbm
         )
 
-    def fit(self, X: np.ndarray, Y: np.ndarray) -> "PINNBlastModel":
-        self.trainer.train(X, Y)
+    @classmethod
+    def get_metadata(cls) -> ModelMetadata:
+        return ModelMetadata(
+            name="pinn",
+            display_name="Physics-Informed Neural Network (PINN)",
+            model_type="physics_informed",
+            description="Deep Neural Network embedding Kuz-Ram and USBM soft loss penalties.",
+            version="2.0.0",
+            author="BlastOpt Botswana Team",
+            supports_uncertainty=True,
+            tags=["pinn", "physics", "kuzram", "usbm"]
+        )
+
+    def fit(self, X: Union[pd.DataFrame, np.ndarray], y: Union[pd.DataFrame, np.ndarray], **kwargs) -> "PINNBlastModel":
+        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+        y_arr = y.values if isinstance(y, pd.DataFrame) else y
+        self.trainer.train(X_arr, y_arr)
         self.is_fitted = True
         return self
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
+        X_arr = X.values if isinstance(X, pd.DataFrame) else X
         if hasattr(self.model, "eval"):
             import torch
             self.model.eval()
             with torch.no_grad():
-                preds = self.model(torch.tensor(X, dtype=torch.float32)).cpu().numpy()
-            return np.maximum(0.01, preds)
-        return self.model.predict(X)
+                preds = self.model(torch.tensor(X_arr, dtype=torch.float32)).cpu().numpy()
+            preds = np.maximum(0.01, preds)
+        else:
+            preds = self.model.predict(X_arr)
+
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(preds, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_usd"])
+        return preds
+
+    def predict_with_uncertainty(self, X: Union[pd.DataFrame, np.ndarray]) -> Optional[Union[pd.DataFrame, Dict[str, Any]]]:
+        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+        if hasattr(self.model, "forward_mc_dropout"):
+            import torch
+            mean_p, std_p, lower_ci, upper_ci = self.model.forward_mc_dropout(torch.tensor(X_arr, dtype=torch.float32))
+            return {
+                "mean": mean_p.cpu().numpy(),
+                "std": std_p.cpu().numpy(),
+                "lower_95_ci": lower_ci.cpu().numpy(),
+                "upper_95_ci": upper_ci.cpu().numpy(),
+            }
+        return None

@@ -3,8 +3,9 @@ Site-Specific Attenuation Calibration Model Wrapper (`models/custom/site_calibra
 """
 
 import numpy as np
-from typing import Dict, Any, Optional
-from models.base import BaseBlastModel
+import pandas as pd
+from typing import Dict, Any, Optional, Union
+from models.base import BaseBlastModel, ModelMetadata
 from src.site_calibration import CalibrationManager
 
 
@@ -18,23 +19,37 @@ class SiteCalibrationBlastModel(BaseBlastModel):
         self.site_id = self.config.get("site_id", "Jwaneng_Main_Pit")
         self.manager = CalibrationManager()
 
-    def fit(self, X: np.ndarray, Y: np.ndarray) -> "SiteCalibrationBlastModel":
-        # Extract seismograph reading records from X and Y
+    @classmethod
+    def get_metadata(cls) -> ModelMetadata:
+        return ModelMetadata(
+            name="site_calibration",
+            display_name="Site-Specific Vibration Calibration Model",
+            model_type="calibration",
+            description="USBM & GSI-modified Vibration Wave Attenuation Calibration Engine.",
+            version="1.2.0",
+            author="BlastOpt Botswana Team",
+            supports_uncertainty=True,
+            tags=["calibration", "usbm", "vibration", "ppv"]
+        )
+
+    def fit(self, X: Union[pd.DataFrame, np.ndarray], y: Union[pd.DataFrame, np.ndarray], **kwargs) -> "SiteCalibrationBlastModel":
         self.is_fitted = True
         return self
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        # Predict PPV using calibrated attenuation parameters
-        n_samples = X.shape[0] if X.ndim > 1 else 1
+    def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
+        X_arr = X.values if isinstance(X, pd.DataFrame) else X
+        n_samples = X_arr.shape[0] if X_arr.ndim > 1 else 1
         preds = np.zeros((n_samples, 4))
         preds[:, 0] = 220.0  # d50
         preds[:, 2] = 110.0  # flyrock
         preds[:, 3] = 4.80   # cost
 
-        for i, row in enumerate(X):
+        for i, row in enumerate(X_arr):
             d_val = row[10] if len(row) > 10 else 450.0
             q_val = row[7] if len(row) > 7 else 320.0
             ppv_pred = self.manager.predict_ppv(self.site_id, d_val, q_val)
             preds[i, 1] = ppv_pred.predicted_ppv_mms
 
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(preds, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_usd"])
         return preds
