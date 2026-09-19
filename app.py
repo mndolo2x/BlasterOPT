@@ -114,6 +114,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+from src.config import DEMO_MODE, get_provenance_badge
+
+if DEMO_MODE:
+    st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
+
 # Initialize Session State
 if "dataset" not in st.session_state:
     # Default initial dataset

@@ -69,6 +69,9 @@ def connect_to_sap(
             cost_data = {}
     except Exception as err:
         logger.warning(f"SAP API connection fallback ({endpoint}): {err}")
+        from src.config import require_real_data, get_demo_mode
+        if not get_demo_mode():
+            require_real_data("SAP ERP Integration API")
         status = "simulated_online"
         cost_data = {
             "explosive_price_usd_kg": 1.50,
@@ -130,6 +133,9 @@ def connect_to_deswik(
             plan_data = {}
     except Exception as err:
         logger.warning(f"Deswik API connection fallback ({endpoint}): {err}")
+        from src.config import require_real_data, get_demo_mode
+        if not get_demo_mode():
+            require_real_data("Deswik CAD Mine Planning API")
         status = "simulated_online"
         plan_data = {
             "bench_id": "BENCH_JWA_CUT8_15S",
@@ -190,6 +196,9 @@ def connect_to_surpac(
             geo_data = {}
     except Exception as err:
         logger.warning(f"Surpac API connection fallback ({endpoint}): {err}")
+        from src.config import require_real_data, get_demo_mode
+        if not get_demo_mode():
+            require_real_data("GEOVIA Surpac Geology API")
         status = "simulated_online"
         geo_data = {
             "block_model_id": "BM_JWANENG_2026_V1",

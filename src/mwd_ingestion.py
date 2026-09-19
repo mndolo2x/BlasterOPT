@@ -100,6 +100,8 @@ def parse_mwd_message(message: Union[str, bytes, Dict[str, Any]]) -> Dict[str, A
     return parsed
 
 
+from src.config import require_real_data, get_demo_mode
+
 def connect_to_mqtt(
     broker_address: str = "localhost",
     topic: str = "blastopt/mwd/telemetry",
@@ -130,6 +132,8 @@ def connect_to_mqtt(
     """
     if not HAS_MQTT:
         logger.warning("paho-mqtt library not installed. MQTT client disabled.")
+        if not get_demo_mode():
+            require_real_data("MQTT MWD Telemetry Broker")
         return None
 
     def on_connect(client, userdata, flags, rc, properties=None):
@@ -157,6 +161,9 @@ def connect_to_mqtt(
             logger.error(f"Error handling MWD MQTT message: {e}")
 
     try:
+        if "invalid" in broker_address or "demo" in broker_address:
+            raise ConnectionError(f"Invalid or demo MQTT broker endpoint: '{broker_address}'")
+
         # Compatibility handling for paho-mqtt v1 vs v2 CallbackAPIVersion
         try:
             client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="BlastOpt_MWD_Ingest")
@@ -171,7 +178,9 @@ def connect_to_mqtt(
         return client
 
     except Exception as e:
-        logger.error(f"Graceful fallback: Failed to connect to MQTT broker ({broker_address}:{port}): {e}")
+        logger.error(f"Failed to connect to MQTT broker ({broker_address}:{port}): {e}")
+        if not get_demo_mode():
+            require_real_data("MQTT MWD Telemetry Broker")
         return None
 
 

@@ -68,7 +68,10 @@ def connect_to_sandvik(
             status = f"auth_error_{response.status_code}"
             token = None
     except Exception as err:
-        logger.warning(f"Sandvik API connection fallback: {err}")
+        logger.warning(f"Sandvik API connection issue: {err}")
+        from src.config import require_real_data, get_demo_mode
+        if not get_demo_mode():
+            require_real_data("Sandvik My Sandvik Telematics API")
         status = "simulated_online"
         token = "simulated_sandvik_token_8841"
 
@@ -126,6 +129,9 @@ def connect_to_epiroc(
             status = f"auth_error_{response.status_code}"
     except Exception as err:
         logger.warning(f"Epiroc API connection fallback: {err}")
+        from src.config import require_real_data, get_demo_mode
+        if not get_demo_mode():
+            require_real_data("Epiroc Certiq Telematics API")
         status = "simulated_online"
 
     rigs = [
