@@ -1,5 +1,5 @@
 """
-Fine-Tuner Submodule for Transfer Learning Fine-Tuning.
+Fine-Tuner Submodule for Transfer Learning Fine-Tuning (`domain_adaptation`).
 Freezes early feature extraction layers and retrains later layers on target domain (e.g., Granite).
 """
 
@@ -16,8 +16,6 @@ try:
 except ImportError:
     HAS_TORCH = False
     torch = None
-
-from src.physics_informed.pinn_model import PhysicsInformedGAANN
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +73,8 @@ class TransferFineTuner:
         for ep in range(1, self.epochs + 1):
             optimizer.zero_grad()
             preds = fine_tuned_model(x_t)
+            if isinstance(preds, tuple):
+                preds = preds[0]
             loss = loss_fn(preds, y_t)
             loss.backward()
             optimizer.step()

@@ -15,8 +15,11 @@ from src.domain_adaptation import (
     DomainAdaptationConfig,
     DomainDataManager,
     TransferFineTuner,
+    JDAAligner,
+    compute_rbf_mmd,
     DomainAdversarialGAANN,
     DANNTrainer,
+    CrossDomainEvaluator,
     DomainAdaptationManager,
     plot_domain_feature_distribution,
     plot_adaptation_r2_comparison,
@@ -39,6 +42,24 @@ def test_domain_data_manager():
     # Verify Granite rock factor A = 11.0 and Kimberlite A = 8.0
     assert np.allclose(X_src[:, 8], 8.0)
     assert np.allclose(X_tgt[:, 8], 11.0)
+
+
+def test_jda_aligner():
+    """
+    Test Joint Domain Adaptation (JDA) MMD distance and feature projection.
+    """
+    data_mgr = DomainDataManager()
+    X_src, Y_src, X_tgt, Y_tgt = data_mgr.create_synthetic_domain_datasets(n_source=40, n_target=20, seed=42)
+
+    orig_mmd = compute_rbf_mmd(X_src, X_tgt)
+    assert orig_mmd >= 0.0
+
+    jda = JDAAligner(n_components=6)
+    Z_src, Z_tgt, info = jda.fit_transform(X_src, X_tgt)
+
+    assert Z_src.shape == (40, 6)
+    assert Z_tgt.shape == (20, 6)
+    assert "aligned_mmd" in info
 
 
 def test_transfer_fine_tuner():
@@ -80,6 +101,25 @@ def test_dann_adversarial_trainer():
     task_preds, domain_logits = dann_model(x_t)
     assert task_preds.shape == (5, 4)
     assert domain_logits.shape == (5, 1)
+
+
+def test_cross_domain_evaluator():
+    """
+    Test CrossDomainEvaluator MMD shift calculation and accuracy metrics.
+    """
+    data_mgr = DomainDataManager()
+    X_src, Y_src, X_tgt, Y_tgt = data_mgr.create_synthetic_domain_datasets(n_source=40, n_target=20, seed=42)
+
+    evaluator = CrossDomainEvaluator(source_name="Kimberlite", target_name="Granite")
+    shift_metrics = evaluator.evaluate_domain_shift(X_src, X_tgt)
+
+    assert shift_metrics.mmd_distance >= 0.0
+    assert shift_metrics.domain_shift_level in ["LOW", "MODERATE", "HIGH"]
+
+    base_model = PhysicsInformedGAANN(input_dim=12, output_dim=4)
+    r2, rmse, mae = evaluator.evaluate_accuracy(base_model, X_tgt, Y_tgt)
+    assert rmse >= 0.0
+    assert mae >= 0.0
 
 
 def test_domain_adaptation_manager_orchestration():

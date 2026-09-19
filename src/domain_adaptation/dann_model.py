@@ -1,7 +1,7 @@
 """
-Domain-Adversarial Neural Network (DANN) Submodule.
-Uses Gradient Reversal Layer (GRL) to align marginal and conditional feature distributions
-between source (Kimberlite) and target (Granite) geologies.
+Domain-Adversarial Neural Network (DANN) Submodule (`domain_adaptation`).
+Uses Gradient Reversal Layer (GRL) to align feature distributions between source (Kimberlite)
+and target (Granite) geologies.
 """
 
 import logging
