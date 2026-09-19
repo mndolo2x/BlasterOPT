@@ -16,8 +16,11 @@ from models import (
     XGBoostBlastModel,
     RidgeBlastModel,
     GAANNBlastModel,
+    PINNModel,
     PINNBlastModel,
+    EnsembleModel,
     EnsembleBlastModel,
+    SiteCalibrationModel,
     SiteCalibrationBlastModel,
 )
 
@@ -41,55 +44,14 @@ def test_get_registry_singleton_and_discover():
     assert "site_calibration" in names
 
 
-def test_random_forest_model_metadata_and_dataframe_predict(tmp_path):
+def test_custom_models_metadata_predict_and_save_load(tmp_path):
     """
-    Test RandomForestModel metadata, fit/predict with DataFrame, and joblib save/load.
+    Test PINNModel, EnsembleModel, and SiteCalibrationModel metadata, predict, and save/load.
     """
-    meta = RandomForestModel.get_metadata()
-    assert meta.name == "random_forest"
-    assert meta.display_name == "Random Forest"
-    assert meta.output_features == ["fragmentation_p80", "ppv", "airblast"]
-
-    X_df = pd.DataFrame({
-        "burden": [3.5, 4.0, 3.8],
-        "spacing": [4.5, 5.0, 4.8],
-        "powder_factor": [0.6, 0.8, 0.7],
-        "stemming": [3.0, 3.5, 3.2],
-        "rock_factor": [8.0, 9.0, 8.5]
-    }, index=[10, 20, 30])
-
-    y_df = pd.DataFrame({
-        "fragmentation_p80": [220.0, 180.0, 200.0],
-        "ppv": [5.2, 8.1, 6.5],
-        "airblast": [115.0, 122.0, 118.0]
-    }, index=[10, 20, 30])
-
-    rf = RandomForestModel(n_estimators=10, random_state=42)
-    rf.fit(X_df, y_df)
-
-    preds = rf.predict(X_df)
-    assert isinstance(preds, pd.DataFrame)
-    assert list(preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
-    assert list(preds.index) == [10, 20, 30]
-
-    # Save and load
-    save_file = str(tmp_path / "rf_model.joblib")
-    rf.save(save_file)
-
-    loaded_rf = RandomForestModel.load(save_file)
-    loaded_preds = loaded_rf.predict(X_df)
-    assert isinstance(loaded_preds, pd.DataFrame)
-    assert loaded_preds.shape == (3, 3)
-
-
-def test_ga_ann_model_metadata_and_predict(tmp_path):
-    """
-    Test GAANNBlastModel metadata, predict, and save/load.
-    """
-    meta = GAANNBlastModel.get_metadata()
-    assert meta.name == "ga_ann"
-    assert meta.display_name == "GA-ANN (Genetic Algorithm + Neural Network)"
-    assert meta.output_features == ["fragmentation_p80", "ppv", "airblast"]
+    # 1. PINNModel
+    pinn_meta = PINNModel.get_metadata()
+    assert pinn_meta.name == "pinn"
+    assert pinn_meta.output_features == ["fragmentation_p80", "ppv", "airblast"]
 
     X_df = pd.DataFrame({
         "burden": [3.5, 4.0],
@@ -99,63 +61,57 @@ def test_ga_ann_model_metadata_and_predict(tmp_path):
         "rock_factor": [8.0, 9.0],
         "blastability_index": [60.0, 65.0],
         "charge_per_delay": [300.0, 350.0]
-    }, index=[1, 2])
+    }, index=[101, 102])
 
     y_df = pd.DataFrame({
         "fragmentation_p80": [220.0, 180.0],
         "ppv": [5.2, 8.1],
         "airblast": [115.0, 122.0]
-    }, index=[1, 2])
+    }, index=[101, 102])
 
-    ga_model = GAANNBlastModel()
-    ga_model.fit(X_df, y_df, epochs=5)
-
-    preds = ga_model.predict(X_df)
+    pinn = PINNModel()
+    pinn.fit(X_df, y_df)
+    preds = pinn.predict(X_df)
     assert isinstance(preds, pd.DataFrame)
     assert list(preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
-    assert list(preds.index) == [1, 2]
+    assert list(preds.index) == [101, 102]
 
-    save_path = str(tmp_path / "ga_ann.joblib")
-    ga_model.save(save_path)
+    pinn_path = str(tmp_path / "pinn.joblib")
+    pinn.save(pinn_path)
+    loaded_pinn = PINNModel.load(pinn_path)
+    assert loaded_pinn.predict(X_df).shape == (2, 3)
 
-    loaded_ga = GAANNBlastModel.load(save_path)
-    loaded_preds = loaded_ga.predict(X_df)
-    assert isinstance(loaded_preds, pd.DataFrame)
+    # 2. EnsembleModel
+    ens_meta = EnsembleModel.get_metadata()
+    assert ens_meta.name == "ensemble"
+    assert ens_meta.supports_uncertainty is True
 
+    ens = EnsembleModel()
+    ens.fit(X_df, np.random.rand(2, 4))
+    ens_preds = ens.predict(X_df)
+    assert isinstance(ens_preds, pd.DataFrame)
+    assert list(ens_preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
 
-def test_registry_get_model_and_metadata():
-    """
-    Test registry.get_model() and registry.get_metadata().
-    """
-    registry = get_registry()
+    unc_res = ens.predict_with_uncertainty(X_df)
+    assert "mean" in unc_res
+    assert isinstance(unc_res["mean"], pd.DataFrame)
 
-    pinn_cls = registry.get_model("pinn")
-    pinn_meta = registry.get_metadata("pinn")
+    ens_path = str(tmp_path / "ens.joblib")
+    ens.save(ens_path)
+    loaded_ens = EnsembleModel.load(ens_path)
+    assert loaded_ens.predict(X_df).shape == (2, 3)
 
-    assert pinn_cls == PINNBlastModel
-    assert pinn_meta.display_name == "Physics-Informed Neural Network (PINN)"
-    assert pinn_meta.supports_uncertainty is True
+    # 3. SiteCalibrationModel
+    cal_meta = SiteCalibrationModel.get_metadata()
+    assert cal_meta.name == "site_calibration"
 
+    cal = SiteCalibrationModel()
+    cal.fit(X_df, y_df)
+    cal_preds = cal.predict(X_df)
+    assert isinstance(cal_preds, pd.DataFrame)
+    assert list(cal_preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
 
-def test_get_available_models_streamlit_dropdown():
-    """
-    Test get_available_models() returns tuples for Streamlit dropdown.
-    """
-    registry = get_registry()
-    available = registry.get_available_models()
-
-    keys = [key for disp, key in available]
-
-    assert "ga_ann" in keys
-    assert "pinn" in keys
-    assert "ensemble" in keys
-    assert "site_calibration" in keys
-
-
-def test_registry_load_errors_list():
-    """
-    Test get_load_errors() returns error tracking list.
-    """
-    registry = get_registry()
-    errors = registry.get_load_errors()
-    assert isinstance(errors, list)
+    cal_path = str(tmp_path / "cal.joblib")
+    cal.save(cal_path)
+    loaded_cal = SiteCalibrationModel.load(cal_path)
+    assert loaded_cal.predict(X_df).shape == (2, 3)

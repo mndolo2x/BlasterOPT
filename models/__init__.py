@@ -10,9 +10,9 @@ from models.sklearn_wrappers.random_forest import RandomForestModel, RandomFores
 from models.sklearn_wrappers.xgboost import XGBoostBlastModel
 from models.sklearn_wrappers.ridge import RidgeBlastModel
 from models.custom.ga_ann import GAANNBlastModel
-from models.custom.pinn import PINNBlastModel
-from models.custom.ensemble import EnsembleBlastModel
-from models.custom.site_calibration_model import SiteCalibrationBlastModel
+from models.custom.pinn import PINNModel, PINNBlastModel
+from models.custom.ensemble import EnsembleModel, EnsembleBlastModel
+from models.custom.site_calibration_model import SiteCalibrationModel, SiteCalibrationBlastModel
 
 __all__ = [
     "BaseBlastModel",
@@ -25,7 +25,10 @@ __all__ = [
     "XGBoostBlastModel",
     "RidgeBlastModel",
     "GAANNBlastModel",
+    "PINNModel",
     "PINNBlastModel",
+    "EnsembleModel",
     "EnsembleBlastModel",
+    "SiteCalibrationModel",
     "SiteCalibrationBlastModel",
 ]
