@@ -1,0 +1,69 @@
+# Model Registry Configuration File
+
+models:
+  random_forest:
+    class_name: "RandomForestBlastModel"
+    module_path: "models.sklearn_wrappers.random_forest"
+    type: "sklearn"
+    description: "Multi-output Random Forest regressor"
+    version: "1.0.0"
+    params:
+      n_estimators: 100
+      max_depth: 12
+
+  xgboost:
+    class_name: "XGBoostBlastModel"
+    module_path: "models.sklearn_wrappers.xgboost"
+    type: "sklearn"
+    description: "XGBoost Gradient Boosted Trees"
+    version: "1.0.0"
+    params:
+      n_estimators: 100
+      learning_rate: 0.05
+
+  ridge:
+    class_name: "RidgeBlastModel"
+    module_path: "models.sklearn_wrappers.ridge"
+    type: "sklearn"
+    description: "Linear Ridge Regression baseline"
+    version: "1.0.0"
+    params:
+      alpha: 1.0
+
+  ga_ann:
+    class_name: "GAANNBlastModel"
+    module_path: "models.custom.ga_ann"
+    type: "custom"
+    description: "Genetic Algorithm Artificial Neural Network"
+    version: "2.1.0"
+    params:
+      epochs: 50
+
+  pinn:
+    class_name: "PINNBlastModel"
+    module_path: "models.custom.pinn"
+    type: "custom"
+    description: "Physics-Informed Neural Network with Kuz-Ram and USBM constraints"
+    version: "2.0.0"
+    params:
+      epochs: 60
+      lambda_kuzram: 0.25
+      lambda_usbm: 0.25
+
+  ensemble:
+    class_name: "EnsembleBlastModel"
+    module_path: "models.custom.ensemble"
+    type: "custom"
+    description: "N=7 Bagging Ensemble with Uncertainty Quantification"
+    version: "1.5.0"
+    params:
+      n_members: 7
+
+  site_calibration:
+    class_name: "SiteCalibrationBlastModel"
+    module_path: "models.custom.site_calibration_model"
+    type: "custom"
+    description: "Site-Specific Vibration Attenuation with GSI Correction"
+    version: "1.2.0"
+    params:
+      site_id: "Jwaneng_Main_Pit"
