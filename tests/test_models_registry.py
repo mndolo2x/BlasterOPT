@@ -82,6 +82,47 @@ def test_random_forest_model_metadata_and_dataframe_predict(tmp_path):
     assert loaded_preds.shape == (3, 3)
 
 
+def test_ga_ann_model_metadata_and_predict(tmp_path):
+    """
+    Test GAANNBlastModel metadata, predict, and save/load.
+    """
+    meta = GAANNBlastModel.get_metadata()
+    assert meta.name == "ga_ann"
+    assert meta.display_name == "GA-ANN (Genetic Algorithm + Neural Network)"
+    assert meta.output_features == ["fragmentation_p80", "ppv", "airblast"]
+
+    X_df = pd.DataFrame({
+        "burden": [3.5, 4.0],
+        "spacing": [4.5, 5.0],
+        "powder_factor": [0.6, 0.8],
+        "stemming": [3.0, 3.5],
+        "rock_factor": [8.0, 9.0],
+        "blastability_index": [60.0, 65.0],
+        "charge_per_delay": [300.0, 350.0]
+    }, index=[1, 2])
+
+    y_df = pd.DataFrame({
+        "fragmentation_p80": [220.0, 180.0],
+        "ppv": [5.2, 8.1],
+        "airblast": [115.0, 122.0]
+    }, index=[1, 2])
+
+    ga_model = GAANNBlastModel()
+    ga_model.fit(X_df, y_df, epochs=5)
+
+    preds = ga_model.predict(X_df)
+    assert isinstance(preds, pd.DataFrame)
+    assert list(preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
+    assert list(preds.index) == [1, 2]
+
+    save_path = str(tmp_path / "ga_ann.joblib")
+    ga_model.save(save_path)
+
+    loaded_ga = GAANNBlastModel.load(save_path)
+    loaded_preds = loaded_ga.predict(X_df)
+    assert isinstance(loaded_preds, pd.DataFrame)
+
+
 def test_registry_get_model_and_metadata():
     """
     Test registry.get_model() and registry.get_metadata().
