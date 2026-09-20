@@ -9,7 +9,7 @@ near regulatory thresholds.
 import os
 import logging
 from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional, Tuple, Literal
+from typing import Dict, Any, List, Optional, Tuple, Literal, Union
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,147 @@ class SafetyReport(BaseModel):
     blocks_export: bool = Field(..., description="True if design export/transmission must be blocked")
 
 
+def check_ppv(
+    ppv: float, max_ppv: float, lower_95: Optional[float] = None, upper_95: Optional[float] = None
+) -> SafetyCheck:
+    """Individual Ground Vibration (PPV) safety check."""
+    l95 = lower_95 if lower_95 is not None else ppv * 0.85
+    u95 = upper_95 if upper_95 is not None else ppv * 1.18
+
+    if ppv > max_ppv:
+        status = "UNSAFE"
+        reasoning = f"Mean predicted PPV ({ppv:.2f} mm/s) exceeds maximum limit ({max_ppv:.1f} mm/s)."
+    elif u95 > max_ppv:
+        status = "REQUIRES_REVIEW"
+        reasoning = (
+            f"Mean predicted PPV ({ppv:.2f} mm/s) is within limit ({max_ppv:.1f} mm/s), "
+            f"but 95% upper confidence bound ({u95:.2f} mm/s) exceeds limit."
+        )
+    else:
+        status = "SAFE"
+        reasoning = f"Predicted PPV ({ppv:.2f} mm/s, U95={u95:.2f} mm/s) is within safe limit ({max_ppv:.1f} mm/s)."
+
+    return SafetyCheck(
+        check_name="ppv_limit",
+        predicted_value=ppv,
+        lower_95=l95,
+        upper_95=u95,
+        limit=max_ppv,
+        status=status,
+        reasoning=reasoning,
+    )
+
+
+def check_airblast(
+    airblast: float, max_airblast: float, lower_95: Optional[float] = None, upper_95: Optional[float] = None
+) -> SafetyCheck:
+    """Individual Airblast Overpressure safety check."""
+    l95 = lower_95 if lower_95 is not None else airblast * 0.92
+    u95 = upper_95 if upper_95 is not None else airblast * 1.08
+
+    if airblast > max_airblast:
+        status = "UNSAFE"
+        reasoning = f"Mean predicted Airblast ({airblast:.1f} dBL) exceeds limit ({max_airblast:.1f} dBL)."
+    elif u95 > max_airblast:
+        status = "REQUIRES_REVIEW"
+        reasoning = (
+            f"Mean predicted Airblast ({airblast:.1f} dBL) is within limit ({max_airblast:.1f} dBL), "
+            f"but 95% upper bound ({u95:.1f} dBL) exceeds limit."
+        )
+    else:
+        status = "SAFE"
+        reasoning = f"Predicted Airblast ({airblast:.1f} dBL, U95={u95:.1f} dBL) is safe."
+
+    return SafetyCheck(
+        check_name="airblast_limit",
+        predicted_value=airblast,
+        lower_95=l95,
+        upper_95=u95,
+        limit=max_airblast,
+        status=status,
+        reasoning=reasoning,
+    )
+
+
+def check_flyrock(
+    flyrock: float, max_flyrock: float, lower_95: Optional[float] = None, upper_95: Optional[float] = None
+) -> SafetyCheck:
+    """Individual Flyrock distance safety check."""
+    l95 = lower_95 if lower_95 is not None else flyrock * 0.80
+    u95 = upper_95 if upper_95 is not None else flyrock * 1.25
+
+    if flyrock > max_flyrock:
+        status = "UNSAFE"
+        reasoning = f"Mean predicted Flyrock ({flyrock:.1f} m) exceeds boundary limit ({max_flyrock:.1f} m)."
+    elif u95 > max_flyrock:
+        status = "REQUIRES_REVIEW"
+        reasoning = (
+            f"Mean predicted Flyrock ({flyrock:.1f} m) is within limit ({max_flyrock:.1f} m), "
+            f"but 95% upper bound ({u95:.1f} m) crosses safety threshold."
+        )
+    else:
+        status = "SAFE"
+        reasoning = f"Predicted Flyrock ({flyrock:.1f} m, U95={u95:.1f} m) is safe."
+
+    return SafetyCheck(
+        check_name="flyrock_limit",
+        predicted_value=flyrock,
+        lower_95=l95,
+        upper_95=u95,
+        limit=max_flyrock,
+        status=status,
+        reasoning=reasoning,
+    )
+
+
+def determine_overall_status(checks: List[SafetyCheck]) -> Literal["SAFE", "REQUIRES_REVIEW", "UNSAFE"]:
+    """Determines overall aggregated status from list of SafetyCheck items."""
+    statuses = [c.status for c in checks]
+    if "UNSAFE" in statuses:
+        return "UNSAFE"
+    elif "REQUIRES_REVIEW" in statuses:
+        return "REQUIRES_REVIEW"
+    return "SAFE"
+
+
+def run_all_checks(design: Any, predictions: Any, constraints: Any) -> SafetyReport:
+    """
+    Runs all safety checks for a given blast design, predictions, and constraints.
+    """
+    def _get_val(obj: Any, keys: List[str], default: float) -> float:
+        if isinstance(obj, dict):
+            for k in keys:
+                if k in obj and obj[k] is not None:
+                    return float(obj[k])
+        else:
+            for k in keys:
+                if hasattr(obj, k) and getattr(obj, k) is not None:
+                    return float(getattr(obj, k))
+        return default
+
+    pred_ppv = _get_val(predictions, ["ppv", "ppv_mms", "pred_ppv_mms"], 5.0)
+    pred_airblast = _get_val(predictions, ["airblast", "airblast_dbl", "pred_airblast_dbl"], 110.0)
+    pred_flyrock = _get_val(predictions, ["flyrock", "flyrock_m", "pred_flyrock_m"], 100.0)
+
+    max_ppv = _get_val(constraints, ["max_ppv_mm_s", "max_ppv_mms", "max_ppv"], 10.0)
+    max_airblast = _get_val(constraints, ["max_airblast_db", "max_airblast_dbl", "max_airblast"], 120.0)
+    max_flyrock = _get_val(constraints, ["flyrock_exclusion_zone_m", "max_flyrock_m", "max_flyrock"], 250.0)
+
+    checks = [
+        check_ppv(pred_ppv, max_ppv),
+        check_airblast(pred_airblast, max_airblast),
+        check_flyrock(pred_flyrock, max_flyrock),
+    ]
+
+    overall = determine_overall_status(checks)
+    return SafetyReport(
+        overall_status=overall,
+        checks=checks,
+        requires_engineer_review=any(c.status in ["REQUIRES_REVIEW", "UNSAFE"] for c in checks),
+        blocks_export=any(c.status == "UNSAFE" for c in checks),
+    )
+
+
 def evaluate_safety(
     predictions: Dict[str, float],
     limits: Optional[Dict[str, float]] = None,
@@ -45,28 +186,6 @@ def evaluate_safety(
 ) -> SafetyReport:
     """
     Evaluates blast design predictions against limits incorporating 95% uncertainty bounds.
-
-    Rules:
-    ------
-    - "UNSAFE": Predicted mean exceeds maximum limit (or falls below minimum limit).
-    - "REQUIRES_REVIEW": Predicted mean is within limit, but 95% confidence bound crosses limit.
-    - "SAFE": Upper 95% confidence bound is strictly within limit.
-
-    Parameters:
-    -----------
-    predictions : Dict[str, float]
-        Predicted outcomes (ppv_mms, airblast_dbl, flyrock_m, d50_mm).
-    limits : Dict[str, float], optional
-        Active regulatory or site limits.
-    confidence_intervals : Dict[str, Tuple[float, float]], optional
-        Optional explicit 95% confidence bounds dict {"param": (lower_95, upper_95)}.
-    blast_params : Dict[str, float], optional
-        Input design parameters (stemming_m, powder_factor_kg_m3).
-
-    Returns:
-    --------
-    SafetyReport
-        Pydantic SafetyReport with overall status and individual checks.
     """
     if limits is None:
         limits = {
@@ -83,94 +202,25 @@ def evaluate_safety(
     checks: List[SafetyCheck] = []
 
     # 1. Ground Vibration (PPV)
-    if "ppv_mms" in predictions or "pred_ppv_mms" in predictions:
-        pred_ppv = float(predictions.get("ppv_mms", predictions.get("pred_ppv_mms", 0.0)))
-        limit_ppv = float(limits.get("max_ppv_mms", 10.0))
-        ci = confidence_intervals.get("ppv_mms", (pred_ppv * 0.85, pred_ppv * 1.18))
-        lower_95, upper_95 = float(ci[0]), float(ci[1])
-
-        if pred_ppv > limit_ppv:
-            status = "UNSAFE"
-            reasoning = f"Mean predicted PPV ({pred_ppv:.2f} mm/s) exceeds maximum limit ({limit_ppv:.1f} mm/s)."
-        elif upper_95 > limit_ppv:
-            status = "REQUIRES_REVIEW"
-            reasoning = (
-                f"Mean predicted PPV ({pred_ppv:.2f} mm/s) is within limit ({limit_ppv:.1f} mm/s), "
-                f"but 95% upper confidence bound ({upper_95:.2f} mm/s) exceeds limit."
-            )
-        else:
-            status = "SAFE"
-            reasoning = f"Predicted PPV ({pred_ppv:.2f} mm/s, U95={upper_95:.2f} mm/s) is within safe limit ({limit_ppv:.1f} mm/s)."
-
-        checks.append(SafetyCheck(
-            check_name="ppv_limit",
-            predicted_value=pred_ppv,
-            lower_95=lower_95,
-            upper_95=upper_95,
-            limit=limit_ppv,
-            status=status,
-            reasoning=reasoning,
-        ))
+    if "ppv_mms" in predictions or "pred_ppv_mms" in predictions or "ppv" in predictions:
+        pred_ppv = float(predictions.get("ppv_mms", predictions.get("pred_ppv_mms", predictions.get("ppv", 0.0))))
+        limit_ppv = float(limits.get("max_ppv_mms", limits.get("max_ppv_mm_s", limits.get("max_ppv", 10.0))))
+        ci = confidence_intervals.get("ppv_mms", confidence_intervals.get("ppv", (pred_ppv * 0.85, pred_ppv * 1.18)))
+        checks.append(check_ppv(pred_ppv, limit_ppv, lower_95=ci[0], upper_95=ci[1]))
 
     # 2. Airblast Overpressure (dBL)
-    if "airblast_dbl" in predictions or "pred_airblast_dbl" in predictions:
-        pred_ab = float(predictions.get("airblast_dbl", predictions.get("pred_airblast_dbl", 0.0)))
-        limit_ab = float(limits.get("max_airblast_dbl", 120.0))
-        ci = confidence_intervals.get("airblast_dbl", (pred_ab * 0.92, pred_ab * 1.08))
-        lower_95, upper_95 = float(ci[0]), float(ci[1])
-
-        if pred_ab > limit_ab:
-            status = "UNSAFE"
-            reasoning = f"Mean predicted Airblast ({pred_ab:.1f} dBL) exceeds limit ({limit_ab:.1f} dBL)."
-        elif upper_95 > limit_ab:
-            status = "REQUIRES_REVIEW"
-            reasoning = (
-                f"Mean predicted Airblast ({pred_ab:.1f} dBL) is within limit ({limit_ab:.1f} dBL), "
-                f"but 95% upper bound ({upper_95:.1f} dBL) exceeds limit."
-            )
-        else:
-            status = "SAFE"
-            reasoning = f"Predicted Airblast ({pred_ab:.1f} dBL, U95={upper_95:.1f} dBL) is safe."
-
-        checks.append(SafetyCheck(
-            check_name="airblast_limit",
-            predicted_value=pred_ab,
-            lower_95=lower_95,
-            upper_95=upper_95,
-            limit=limit_ab,
-            status=status,
-            reasoning=reasoning,
-        ))
+    if "airblast_dbl" in predictions or "pred_airblast_dbl" in predictions or "airblast" in predictions:
+        pred_ab = float(predictions.get("airblast_dbl", predictions.get("pred_airblast_dbl", predictions.get("airblast", 0.0))))
+        limit_ab = float(limits.get("max_airblast_dbl", limits.get("max_airblast_db", limits.get("max_airblast", 120.0))))
+        ci = confidence_intervals.get("airblast_dbl", confidence_intervals.get("airblast", (pred_ab * 0.92, pred_ab * 1.08)))
+        checks.append(check_airblast(pred_ab, limit_ab, lower_95=ci[0], upper_95=ci[1]))
 
     # 3. Flyrock Range
-    if "flyrock_m" in predictions or "pred_flyrock_m" in predictions:
-        pred_fly = float(predictions.get("flyrock_m", predictions.get("pred_flyrock_m", 0.0)))
-        limit_fly = float(limits.get("max_flyrock_m", 250.0))
-        ci = confidence_intervals.get("flyrock_m", (pred_fly * 0.80, pred_fly * 1.25))
-        lower_95, upper_95 = float(ci[0]), float(ci[1])
-
-        if pred_fly > limit_fly:
-            status = "UNSAFE"
-            reasoning = f"Mean predicted Flyrock ({pred_fly:.1f} m) exceeds boundary limit ({limit_fly:.1f} m)."
-        elif upper_95 > limit_fly:
-            status = "REQUIRES_REVIEW"
-            reasoning = (
-                f"Mean predicted Flyrock ({pred_fly:.1f} m) is within limit ({limit_fly:.1f} m), "
-                f"but 95% upper bound ({upper_95:.1f} m) crosses safety threshold."
-            )
-        else:
-            status = "SAFE"
-            reasoning = f"Predicted Flyrock ({pred_fly:.1f} m, U95={upper_95:.1f} m) is safe."
-
-        checks.append(SafetyCheck(
-            check_name="flyrock_limit",
-            predicted_value=pred_fly,
-            lower_95=lower_95,
-            upper_95=upper_95,
-            limit=limit_fly,
-            status=status,
-            reasoning=reasoning,
-        ))
+    if "flyrock_m" in predictions or "pred_flyrock_m" in predictions or "flyrock" in predictions:
+        pred_fly = float(predictions.get("flyrock_m", predictions.get("pred_flyrock_m", predictions.get("flyrock", 0.0))))
+        limit_fly = float(limits.get("max_flyrock_m", limits.get("flyrock_exclusion_zone_m", limits.get("max_flyrock", 250.0))))
+        ci = confidence_intervals.get("flyrock_m", confidence_intervals.get("flyrock", (pred_fly * 0.80, pred_fly * 1.25)))
+        checks.append(check_flyrock(pred_fly, limit_fly, lower_95=ci[0], upper_95=ci[1]))
 
     # 4. Stemming Confinement Check
     if "stemming_m" in blast_params:
@@ -202,24 +252,10 @@ def evaluate_safety(
             reasoning=reasoning,
         ))
 
-    # Determine overall status
-    statuses = [c.status for c in checks]
-    if "UNSAFE" in statuses:
-        overall_status = "UNSAFE"
-        requires_review = True
-        blocks_export = True
-    elif "REQUIRES_REVIEW" in statuses:
-        overall_status = "REQUIRES_REVIEW"
-        requires_review = True
-        blocks_export = False
-    else:
-        overall_status = "SAFE"
-        requires_review = False
-        blocks_export = False
-
+    overall = determine_overall_status(checks)
     return SafetyReport(
-        overall_status=overall_status,
+        overall_status=overall,
         checks=checks,
-        requires_engineer_review=requires_review,
-        blocks_export=blocks_export,
+        requires_engineer_review=any(c.status in ["REQUIRES_REVIEW", "UNSAFE"] for c in checks),
+        blocks_export=any(c.status == "UNSAFE" for c in checks),
     )
