@@ -56,7 +56,7 @@ def test_recommendation_safe_design():
     assert res.blocks_export is False
 
 
-def test_recommendation_unsafe_design_returns_none():
+def test_recommendation_blocked_when_unsafe():
     service = PredictionService()
     design = {
         "rock_factor_A": 8.0,

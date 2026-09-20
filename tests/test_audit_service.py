@@ -32,7 +32,7 @@ def test_audit_event_model():
     assert evt.previous_event_hash is None
 
 
-def test_audit_service_logging_and_verify_chain(tmp_path):
+def test_audit_chain_verifies(tmp_path):
     audit_dir = str(tmp_path / "audit")
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -68,7 +68,7 @@ def test_audit_service_logging_and_verify_chain(tmp_path):
     assert is_valid is True
 
 
-def test_verify_chain_detects_payload_tampering(tmp_path):
+def test_audit_chain_detects_tampering(tmp_path):
     audit_dir = str(tmp_path / "audit")
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 

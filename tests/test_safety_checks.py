@@ -6,7 +6,7 @@ import pytest
 from src.domain.safety_checks import evaluate_safety, SafetyCheck, SafetyReport
 
 
-def test_safety_check_safe_status():
+def test_safety_check_safe_when_upper_ci_below_limit():
     predictions = {"ppv_mms": 4.0, "airblast_dbl": 110.0, "flyrock_m": 80.0}
     limits = {"max_ppv_mms": 10.0, "max_airblast_dbl": 120.0, "max_flyrock_m": 250.0}
     confidence_intervals = {
@@ -23,7 +23,7 @@ def test_safety_check_safe_status():
     assert len(report.checks) == 3
 
 
-def test_safety_check_requires_review_status():
+def test_safety_check_requires_review_when_upper_ci_exceeds_limit():
     # Mean is 8.5 mm/s <= 10.0 limit, but upper 95 bound is 11.2 > 10.0 limit
     predictions = {"ppv_mms": 8.5, "airblast_dbl": 110.0}
     limits = {"max_ppv_mms": 10.0, "max_airblast_dbl": 120.0}
@@ -43,7 +43,7 @@ def test_safety_check_requires_review_status():
     assert "95% upper confidence bound" in ppv_check.reasoning
 
 
-def test_safety_check_unsafe_status():
+def test_safety_check_unsafe_when_prediction_exceeds_limit():
     # Mean is 12.5 mm/s > 10.0 limit
     predictions = {"ppv_mms": 12.5, "airblast_dbl": 110.0}
     limits = {"max_ppv_mms": 10.0, "max_airblast_dbl": 120.0}
