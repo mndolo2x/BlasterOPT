@@ -117,7 +117,10 @@ st.set_page_config(
 from src.config import DEMO_MODE, get_provenance_badge
 from src.domain.safety_checks import evaluate_safety, SafetyReport
 from src.domain.approval import approve_design, check_approval_gate, get_approval_record
+from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
 from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
+from src.services.prediction_service import PredictionService, RecommendationResult
+from src.services.audit_service import AuditService, verify_chain
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
@@ -613,23 +616,76 @@ elif active_module == "predictor":
         m3.metric("Flyrock Distance", f"{predictions['flyrock_m']:.1f} m")
         m4.metric("D&B Cost", f"${predictions['cost_per_tonne_usd']:.2f} / t")
 
-        # Uncertainty-Aware Safety Report
+        # Uncertainty-Aware Safety Report & 7-Step Design Workflow
         safety_dict = predictions.get("safety_report", {})
+        ov_status = safety_dict.get("overall_status", "SAFE") if safety_dict else "SAFE"
+
+        st.markdown("---")
+        st.subheader("🛡️ Step 3: Safety Report & Limit Check")
+
+        if ov_status == "SAFE":
+            st.success("✅ **OVERALL STATUS: SAFE** — All 95% upper confidence bounds comply strictly with site and regulatory thresholds.")
+        elif ov_status == "REQUIRES_REVIEW":
+            st.warning("⚠️ **OVERALL STATUS: REQUIRES REVIEW** — Mean predictions comply, but 95% upper confidence bounds cross threshold limits. Certified blaster review and mandatory override reasoning required.")
+        else:
+            st.error("🚨 **OVERALL STATUS: UNSAFE / INFEASIBLE** — Design violates maximum allowed safety limits. Export and transmission disabled.")
+
         if safety_dict:
-            st.markdown("---")
-            st.subheader("🛡️ Uncertainty-Aware Safety & Limit Check Report")
-            ov_status = safety_dict.get("overall_status", "SAFE")
-
-            if ov_status == "SAFE":
-                st.success("✅ **OVERALL STATUS: SAFE** — All 95% upper confidence bounds comply strictly with site and regulatory thresholds.")
-            elif ov_status == "REQUIRES_REVIEW":
-                st.warning("⚠️ **OVERALL STATUS: REQUIRES REVIEW** — Mean predictions comply, but 95% upper confidence bounds cross threshold limits. Certified blaster review and mandatory override reasoning required.")
-            else:
-                st.error("🚨 **OVERALL STATUS: UNSAFE / INFEASIBLE** — Design violates maximum allowed safety limits. Action blocked.")
-
             checks_df = pd.DataFrame(safety_dict.get("checks", []))
             if not checks_df.empty:
                 st.dataframe(checks_df[["check_name", "predicted_value", "lower_95", "upper_95", "limit", "status", "reasoning"]], use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📝 Step 4 & 5: Submit for Certified Blaster Approval")
+        sub_user_id = st.text_input("Engineer / Submitter User ID", value="ENGINEER_BOTSWANA_01")
+        pattern_req_id = st.text_input("Pattern ID for Submission", value="PATTERN_CUT8_BENCH15S")
+
+        ack_review_checkbox = False
+        if ov_status == "REQUIRES_REVIEW":
+            ack_review_checkbox = st.checkbox(
+                "I have reviewed the uncertainty margin and accept responsibility.",
+                value=False,
+            )
+
+        submit_btn_disabled = (ov_status == "UNSAFE") or (ov_status == "REQUIRES_REVIEW" and not ack_review_checkbox)
+
+        if st.button("Submit for Approval 🚀", disabled=submit_btn_disabled, type="primary"):
+            if safety_dict:
+                s_report = SafetyReport(**safety_dict)
+            else:
+                s_report = evaluate_safety(predictions, blast_params=input_payload)
+
+            req = submit_for_approval(
+                design=input_payload,
+                safety_report=s_report,
+                user_id=sub_user_id,
+                design_id=pattern_req_id,
+            )
+            st.success(f"Approval request created and routed to certified blaster! Design ID: `{req.design_id}`")
+
+        # Version History Section
+        st.markdown("---")
+        st.subheader("📜 Design Version History")
+        current_s_report = SafetyReport(**safety_dict) if safety_dict else evaluate_safety(predictions, blast_params=input_payload)
+        design_ver_1 = BlastDesignVersion.create(
+            design_id=pattern_req_id,
+            design_data=input_payload,
+            safety_report=current_s_report,
+            created_by=sub_user_id,
+            version=1,
+            approval_status="PENDING_APPROVAL" if ov_status != "UNSAFE" else "DRAFT",
+        )
+
+        ver_df = pd.DataFrame([{
+            "Design ID": design_ver_1.design_id,
+            "Version": design_ver_1.version,
+            "Parent Version": str(design_ver_1.parent_version),
+            "Created By": design_ver_1.created_by,
+            "Created At": str(design_ver_1.created_at),
+            "Approval Status": design_ver_1.approval_status,
+            "Content Hash (SHA-256)": design_ver_1.content_hash[:16] + "...",
+        }])
+        st.dataframe(ver_df, use_container_width=True)
 
         st.markdown("---")
         with st.expander("🔍 Why this prediction?", expanded=True):
