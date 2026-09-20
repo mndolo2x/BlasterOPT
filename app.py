@@ -117,6 +117,7 @@ st.set_page_config(
 from src.config import DEMO_MODE, get_provenance_badge
 from src.domain.safety_checks import evaluate_safety, SafetyReport
 from src.domain.approval import approve_design, check_approval_gate, get_approval_record
+from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
@@ -1377,19 +1378,25 @@ elif active_module == "connectivity":
         st.subheader("✍️ Certified Blaster Sign-off Gate")
         signoff_id = st.text_input("Blaster Credential ID", value="BLASTER_BW_9021")
         signoff_role = st.selectbox("Blaster Role", ["Certified Blaster", "Pit Supervisor", "Chief Mining Engineer"])
-        signoff_decision = st.radio("Sign-off Decision", ["APPROVED", "REJECTED"], index=0)
+        signoff_decision = st.radio("Sign-off Decision", ["APPROVED", "REJECTED", "CHANGES_REQUESTED"], index=0)
         override_notes = st.text_area("Mandatory Override Reasoning (if REQUIRES_REVIEW)", value="")
+        ack_unc = st.checkbox(
+            "☑️ I explicitly acknowledge the prediction uncertainty and 95% confidence bounds.",
+            value=False,
+            help="Mandatory acknowledgment for pattern designs requiring engineer review."
+        )
 
         if st.button("Record Official Sign-off Decision"):
             try:
-                rec = approve_design(
-                    design_id=pattern_id,
-                    blaster_id=signoff_id,
-                    role=signoff_role,
+                rec = record_decision(
+                    design_id_or_request=pattern_id,
                     decision=signoff_decision,
-                    override_reasoning=override_notes,
+                    user_id=signoff_id,
+                    user_role="CERTIFIED_BLASTER" if "Certified" in signoff_role else signoff_role,
+                    reason=override_notes,
+                    acknowledged_uncertainty=ack_unc,
                 )
-                st.success(f"Sign-off recorded! Digital Signature Hash: `{rec.signature_hash[:16]}...`")
+                st.success(f"Sign-off recorded! Digital Signature Hash: `{rec.signature[:16]}...`")
             except Exception as e:
                 st.error(f"Sign-off failed: {e}")
 
