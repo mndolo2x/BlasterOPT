@@ -67,21 +67,19 @@ def _save_request_store() -> None:
         logger.error(f"Failed to save request store: {err}")
 
 
+from src.services.audit_service import AuditService
+
 def _write_audit_log(event_type: str, data: Dict[str, Any]) -> None:
-    """Appends an immutable audit record to data/audit/YYYY-MM-DD.jsonl."""
+    """Appends an immutable audit record to data/audit/YYYY-MM-DD.jsonl via AuditService."""
     try:
-        os.makedirs(AUDIT_LOG_DIR, exist_ok=True)
-        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        audit_file_path = os.path.join(AUDIT_LOG_DIR, f"{today_str}.jsonl")
-
-        audit_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "event_type": event_type,
-            "payload": data,
-        }
-
-        with open(audit_file_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(audit_entry) + "\n")
+        uid = data.get("requested_by", data.get("decided_by", data.get("blaster_id", "system")))
+        did = data.get("design_id")
+        AuditService().log_event(
+            event_type=event_type,
+            user_id=uid,
+            payload=data,
+            design_id=did,
+        )
     except Exception as err:
         logger.error(f"Failed to write audit log entry: {err}")
 

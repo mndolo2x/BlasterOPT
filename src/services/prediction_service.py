@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, Literal
 from src.domain.predictions import PredictionValue, BlastPrediction
 from src.domain.safety_checks import run_all_checks, SafetyReport
 from src.predict import predict_single_blast
+from src.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class PredictionService:
         safety_report = run_all_checks(design, raw_outputs, constraints)
 
         if safety_report.overall_status == "UNSAFE":
-            return RecommendationResult(
+            res = RecommendationResult(
                 recommendation=None,
                 status="UNSAFE",
                 confidence="NONE - UNSAFE DESIGN",
@@ -120,6 +121,13 @@ class PredictionService:
                 requires_engineer_review=True,
                 blocks_export=True,
             )
+            AuditService().log_event(
+                event_type="prediction_unsafe_blocked",
+                user_id="PREDICTION_SERVICE",
+                payload={"design": design, "recommendation": res.model_dump()},
+                design_id=str(design.get("design_id", "")),
+            )
+            return res
 
         elif safety_report.overall_status == "REQUIRES_REVIEW":
             return RecommendationResult(
