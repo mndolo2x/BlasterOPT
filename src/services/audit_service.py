@@ -119,8 +119,9 @@ class AuditService:
         )
 
         # Append to JSONL file
+        evt_data = evt.model_dump() if hasattr(evt, "model_dump") else evt.dict()
         with open(filepath, "a", encoding="utf-8") as f:
-            f.write(json.dumps(evt.model_dump(), default=str) + "\n")
+            f.write(json.dumps(evt_data, default=str) + "\n")
 
         logger.info(f"Logged audit event '{event_type}' (id: {evt.event_id}) to {filepath}.")
         return evt

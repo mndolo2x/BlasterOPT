@@ -17,14 +17,24 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Tuple, Literal, Union
 
-from src.domain.safety_checks import SafetyReport
-from src.domain.approval import (
-    ApprovalRequest,
-    ApprovalDecision,
-    create_signature_hash,
-    _load_approval_store,
-    _save_approval_store,
-)
+try:
+    from src.domain.safety_checks import SafetyReport
+    from src.domain.approval import (
+        ApprovalRequest,
+        ApprovalDecision,
+        create_signature_hash,
+        _load_approval_store,
+        _save_approval_store,
+    )
+except ImportError:
+    from ..domain.safety_checks import SafetyReport
+    from ..domain.approval import (
+        ApprovalRequest,
+        ApprovalDecision,
+        create_signature_hash,
+        _load_approval_store,
+        _save_approval_store,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +77,10 @@ def _save_request_store() -> None:
         logger.error(f"Failed to save request store: {err}")
 
 
-from src.services.audit_service import AuditService
+try:
+    from src.services.audit_service import AuditService
+except ImportError:
+    from .audit_service import AuditService
 
 def _write_audit_log(event_type: str, data: Dict[str, Any]) -> None:
     """Appends an immutable audit record to data/audit/YYYY-MM-DD.jsonl via AuditService."""
@@ -114,12 +127,13 @@ def submit_for_approval(
         dataset_version=dataset_version,
     )
 
+    req_data = request.model_dump() if hasattr(request, "model_dump") else request.dict()
     store = _load_request_store()
-    store[did] = request.model_dump()
+    store[did] = req_data
     _save_request_store()
 
     # Append to immutable JSONL audit log
-    _write_audit_log("SUBMIT_FOR_APPROVAL", request.model_dump())
+    _write_audit_log("SUBMIT_FOR_APPROVAL", req_data)
 
     logger.info(f"Approval request submitted for design '{did}' by user '{user_id}'.")
     return request
@@ -203,12 +217,13 @@ def record_decision(
     )
 
     # Save decision to disk store
+    dec_data = decision_obj.model_dump() if hasattr(decision_obj, "model_dump") else decision_obj.dict()
     app_store = _load_approval_store()
-    app_store[did] = decision_obj.model_dump()
+    app_store[did] = dec_data
     _save_approval_store()
 
     # Write immutable audit record
-    _write_audit_log("RECORD_APPROVAL_DECISION", decision_obj.model_dump())
+    _write_audit_log("RECORD_APPROVAL_DECISION", dec_data)
 
     logger.info(f"Decision '{decision}' recorded for design '{did}' by certified blaster '{user_id}'.")
     return decision_obj

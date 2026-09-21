@@ -12,7 +12,10 @@ import logging
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Tuple, Literal, Union
-from src.domain.safety_checks import SafetyReport
+try:
+    from src.domain.safety_checks import SafetyReport
+except ImportError:
+    from .safety_checks import SafetyReport
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +150,8 @@ def approve_design(
     )
 
     store = _load_approval_store()
-    store[design_id] = decision_obj.model_dump()
+    store_dict = decision_obj.model_dump() if hasattr(decision_obj, "model_dump") else decision_obj.dict()
+    store[design_id] = store_dict
     _save_approval_store()
 
     logger.info(f"Design '{design_id}' sign-off decision '{decision}' recorded by blaster '{blaster_id}'.")

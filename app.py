@@ -115,7 +115,8 @@ st.set_page_config(
 )
 
 from src.config import DEMO_MODE, get_provenance_badge
-from src.domain.safety_checks import evaluate_safety, SafetyReport
+
+from src.domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
 from src.domain.approval import approve_design, check_approval_gate, get_approval_record
 from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
 from src.services.approval_service import submit_for_approval, record_decision, get_approval_status

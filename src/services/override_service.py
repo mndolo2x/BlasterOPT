@@ -20,7 +20,10 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Union
 
-from src.services.audit_service import AuditService
+try:
+    from src.services.audit_service import AuditService
+except ImportError:
+    from .audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 

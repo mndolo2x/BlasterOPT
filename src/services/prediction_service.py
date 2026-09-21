@@ -9,10 +9,16 @@ blocks recommendations for UNSAFE designs.
 import logging
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, Literal
-from src.domain.predictions import PredictionValue, BlastPrediction
-from src.domain.safety_checks import run_all_checks, SafetyReport
-from src.predict import predict_single_blast
-from src.services.audit_service import AuditService
+try:
+    from src.domain.predictions import PredictionValue, BlastPrediction
+    from src.domain.safety_checks import run_all_checks, SafetyReport
+    from src.predict import predict_single_blast
+    from src.services.audit_service import AuditService
+except ImportError:
+    from ..domain.predictions import PredictionValue, BlastPrediction
+    from ..domain.safety_checks import run_all_checks, SafetyReport
+    from ..predict import predict_single_blast
+    from .audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +127,11 @@ class PredictionService:
                 requires_engineer_review=True,
                 blocks_export=True,
             )
+            res_data = res.model_dump() if hasattr(res, "model_dump") else res.dict()
             AuditService().log_event(
                 event_type="prediction_unsafe_blocked",
                 user_id="PREDICTION_SERVICE",
-                payload={"design": design, "recommendation": res.model_dump()},
+                payload={"design": design, "recommendation": res_data},
                 design_id=str(design.get("design_id", "")),
             )
             return res
