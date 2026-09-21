@@ -9,16 +9,10 @@ blocks recommendations for UNSAFE designs.
 import logging
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, Literal
-try:
-    from src.domain.predictions import PredictionValue, BlastPrediction
-    from src.domain.safety_checks import run_all_checks, SafetyReport
-    from src.predict import predict_single_blast
-    from src.services.audit_service import AuditService
-except ImportError:
-    from ..domain.predictions import PredictionValue, BlastPrediction
-    from ..domain.safety_checks import run_all_checks, SafetyReport
-    from ..predict import predict_single_blast
-    from .audit_service import AuditService
+from src.domain.predictions import PredictionValue, BlastPrediction
+from src.domain.safety_checks import run_all_checks, SafetyReport
+from src.predict import predict_single_blast
+from src.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 

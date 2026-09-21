@@ -17,24 +17,14 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Tuple, Literal, Union
 
-try:
-    from src.domain.safety_checks import SafetyReport
-    from src.domain.approval import (
-        ApprovalRequest,
-        ApprovalDecision,
-        create_signature_hash,
-        _load_approval_store,
-        _save_approval_store,
-    )
-except ImportError:
-    from ..domain.safety_checks import SafetyReport
-    from ..domain.approval import (
-        ApprovalRequest,
-        ApprovalDecision,
-        create_signature_hash,
-        _load_approval_store,
-        _save_approval_store,
-    )
+from src.domain.safety_checks import SafetyReport
+from src.domain.approval import (
+    ApprovalRequest,
+    ApprovalDecision,
+    create_signature_hash,
+    _load_approval_store,
+    _save_approval_store,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +67,7 @@ def _save_request_store() -> None:
         logger.error(f"Failed to save request store: {err}")
 
 
-try:
-    from src.services.audit_service import AuditService
-except ImportError:
-    from .audit_service import AuditService
+from src.services.audit_service import AuditService
 
 def _write_audit_log(event_type: str, data: Dict[str, Any]) -> None:
     """Appends an immutable audit record to data/audit/YYYY-MM-DD.jsonl via AuditService."""

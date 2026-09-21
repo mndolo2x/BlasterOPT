@@ -10,13 +10,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Ensure repository root directory and src directory are on Python path for Streamlit Cloud deployments
+# Ensure repository root directory is on Python path for Streamlit Cloud deployments
 repo_root = os.path.dirname(os.path.abspath(__file__))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
-src_dir = os.path.join(repo_root, "src")
-if os.path.exists(src_dir) and src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features
@@ -119,35 +116,12 @@ st.set_page_config(
 
 from src.config import DEMO_MODE, get_provenance_badge
 
-try:
-    from src.domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
-except Exception:
-    from domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
-
-try:
-    from src.domain.approval import approve_design, check_approval_gate, get_approval_record
-except Exception:
-    from domain.approval import approve_design, check_approval_gate, get_approval_record
-
-try:
-    from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
-except Exception:
-    from domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
-
-try:
-    from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
-except Exception:
-    from services.approval_service import submit_for_approval, record_decision, get_approval_status
-
-try:
-    from src.services.prediction_service import PredictionService, RecommendationResult
-except Exception:
-    from services.prediction_service import PredictionService, RecommendationResult
-
-try:
-    from src.services.audit_service import AuditService, verify_chain
-except Exception:
-    from services.audit_service import AuditService, verify_chain
+from src.domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
+from src.domain.approval import approve_design, check_approval_gate, get_approval_record
+from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
+from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
+from src.services.prediction_service import PredictionService, RecommendationResult
+from src.services.audit_service import AuditService, verify_chain
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")

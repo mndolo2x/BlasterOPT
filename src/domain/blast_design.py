@@ -13,10 +13,7 @@ import logging
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, Union, Literal
-try:
-    from src.domain.safety_checks import SafetyReport
-except ImportError:
-    from .safety_checks import SafetyReport
+from src.domain.safety_checks import SafetyReport
 
 logger = logging.getLogger(__name__)
 
