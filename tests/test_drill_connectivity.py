@@ -52,6 +52,19 @@ def test_sync_design_to_drill_handles_gracefully():
     assert res_epiroc["drill_id"] == "EPIROC_PV271_01"
 
 
+def test_sync_timestamp_is_valid_iso8601():
+    """Test that sync_design_to_drill returns a valid ISO 8601 timestamp string for sync_timestamp."""
+    res = sync_design_to_drill({"design_id": "ISO_TEST_PATTERN", "num_holes": 10}, drill_id="SANDVIK_DR412i_01")
+
+    assert "sync_timestamp" in res
+    timestamp_str = res["sync_timestamp"]
+    assert isinstance(timestamp_str, str)
+    assert not timestamp_str.startswith("python-requests")
+
+    parsed_dt = datetime.fromisoformat(timestamp_str)
+    assert isinstance(parsed_dt, datetime)
+
+
 def test_sync_design_to_drill_invalid_vendor_fallback():
     """Test sync_design_to_drill falls back gracefully when given unknown vendor."""
     res = sync_design_to_drill({"num_holes": 16}, drill_id="RIG_UNKNOWN", vendor="unknown_vendor")
