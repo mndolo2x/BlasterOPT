@@ -17,7 +17,7 @@ if repo_root not in sys.path:
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features
-from src.models import BlastMLPipeline, MODEL_REGISTRY
+from src.models import BlastMLPipeline, MODEL_REGISTRY, FEATURE_COLS
 from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
 from src.mwd_ingestion import parse_mwd_message, MWD_HISTORY
@@ -37,6 +37,7 @@ from src.detonator_integration import (
     upload_timing_sequence,
     download_firing_confirmation,
     validate_sequence,
+    load_firing_confirmations,
     FIRING_CONFIRMATIONS_DB,
 )
 from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
@@ -49,16 +50,33 @@ from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
 
-# Defensive imports for Agent modules to guarantee startup on Streamlit Cloud
+import traceback
+
+# Error-reporting imports for Agent modules to expose actual exception tracebacks
 try:
     from src.agent.guardrails import get_guardrail_trips
 except Exception:
-    get_guardrail_trips = lambda *args, **kwargs: []
+    _guardrail_error = traceback.format_exc()
+    def get_guardrail_trips(*args, **kwargs):
+        st.error("❌ Guardrail module failed to load")
+        with st.expander("Show error details"):
+            st.code(_guardrail_error)
+        return []
 
 try:
     from src.agent.voice_interface import process_voice_turn, start_voice_session
 except Exception:
-    process_voice_turn, start_voice_session = None, None
+    _voice_error = traceback.format_exc()
+    def process_voice_turn(*args, **kwargs):
+        st.error("❌ Voice Interface module failed to load")
+        with st.expander("Show error details"):
+            st.code(_voice_error)
+        return {"language": "en", "transcription": "", "text": "Voice module failed to load.", "audio": b""}
+    def start_voice_session(*args, **kwargs):
+        st.error("❌ Voice Interface module failed to load")
+        with st.expander("Show error details"):
+            st.code(_voice_error)
+        return None
 
 try:
     from src.agent.agent_ui import (
@@ -69,25 +87,62 @@ try:
         render_knowledge_qa,
         render_system_health,
     )
-except Exception as e:
-    def render_agent_chat(*args, **kwargs): st.info("Agent Chat module initializing...")
-    def render_guided_mode(*args, **kwargs): st.info("Guided Mode module initializing...")
-    def render_expert_mode(*args, **kwargs): st.info("Expert Mode module initializing...")
-    def render_voice_mode(*args, **kwargs): st.info("Voice Mode module initializing...")
-    def render_knowledge_qa(*args, **kwargs): st.info("Knowledge Q&A module initializing...")
-    def render_system_health(*args, **kwargs): st.info("System Health module initializing...")
+except Exception:
+    _agent_ui_error = traceback.format_exc()
+    def render_agent_chat(*args, **kwargs):
+        st.error("❌ Agent Chat module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
+    def render_guided_mode(*args, **kwargs):
+        st.error("❌ Guided Mode module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
+    def render_expert_mode(*args, **kwargs):
+        st.error("❌ Expert Mode module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
+    def render_voice_mode(*args, **kwargs):
+        st.error("❌ Voice Mode module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
+    def render_knowledge_qa(*args, **kwargs):
+        st.error("❌ Knowledge Q&A module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
+    def render_system_health(*args, **kwargs):
+        st.error("❌ System Health module failed to load")
+        with st.expander("Show error details"):
+            st.code(_agent_ui_error)
 
 try:
     from src.agent.ollama_health import full_health_check
 except Exception:
-    full_health_check = lambda *args, **kwargs: {"overall_status": "offline", "recommendations": []}
+    _ollama_error = traceback.format_exc()
+    def full_health_check(*args, **kwargs):
+        st.error("❌ Ollama Health module failed to load")
+        with st.expander("Show error details"):
+            st.code(_ollama_error)
+        return {"overall_status": "offline", "recommendations": []}
 
 try:
     from src.agent.audit import get_interaction_history, get_decision_history, export_audit_log_json
 except Exception:
-    get_interaction_history = lambda *args, **kwargs: []
-    get_decision_history = lambda *args, **kwargs: []
-    export_audit_log_json = lambda *args, **kwargs: ""
+    _audit_error = traceback.format_exc()
+    def get_interaction_history(*args, **kwargs):
+        st.error("❌ Audit module failed to load")
+        with st.expander("Show error details"):
+            st.code(_audit_error)
+        return []
+    def get_decision_history(*args, **kwargs):
+        st.error("❌ Audit module failed to load")
+        with st.expander("Show error details"):
+            st.code(_audit_error)
+        return []
+    def export_audit_log_json(*args, **kwargs):
+        st.error("❌ Audit module failed to load")
+        with st.expander("Show error details"):
+            st.code(_audit_error)
+        return ""
 import plotly.express as px
 import plotly.graph_objects as go
 from src.optimize import BlastOptimizer
@@ -1555,12 +1610,14 @@ elif active_module == "detonator":
     with c_det2:
         st.subheader("📊 Firing Confirmations & Field Diagnostics")
 
-        if not FIRING_CONFIRMATIONS_DB:
+        df_conf_list = load_firing_confirmations()
+        if not df_conf_list:
             # Seed mock default confirmation if database is empty
             download_firing_confirmation("AEL IntelliShot", blast_id="BLAST_JWA_2024_01")
             download_firing_confirmation("BME AXXIS", blast_id="BLAST_ORA_2024_03")
+            df_conf_list = load_firing_confirmations()
 
-        df_conf = pd.DataFrame(FIRING_CONFIRMATIONS_DB)
+        df_conf = pd.DataFrame(df_conf_list)
         st.dataframe(df_conf, use_container_width=True)
 
         st.markdown("---")

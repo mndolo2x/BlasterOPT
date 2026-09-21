@@ -19,8 +19,25 @@ from typing import Dict, Any, Optional, Tuple, List, Union
 
 logger = logging.getLogger(__name__)
 
-# Simulated in-memory database store for firing confirmation records
-FIRING_CONFIRMATIONS_DB: List[Dict[str, Any]] = []
+FIRING_CONFIRMATIONS_FILE = "data/audit/firing_confirmations.jsonl"
+
+
+def load_firing_confirmations() -> List[Dict[str, Any]]:
+    """Loads all firing confirmations from append-only JSONL file."""
+    confirmations = []
+    if os.path.exists(FIRING_CONFIRMATIONS_FILE):
+        try:
+            with open(FIRING_CONFIRMATIONS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        confirmations.append(json.loads(line.strip()))
+        except Exception as err:
+            logger.warning(f"Failed to load firing confirmations from {FIRING_CONFIRMATIONS_FILE}: {err}")
+    return confirmations
+
+
+# Backward compatibility list/property
+FIRING_CONFIRMATIONS_DB: List[Dict[str, Any]] = load_firing_confirmations()
 
 
 def validate_sequence(
@@ -259,7 +276,15 @@ def download_firing_confirmation(
         "measured_airblast_dbl": 114.2,
     }
 
-    # Store in memory database table
+    # Persist to append-only JSONL file
+    os.makedirs(os.path.dirname(FIRING_CONFIRMATIONS_FILE), exist_ok=True)
+    try:
+        with open(FIRING_CONFIRMATIONS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(confirmation) + "\n")
+    except Exception as err:
+        logger.error(f"Failed to write firing confirmation to {FIRING_CONFIRMATIONS_FILE}: {err}")
+
+    # Keep in-memory list synced
     FIRING_CONFIRMATIONS_DB.append(confirmation)
 
     return confirmation

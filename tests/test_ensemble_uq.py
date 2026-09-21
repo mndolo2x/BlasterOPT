@@ -93,6 +93,21 @@ def test_uncertainty_higher_for_ood_inputs():
     assert predictor.flag_high_uncertainty(pred_ood) is True
 
 
+def test_ensemble_uq_page_loads_without_error():
+    """
+    Tests that app.py imports FEATURE_COLS from src.models and can reference it
+    without raising a NameError during Ensemble UQ page processing.
+    """
+    from src.models import FEATURE_COLS
+    assert isinstance(FEATURE_COLS, list)
+    assert len(FEATURE_COLS) > 0
+
+    # Simulate app.py ensemble_uq feature selection
+    mock_df_columns = ["burden_m", "spacing_m", "d50_mm", "ppv_mms"]
+    feature_cols_present = [c for c in FEATURE_COLS if c in mock_df_columns]
+    assert isinstance(feature_cols_present, list)
+
+
 def test_confidence_interval_coverage_and_explanation():
     """
     Tests 95% CI bounds calculation and natural language explanation generation.

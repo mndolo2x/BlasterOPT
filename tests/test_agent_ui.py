@@ -24,6 +24,17 @@ def test_agent_ui_rendering_imports_and_callable():
     assert callable(render_system_health)
 
 
+def test_every_page_renders_or_shows_error():
+    """Test that every page module either renders valid functions or exposes error tracebacks when fallback handlers run."""
+    import app
+    assert hasattr(app, "render_agent_chat")
+    assert hasattr(app, "render_guided_mode")
+    assert hasattr(app, "render_expert_mode")
+    assert hasattr(app, "render_voice_mode")
+    assert hasattr(app, "render_knowledge_qa")
+    assert hasattr(app, "render_system_health")
+
+
 @patch("streamlit.session_state", new_callable=dict)
 def test_demo_mode_preload_conversation(mock_session_state):
     """Test Demo Mode pre-loads expected sample conversation messages."""

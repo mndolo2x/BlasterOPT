@@ -7,6 +7,7 @@ from src.detonator_integration import (
     validate_sequence,
     upload_timing_sequence,
     download_firing_confirmation,
+    load_firing_confirmations,
 )
 
 
@@ -123,6 +124,22 @@ def test_blocked_upload_logs_audit_event(monkeypatch):
     assert logged_events[0]["event_type"] == "timing_sequence_blocked"
     assert logged_events[0]["payload"]["reason"] == "invalid_sequence"
     assert logged_events[0]["design_id"] == "BLAST_AUDIT_01"
+
+
+def test_firing_confirmations_persist_across_restart(tmp_path, monkeypatch):
+    """Test that firing confirmations persist across restarts via JSONL audit file."""
+    test_jsonl = str(tmp_path / "firing_confirmations.jsonl")
+    monkeypatch.setattr("src.detonator_integration.FIRING_CONFIRMATIONS_FILE", test_jsonl)
+
+    # Download confirmation
+    conf1 = download_firing_confirmation("BME AXXIS", blast_id="BLAST_PERSIST_01")
+
+    # Reload from disk file
+    reloaded = load_firing_confirmations()
+
+    assert isinstance(reloaded, list)
+    assert len(reloaded) >= 1
+    assert any(c["blast_id"] == "BLAST_PERSIST_01" for c in reloaded)
 
 
 def test_download_firing_confirmation():
