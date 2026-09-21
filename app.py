@@ -49,6 +49,7 @@ from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_o
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
+from src.startup_diagnostics import run_startup_diagnostics
 
 import traceback
 
@@ -183,6 +184,10 @@ except Exception as exc:
         "Failed to import core domain and service modules for BlastOpt Botswana. "
         "Check the original chained exception below for root cause."
     ) from exc
+
+# Run startup subsystem health diagnostics
+if "startup_diagnostics" not in st.session_state:
+    st.session_state["startup_diagnostics"] = run_startup_diagnostics()
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
@@ -2368,8 +2373,55 @@ elif active_module == "guardrail_log":
         st.info("No guardrail trips recorded for the selected filter.")
 
 
-# --- MODULE: OLLAMA SYSTEM HEALTH ---
+# --- MODULE: OLLAMA SYSTEM HEALTH & STARTUP DIAGNOSTICS ---
 elif active_module == "system_health":
+    st.header("🩺 System Health & Startup Diagnostics")
+
+    diag_res = st.session_state.get("startup_diagnostics", run_startup_diagnostics())
+    ov_st = diag_res.get("overall_status", "unknown")
+
+    d_col1, d_col2, d_col3, d_col4 = st.columns(4)
+    d_col1.metric("Overall System Health", ov_st.upper())
+    d_col2.metric("Subsystems Inspected", diag_res.get("modules_checked_count", 0))
+    d_col3.metric("Operational Subsystems", diag_res.get("modules_passed_count", 0))
+    d_col4.metric("Failed Subsystems", diag_res.get("modules_failed_count", 0))
+
+    if ov_st == "healthy":
+        st.success("✅ All core and optional subsystems loaded operationally at startup!")
+    elif ov_st == "degraded":
+        st.warning("⚠️ Some optional subsystems failed to load. Core app capabilities remain operational.")
+    else:
+        st.error("🚨 Critical startup failures detected across subsystems!")
+
+    if st.button("🔄 Re-run Startup Subsystem Diagnostics"):
+        st.session_state["startup_diagnostics"] = run_startup_diagnostics()
+        st.rerun()
+
+    st.markdown("---")
+    st.subheader("📋 Subsystem Health Breakdown")
+
+    mod_statuses = diag_res.get("module_statuses", {})
+    table_data = []
+    for mod_name, mod_info in mod_statuses.items():
+        table_data.append({
+            "Subsystem Module": mod_name,
+            "Status": mod_info["status"].upper(),
+            "Error": mod_info["error"] or "None",
+            "Module Path": mod_info["file"] or "N/A",
+        })
+    st.dataframe(pd.DataFrame(table_data), use_container_width=True)
+
+    # Render error tracebacks for failed modules
+    failed_mods = {k: v for k, v in mod_statuses.items() if v["status"] == "failed"}
+    if failed_mods:
+        st.subheader("🚨 Subsystem Exception Tracebacks")
+        for f_name, f_info in failed_mods.items():
+            with st.expander(f"Traceback for {f_name}"):
+                st.error(f"Error: {f_info['error']}")
+                st.code(f_info["traceback"] or "No traceback captured.")
+
+    st.markdown("---")
+    st.subheader("🦙 Ollama Health Diagnostics")
     render_system_health()
 
 
