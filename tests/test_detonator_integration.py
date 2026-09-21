@@ -65,7 +65,7 @@ def test_upload_timing_sequence_vendors():
     assert "Orica" in res_orica["detonator_system"]
 
 
-def test_upload_timing_sequence_invalid_blocked():
+def test_upload_blocked_on_invalid_sequence():
     """Test upload_timing_sequence blocks invalid sequence and aborts upload."""
     invalid_seq = {
         "hole_delay_ms": 3.0,  # Below 8 ms limit
@@ -80,6 +80,49 @@ def test_upload_timing_sequence_invalid_blocked():
     assert res["sequence_valid"] is False
     assert len(res["violations"]) >= 3
     assert "rejected" in res["message"] or "aborted" in res["message"]
+
+
+def test_upload_proceeds_on_valid_sequence():
+    """Test upload_timing_sequence proceeds successfully when given a valid sequence."""
+    valid_seq = {
+        "hole_delay_ms": 17.0,
+        "row_delay_ms": 42.0,
+        "max_charge_per_delay_kg": 640.0,
+        "predicted_ppv_mms": 8.0,
+        "predicted_airblast_dbl": 115.0,
+    }
+
+    res = upload_timing_sequence("BME AXXIS", valid_seq, blast_id="BLAST_VALID_01")
+
+    assert isinstance(res, dict)
+    assert res["status"] != "blocked"
+    assert res["sequence_valid"] is True
+    assert len(res["violations"]) == 0
+    assert "successfully uploaded" in res["message"]
+
+
+def test_blocked_upload_logs_audit_event(monkeypatch):
+    """Test that attempting to upload an invalid sequence logs a timing_sequence_blocked audit event."""
+    logged_events = []
+
+    class MockAuditService:
+        def log_event(self, event_type, user_id, payload, design_id=None):
+            logged_events.append({
+                "event_type": event_type,
+                "user_id": user_id,
+                "payload": payload,
+                "design_id": design_id,
+            })
+
+    monkeypatch.setattr("src.services.audit_service.AuditService", MockAuditService)
+
+    invalid_seq = {"hole_delay_ms": 2.0}
+    upload_timing_sequence("Orica i-kon", invalid_seq, blast_id="BLAST_AUDIT_01")
+
+    assert len(logged_events) == 1
+    assert logged_events[0]["event_type"] == "timing_sequence_blocked"
+    assert logged_events[0]["payload"]["reason"] == "invalid_sequence"
+    assert logged_events[0]["design_id"] == "BLAST_AUDIT_01"
 
 
 def test_download_firing_confirmation():
