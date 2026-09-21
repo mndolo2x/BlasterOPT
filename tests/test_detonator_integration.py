@@ -65,6 +65,23 @@ def test_upload_timing_sequence_vendors():
     assert "Orica" in res_orica["detonator_system"]
 
 
+def test_upload_timing_sequence_invalid_blocked():
+    """Test upload_timing_sequence blocks invalid sequence and aborts upload."""
+    invalid_seq = {
+        "hole_delay_ms": 3.0,  # Below 8 ms limit
+        "row_delay_ms": 10.0,  # Below 25 ms limit
+        "predicted_ppv_mms": 15.0,  # Exceeds limit
+    }
+
+    res = upload_timing_sequence("AEL IntelliShot", invalid_seq, blast_id="BLAST_INVALID_01")
+
+    assert isinstance(res, dict)
+    assert res["status"] == "blocked"
+    assert res["sequence_valid"] is False
+    assert len(res["violations"]) >= 3
+    assert "rejected" in res["message"] or "aborted" in res["message"]
+
+
 def test_download_firing_confirmation():
     """Test download_firing_confirmation returns structured post-blast diagnostics dictionary."""
     conf = download_firing_confirmation("BME AXXIS", blast_id="BLAST_02")

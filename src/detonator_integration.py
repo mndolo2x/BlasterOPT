@@ -111,6 +111,10 @@ def validate_sequence(
     return is_valid, violations
 
 
+# Alias for backward compatibility
+validate_timing_sequence = validate_sequence
+
+
 def upload_timing_sequence(
     detonator_system: str,
     sequence_file: Union[str, Dict[str, Any]],
@@ -165,7 +169,35 @@ def upload_timing_sequence(
     endpoint = endpoints.get(vendor_key)
 
     # Validate sequence prior to upload
-    is_valid, violations = validate_sequence(sequence_file)
+    is_valid, violations = validate_timing_sequence(sequence_file)
+
+    if not is_valid:
+        try:
+            from src.services.audit_service import AuditService
+            AuditService().log_event(
+                event_type="timing_sequence_blocked",
+                user_id="DETONATOR_SERVICE",
+                payload={
+                    "event_type": "timing_sequence_blocked",
+                    "reason": "invalid_sequence",
+                    "violations": violations,
+                    "detonator_system": sys_name,
+                    "blast_id": blast_id,
+                },
+                design_id=blast_id,
+            )
+        except Exception as err:
+            logger.error(f"Failed to log audit event for blocked sequence: {err}")
+
+        return {
+            "status": "blocked",
+            "detonator_system": sys_name,
+            "blast_id": blast_id,
+            "sequence_valid": False,
+            "violations": violations,
+            "upload_timestamp": datetime.now().isoformat(),
+            "message": "Timing sequence rejected. Upload aborted.",
+        }
 
     try:
         # Mock/simulated HTTP POST with timeout exception handling

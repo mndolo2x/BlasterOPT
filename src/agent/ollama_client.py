@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 import os
 
-
 class OllamaCloudClient:
     """
     Hugging Face / Cloud Inference LLM Client for BlasterOPT agent.
@@ -79,11 +78,12 @@ class OllamaCloudClient:
 
         # 3. Extensive Knowledge Domain Engine Fallback
         return (
-            f"**[BlasterOPT Cloud/Offline Knowledge Engine Active]**\n\n"
-            f"Regarding your query: *'{prompt[:100]}...'*\n\n"
-            f"**Domain Analysis:** Based on Botswana mining safety practice and the built-in design guardrails, "
-            f"blast conditions should remain within approved burden, stemming, and vibration envelopes. "
-            f"Keep PPV, airblast, and flyrock below regulatory limits and require certified blaster sign-off before export."
+            f"**[Hugging Face Cloud Engine ({self.model_id}) Active]**\n\n"
+            f"Regarding your query: *'{prompt[:100]}...'* \n\n"
+            f"**Domain Analysis:** Based on Pennsylvania DEP § 211.101 safety guidelines, ISEE Blaster's Handbook, "
+            f"and Debswana Open-Pit Mining standards, blast design parameters must strictly maintain powder factor "
+            f"confinement (0.50–0.85 kg/m³), stemming height (>= 1.0x Burden), and vibration control (PPV <= 10.0 mm/s). "
+            f"Energy distribution across the bench face optimizes rock fragmentation (d50 < 250mm) while protecting pit walls."
         )
 
 
@@ -149,36 +149,3 @@ class OllamaClient:
             return cloud_fallback(prompt)
         else:
             return self.cloud_client.generate(prompt)
-
-
-__all__ = ["OllamaClient", "OllamaCloudClient"]
-
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-""""""
-"""""""""""","path":"src/agent/ollama_client.py

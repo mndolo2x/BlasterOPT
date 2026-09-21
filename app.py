@@ -1540,7 +1540,12 @@ elif active_module == "detonator":
         with col_b1:
             if st.button("Upload Timing Sequence", type="primary"):
                 up_res = upload_timing_sequence(det_system, seq_payload, blast_id=blast_id_det)
-                st.success(f"Uploaded to {up_res['detonator_system']}!")
+                if up_res.get("status") == "blocked":
+                    st.error(f"❌ {up_res.get('message', 'Timing sequence upload blocked.')}")
+                    for v in up_res.get("violations", []):
+                        st.write(f"- ⚠️ {v}")
+                else:
+                    st.success(f"Uploaded to {up_res['detonator_system']}!")
 
         with col_b2:
             if st.button("Download Confirmation"):
