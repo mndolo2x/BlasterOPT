@@ -10,6 +10,7 @@ import os
 import json
 import logging
 import requests
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Union, List
 
 logger = logging.getLogger(__name__)
@@ -204,7 +205,7 @@ def sync_design_to_drill(
             "vendor": vendor_clean.capitalize(),
             "design_id": design_data.get("design_id", "PATTERN_DES_15S"),
             "holes_synced": holes_synced,
-            "sync_timestamp": requests.utils.default_user_agent(),
+            "sync_timestamp": datetime.now(timezone.utc).isoformat(),
             "message": f"Successfully synced design '{design_data.get('design_id', 'PATTERN_DES_15S')}' ({holes_synced} holes) to drill {drill_id} via ISO 15143-3 API.",
         }
 

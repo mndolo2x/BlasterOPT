@@ -3,6 +3,7 @@ Unit tests for the Direct-to-Drill Connectivity module.
 """
 
 import pytest
+from datetime import datetime
 from src.drill_connectivity import connect_to_sandvik, connect_to_epiroc, sync_design_to_drill
 
 
@@ -40,6 +41,10 @@ def test_sync_design_to_drill_handles_gracefully():
     assert res_sandvik["status"] in ["success", "synced_offline"]
     assert res_sandvik["drill_id"] == "SANDVIK_DR412i_01"
     assert res_sandvik["holes_synced"] == 32
+    assert "sync_timestamp" in res_sandvik
+    # Verify sync_timestamp is a valid ISO timestamp
+    parsed_ts = datetime.fromisoformat(res_sandvik["sync_timestamp"])
+    assert parsed_ts is not None
 
     res_epiroc = sync_design_to_drill(design_payload, drill_id="EPIROC_PV271_01", vendor="epiroc")
     assert isinstance(res_epiroc, dict)
