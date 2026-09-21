@@ -9,7 +9,11 @@ near regulatory thresholds.
 import os
 import logging
 from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional, Tuple, Literal, Union
+try:
+    from typing import Dict, Any, List, Optional, Tuple, Literal, Union
+except ImportError:
+    from typing import Dict, Any, List, Optional, Tuple, Union
+    from typing_extensions import Literal
 
 logger = logging.getLogger(__name__)
 
