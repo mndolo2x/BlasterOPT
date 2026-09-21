@@ -116,12 +116,18 @@ st.set_page_config(
 
 from src.config import DEMO_MODE, get_provenance_badge
 
-from src.domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
-from src.domain.approval import approve_design, check_approval_gate, get_approval_record
-from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
-from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
-from src.services.prediction_service import PredictionService, RecommendationResult
-from src.services.audit_service import AuditService, verify_chain
+try:
+    from src.domain.safety_checks import evaluate_safety, SafetyReport, run_all_checks
+    from src.domain.approval import approve_design, check_approval_gate, get_approval_record
+    from src.domain.blast_design import BlastDesign, BlastDesignVersion, compute_content_hash, create_next_version
+    from src.services.approval_service import submit_for_approval, record_decision, get_approval_status
+    from src.services.prediction_service import PredictionService, RecommendationResult
+    from src.services.audit_service import AuditService, verify_chain
+except Exception as exc:
+    raise RuntimeError(
+        "Failed to import core domain and service modules for BlastOpt Botswana. "
+        "Check the original chained exception below for root cause."
+    ) from exc
 
 if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
