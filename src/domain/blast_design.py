@@ -44,7 +44,7 @@ def compute_content_hash(design: Union[BlastDesign, Dict[str, Any]]) -> str:
     The hash is computed at creation and never changes for a given design payload.
     """
     if isinstance(design, BlastDesign):
-        design_dict = design.model_dump()
+        design_dict = design.model_dump() if hasattr(design, "model_dump") else design.dict()
     elif isinstance(design, dict):
         design_dict = design.copy()
     else:

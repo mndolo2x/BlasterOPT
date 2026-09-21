@@ -34,6 +34,17 @@ def require_real_data(source_name: str) -> None:
         raise RuntimeError(err_msg)
 
 
+def dump_model(obj: Any) -> Dict[str, Any]:
+    """Safely serializes a Pydantic v1 or v2 model to a dictionary."""
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    elif hasattr(obj, "dict"):
+        return obj.dict()
+    elif isinstance(obj, dict):
+        return obj
+    return dict(obj)
+
+
 def get_provenance_badge(
     source: str = "synthetic",
     timestamp: Optional[str] = None,

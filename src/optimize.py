@@ -160,18 +160,20 @@ class BlastOptimizer:
             obj_score = self._objective_function(vec)
 
             from src.domain.safety_checks import evaluate_safety
+            from src.config import dump_model
             safety_rep = evaluate_safety(
                 preds,
                 limits={"max_ppv_mms": self.max_ppv, "max_flyrock_m": self.max_flyrock},
                 blast_params=opt_inputs,
             )
-            preds["safety_report"] = safety_rep.model_dump()
+            s_dict = dump_model(safety_rep)
+            preds["safety_report"] = s_dict
 
             evaluated_candidates.append({
                 "score": obj_score,
                 "parameters": opt_inputs,
                 "outputs": preds,
-                "safety_report": safety_rep.model_dump(),
+                "safety_report": s_dict,
             })
 
         # Sort candidates by objective score (cost + penalties) and pick top 5 distinct designs

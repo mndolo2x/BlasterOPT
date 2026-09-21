@@ -173,15 +173,17 @@ def authorize_override(
     )
 
     # Save to disk store
+    from src.config import dump_model
+    override_dict = dump_model(override)
     store = _load_override_store()
-    store[override.override_id] = override.model_dump()
+    store[override.override_id] = override_dict
     _save_override_store()
 
     # 5. High-severity audit event
     AuditService().log_event(
         event_type="HIGH_SEVERITY_CONSTRAINT_OVERRIDE",
         user_id=supervisor_id,
-        payload=override.model_dump(),
+        payload=override_dict,
         design_id=design_id,
     )
 

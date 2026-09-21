@@ -132,8 +132,9 @@ def predict_outcomes(input_params: Any, model_pipeline: Optional[BlastMLPipeline
 
     # Evaluate uncertainty-aware safety report
     from src.domain.safety_checks import evaluate_safety
+    from src.config import dump_model
     safety_report = evaluate_safety(results, blast_params=input_params)
-    results["safety_report"] = safety_report.model_dump()
+    results["safety_report"] = dump_model(safety_report)
 
     return results
 
