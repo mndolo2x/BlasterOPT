@@ -24,8 +24,7 @@ def test_agent_ui_rendering_imports_and_callable():
     assert callable(render_system_health)
 
 
-@patch("streamlit.session_state", new_callable=dict)
-def test_every_page_renders_or_shows_error(mock_session_state):
+def test_every_page_renders_or_shows_error():
     """Test that every page module either renders valid functions or exposes error tracebacks when fallback handlers run."""
     import app
     assert hasattr(app, "render_agent_chat")
