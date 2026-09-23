@@ -38,6 +38,15 @@ def test_blast_block_knowledge_base():
     assert isinstance(res_block, dict)
     assert "blast block" in res_block["term"].lower() or "blast block" in res_block["definition"].lower()
 
+    res_burden = TOOL_REGISTRY.execute_tool("lookup_blast_term", {"term": "what is a burden"})
+    assert isinstance(res_burden, dict)
+    assert "burden" in res_burden["term"].lower()
+    assert "perpendicular distance" in res_burden["definition"].lower()
+
+    res_spacing = TOOL_REGISTRY.execute_tool("lookup_blast_term", {"term": "what is spacing"})
+    assert isinstance(res_spacing, dict)
+    assert "spacing" in res_spacing["term"].lower()
+
     res_bench = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": "What is a typical Debswana bench height for a blast block?"})
     assert isinstance(res_bench, str)
     assert "orapa" in res_bench.lower() or "15 m" in res_bench.lower() or "jwaneng" in res_bench.lower()

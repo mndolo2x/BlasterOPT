@@ -563,6 +563,11 @@ BLAST_BLOCK_KNOWLEDGE_BASE: Dict[str, Dict[str, Any]] = {
 # Pennsylvania DEP § 211.101 Blasting Regulatory Terms
 PA_DEP_GLOSSARY: Dict[str, str] = {
     "access point": "A point in outer or inner perimeter security allowing entry to or exit from a magazine site.",
+    "bench height": "The vertical elevation difference between the upper surface (bench top) and floor of a excavation level in an open-pit mine.",
+    "burden": "The perpendicular distance from a blasthole to the nearest free face or effective row-to-face distance that explosive energy must overcome to create lateral relief.",
+    "spacing": "The centre-to-centre distance between adjacent blastholes in the same row.",
+    "subdrill": "The additional length drilled below the planned bench floor elevation to ensure floor breakage and eliminate toe.",
+    "stiffness ratio": "The ratio of bench height to burden (H/B), indicating the structural flexibility of the rock face relative to burden confinement.",
     "airblast": "An airborne shock wave resulting from an explosion, also known as air overpressure (may or may not be audible).",
     "at-the-hole communication": "Communication between driller and blaster-in-charge describing borehole condition (e.g. cones with messages or verbal description).",
     "blast area": "The area around the blast site that must be cleared and secured to prevent injury to persons and property damage.",
@@ -624,20 +629,61 @@ def _lookup_blast_term_handler(term: str) -> Dict[str, Any]:
     """Look up definition of a blast engineering term."""
     q_term = term.lower().strip()
 
-    # Search Blast Block Knowledge Base
-    for k, kb in BLAST_BLOCK_KNOWLEDGE_BASE.items():
-        if kb["concept"].lower() in q_term or q_term in kb["concept"].lower() or any(w in q_term for w in ["blast block", "bench height", "burden", "spacing", "orapa", "jwaneng"]):
-            if any(key_term in q_term for key_term in ["blast block", "block", "bench", "burden", "spacing", "debswana", "orapa", "jwaneng"]):
-                return TermDefinitionResult(
-                    term=kb["concept"],
-                    definition=kb["answer"],
-                    plain_language=f"In simple terms: {kb['answer']}",
-                    setswana=None,
-                    category="Blast Block Reference Guide",
-                    source="Debswana Jwaneng/Orapa Open-Pit Blast Design Reference (2026)",
-                ).model_dump()
+    # 1. Search PA DEP Glossaries for exact term matches
+    for k, v in PA_DEP_GLOSSARY.items():
+        if k == q_term or f" {k} " in f" {q_term} " or f"what is a {k}" in q_term or f"define {k}" in q_term or f"what is {k}" in q_term:
+            from src.autshumato_translator import translate_phrase
+            tn_str = translate_phrase(k, source_lang="en", target_lang="tn")
+            return TermDefinitionResult(
+                term=k.title(),
+                definition=v,
+                plain_language=f"In simple terms, {k} refers to: {v}",
+                setswana=tn_str if tn_str != k else None,
+                category="PA DEP § 211.101 Regulation",
+                source="Pennsylvania DEP Regulations",
+            ).model_dump()
 
-    # Search PA DEP
+    # 2. Search ISEE Glossaries for exact term matches
+    for k, v in ISEE_GLOSSARY.items():
+        if k == q_term or f" {k} " in f" {q_term} " or f"what is a {k}" in q_term or f"define {k}" in q_term or f"what is {k}" in q_term:
+            from src.autshumato_translator import translate_phrase
+            tn_str = translate_phrase(k, source_lang="en", target_lang="tn")
+            return TermDefinitionResult(
+                term=k.title(),
+                definition=v,
+                plain_language=f"In simple terms, {k} refers to: {v}",
+                setswana=tn_str if tn_str != k else None,
+                category="ISEE Blaster's Handbook",
+                source="ISEE Blaster's Handbook 18th Edition",
+            ).model_dump()
+
+    # 3. Search Blast Block Knowledge Base for specific concept matches
+    best_kb_match = None
+    best_kb_score = 0
+    for k, kb in BLAST_BLOCK_KNOWLEDGE_BASE.items():
+        concept_lower = kb["concept"].lower()
+        question_lower = kb["question"].lower()
+        score = 0
+        if concept_lower in q_term:
+            score += 5
+        for word in q_term.split():
+            if len(word) > 3 and (word in concept_lower or word in question_lower):
+                score += 1
+        if score > best_kb_score:
+            best_kb_score = score
+            best_kb_match = kb
+
+    if best_kb_match and best_kb_score >= 2:
+        return TermDefinitionResult(
+            term=best_kb_match["concept"],
+            definition=best_kb_match["answer"],
+            plain_language=f"In simple terms: {best_kb_match['answer']}",
+            setswana=None,
+            category="Blast Block Reference Guide",
+            source="Debswana Jwaneng/Orapa Open-Pit Blast Design Reference (2026)",
+        ).model_dump()
+
+    # 4. Search PA DEP partial matches
     for k, v in PA_DEP_GLOSSARY.items():
         if k in q_term or q_term in k:
             from src.autshumato_translator import translate_phrase
