@@ -70,9 +70,13 @@ def knowledge_router_node(state: AgentState) -> AgentState:
         "what is", "what does", "define", "definition of", "meaning of",
         "explain the term", "tell me about"
     ]):
+        from src.agent.tool_registry import BLAST_BLOCK_KNOWLEDGE_BASE
         term_index = list(PA_DEP_GLOSSARY.keys()) + list(ISEE_GLOSSARY.keys())
+        for k, v in BLAST_BLOCK_KNOWLEDGE_BASE.items():
+            term_index.append(v["concept"].lower())
+
         for term in term_index:
-            if term in last_message:
+            if term in last_message or any(w in last_message for w in ["blast block", "bench height", "burden", "spacing"]):
                 state["knowledge_intent"] = "term_lookup"
                 state["knowledge_term"] = term
                 return state
@@ -80,7 +84,8 @@ def knowledge_router_node(state: AgentState) -> AgentState:
     # Detect general knowledge questions
     if any(phrase in last_message for phrase in [
         "why is", "why does", "how does", "what happens",
-        "difference between", "compare"
+        "difference between", "compare", "orapa", "jwaneng", "debswana",
+        "bench height", "blast block"
     ]):
         state["knowledge_intent"] = "general_question"
         return state

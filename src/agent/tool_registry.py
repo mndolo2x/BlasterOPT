@@ -493,6 +493,73 @@ def _log_decision_handler(query_params: Dict[str, Any] = {}) -> str:
     return "Decision immutably recorded in audit log database."
 
 
+# --- Blast Blocks, Benches & Open-Pit Blast Design Reference Knowledge Base ---
+
+BLAST_BLOCK_KNOWLEDGE_BASE: Dict[str, Dict[str, Any]] = {
+    "blast_block_definition": {
+        "concept": "Blast Block",
+        "question": "What is a blast block?",
+        "answer": (
+            "A blast block is a bounded portion of rock—usually within one bench—selected to be drilled, loaded, and initiated "
+            "under one integrated blast design. Functionally, it is the smallest operationally meaningful blast volume for which "
+            "geometry, drilling, loading, initiation, prediction, and post-blast performance can be linked to one blast record. "
+            "Note that 'blast block' is operational, mine-specific terminology and not a single universally standardized geometry."
+        ),
+        "data_layers": [
+            "A. Spatial Identity (Block ID, pit/phase, bench, polygon, coordinates, free-face direction)",
+            "B. Bench Geometry (Bench height H, crest, toe/floor, face angle, berms, local relief)",
+            "C. Pattern Geometry (Burden B, spacing S, row count, holes per row, hole diameter, inclination)",
+            "D. Hole/Loading Geometry (Hole depth L, subdrill J, stemming T, charge length, decking)",
+            "E. Timing / Initiation (Row/hole delays, firing direction, max charge per delay Qmax)",
+            "F. Rock / Geology (Rock factor Rf, blastability index BI, RMR/GSI/Q, joints, water)",
+            "G. Performance Targets (P80, oversize, fines, PPV, airblast, backbreak, cost/tonne)",
+            "H. Operational Constraints (Wall proximity, infrastructure, equipment reach, exclusion zones)"
+        ],
+    },
+    "blast_block_vs_bench": {
+        "concept": "Blast Block vs Bench",
+        "question": "What is the difference between a blast block and a bench?",
+        "answer": (
+            "A bench is a larger mining level or rock slice defined by crest, floor, and bench height (a pit geometry unit). "
+            "A blast block is a selected area or volume on that bench that is drilled, loaded, and treated as a single blast-design unit. "
+            "The hierarchy is: Bench → Blast Block → Row → Hole → Charge Segment → Initiation Event → Measured Response."
+        ),
+    },
+    "debswana_bench_heights": {
+        "concept": "Debswana Bench Heights & Hole Depth Evidence",
+        "question": "What is a typical Debswana bench height for a blast block?",
+        "answer": (
+            "Public Orapa studies report a 15 m bench height (with hole diameters 127–250 mm, 40–60 holes/row, 15–25 rows/blast). "
+            "For Jwaneng, recent published research reports a hole depth range of 14.90–16.10 m (with burden 7–8 m, spacing 8–9 m), "
+            "but explicitly does not state a single mine-wide bench height. Note: Hole depth includes subdrill (L = H + J) and angle "
+            "effects and must not be used as a direct substitute for vertical bench height."
+        ),
+        "orapa_reference": {"bench_height_m": 15.0, "stiffness_ratio_H_B": "2.5-3.75", "spacing_burden_ratio_S_B": "1.17-1.25"},
+        "jwaneng_reference": {"hole_depth_m": "14.90-16.10", "burden_m": "7-8", "spacing_m": "8-9", "powder_factor_kg_m3": "0.57-0.78"},
+    },
+    "burden_spacing_geometry": {
+        "concept": "Burden, Spacing & Pattern Geometry",
+        "question": "What is the relationship between burden, spacing, and blast-block design?",
+        "answer": (
+            "Burden (B) is the perpendicular distance from a blasthole to the nearest free face, controlling rock relief and confinement. "
+            "Spacing (S) is the centre-to-centre distance between adjacent holes in a row, controlling lateral energy distribution. "
+            "Together they define the 2D pattern area per hole (B × S) and, with bench height H, the first-order interior rock volume (Vh ≈ B × S × H). "
+            "USBR manual guidance suggests a first-approximation S/B ratio of 1.2–1.8 (1.5 starting point) for millisecond-delayed patterns. "
+            "Orapa published datasets report an S/B range of 1.17–1.25."
+        ),
+    },
+    "blast_outcomes_kpi": {
+        "concept": "Blast Outcomes & Performance KPIs",
+        "question": "How are blast block outcomes assessed in Debswana operations?",
+        "answer": (
+            "Blast outcomes are evaluated across three primary parameters: "
+            "1) Fragmentation (P80 ≤ 150 mm target at Jwaneng assessed via shovel-mounted imaging), "
+            "2) Ground Vibration / PPV (Peak Particle Velocity governed primarily by max charge per delay Qmax and distance DI), "
+            "and 3) Airblast / AOP (air overpressure in dB governed by stemming confinement T, charge per delay Qmax, and atmospheric conditions)."
+        ),
+    },
+}
+
 # Pennsylvania DEP § 211.101 Blasting Regulatory Terms
 PA_DEP_GLOSSARY: Dict[str, str] = {
     "access point": "A point in outer or inner perimeter security allowing entry to or exit from a magazine site.",
@@ -557,6 +624,19 @@ def _lookup_blast_term_handler(term: str) -> Dict[str, Any]:
     """Look up definition of a blast engineering term."""
     q_term = term.lower().strip()
 
+    # Search Blast Block Knowledge Base
+    for k, kb in BLAST_BLOCK_KNOWLEDGE_BASE.items():
+        if kb["concept"].lower() in q_term or q_term in kb["concept"].lower() or any(w in q_term for w in ["blast block", "bench height", "burden", "spacing", "orapa", "jwaneng"]):
+            if any(key_term in q_term for key_term in ["blast block", "block", "bench", "burden", "spacing", "debswana", "orapa", "jwaneng"]):
+                return TermDefinitionResult(
+                    term=kb["concept"],
+                    definition=kb["answer"],
+                    plain_language=f"In simple terms: {kb['answer']}",
+                    setswana=None,
+                    category="Blast Block Reference Guide",
+                    source="Debswana Jwaneng/Orapa Open-Pit Blast Design Reference (2026)",
+                ).model_dump()
+
     # Search PA DEP
     for k, v in PA_DEP_GLOSSARY.items():
         if k in q_term or q_term in k:
@@ -609,6 +689,19 @@ def _translate_tn_en_handler(text: str) -> str:
 
 def _answer_mining_question_handler(question: str) -> str:
     """Answer a general mining question using OllamaCloudClient extensive knowledge model or Pula-8B."""
+    q_lower = question.lower().strip()
+    # Check Blast Block Knowledge Base for best matching entry score
+    best_match = None
+    best_score = 0
+    for k, kb in BLAST_BLOCK_KNOWLEDGE_BASE.items():
+        score = sum(1 for term in ["blast block", "bench height", "bench", "height", "burden", "spacing", "orapa", "jwaneng", "debswana"] if term in q_lower and (term in kb["concept"].lower() or term in kb["question"].lower() or term in k))
+        if score > best_score:
+            best_score = score
+            best_match = kb
+
+    if best_match and best_score > 0:
+        return f"**{best_match['concept']}**: {best_match['answer']}"
+
     from src.agent.llm_config import OllamaCloudClient
     cloud_ollama = OllamaCloudClient(model="llama3.1:8b")
     return cloud_ollama.generate(question)
@@ -617,6 +710,18 @@ def _answer_mining_question_handler(question: str) -> str:
 def _query_knowledge_graph_handler(question: str) -> str:
     """Queries Pennsylvania DEP § 211.101, ISEE Handbook glossary, knowledge graph, and HuggingFace dataset."""
     query_term = question.lower().strip()
+
+    # 0. Search Blast Block Knowledge Base best match
+    best_match = None
+    best_score = 0
+    for k, kb in BLAST_BLOCK_KNOWLEDGE_BASE.items():
+        score = sum(1 for term in ["blast block", "bench height", "bench", "height", "burden", "spacing", "orapa", "jwaneng", "debswana"] if term in query_term and (term in kb["concept"].lower() or term in kb["question"].lower() or term in k))
+        if score > best_score:
+            best_score = score
+            best_match = kb
+
+    if best_match and best_score > 0:
+        return f"Knowledge Graph Result for '{question}': **{best_match['concept']}**: {best_match['answer']}"
 
     # 1. Search PA DEP § 211.101 Regulatory Definitions
     dep_matches = []

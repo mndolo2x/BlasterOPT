@@ -32,6 +32,17 @@ def test_translate_tn_en_tool():
     assert len(res_trans) > 0
 
 
+def test_blast_block_knowledge_base():
+    """Test lookup_blast_term and answer_mining_question retrieve blast block reference guide concepts."""
+    res_block = TOOL_REGISTRY.execute_tool("lookup_blast_term", {"term": "what is a blast block"})
+    assert isinstance(res_block, dict)
+    assert "blast block" in res_block["term"].lower() or "blast block" in res_block["definition"].lower()
+
+    res_bench = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": "What is a typical Debswana bench height for a blast block?"})
+    assert isinstance(res_bench, str)
+    assert "orapa" in res_bench.lower() or "15 m" in res_bench.lower() or "jwaneng" in res_bench.lower()
+
+
 def test_answer_mining_question_tool():
     """Test answer_mining_question tool generates response using Pula-8B LLM."""
     res_ans = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": "What is the optimal powder factor for kimberlite?"})
