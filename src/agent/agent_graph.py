@@ -28,6 +28,7 @@ from src.agent.state import AgentState
 from src.agent.guardrails import validate_input, validate_output, log_guardrail_trip
 from src.agent.tool_registry import TOOL_REGISTRY, BlastDesignInput, BlastDesign, PA_DEP_GLOSSARY, ISEE_GLOSSARY
 from src.agent.llm_config import select_llm
+from src.agent.llm_client import llm_client
 from src.agent.ollama_health import full_health_check
 
 logger = logging.getLogger(__name__)
@@ -136,10 +137,12 @@ def translation_node(state: AgentState) -> AgentState:
 
 
 def general_question_node(state: AgentState) -> AgentState:
-    """Answer a general mining question using OllamaCloudClient / Pula-8B / Knowledge Graph."""
+    """Answer a general mining question using fine-tuned Pula-8B llm_client / Knowledge Graph."""
     messages = state.get("messages", [])
     question = _get_msg_content(messages[-1]) if messages else ""
     answer = TOOL_REGISTRY.execute_tool("answer_mining_question", {"question": question})
+    if not answer or answer.startswith("I don't have"):
+        answer = llm_client.generate(question)
     state["tool_results"] = {"answer": answer}
     return state
 

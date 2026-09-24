@@ -734,7 +734,7 @@ def _translate_tn_en_handler(text: str) -> str:
 
 
 def _answer_mining_question_handler(question: str) -> str:
-    """Answer a general mining question using OllamaCloudClient extensive knowledge model or Pula-8B."""
+    """Answer a general mining question using fine-tuned Pula-8B llm_client or knowledge base."""
     q_lower = question.lower().strip()
     # Check Blast Block Knowledge Base for best matching entry score
     best_match = None
@@ -748,9 +748,8 @@ def _answer_mining_question_handler(question: str) -> str:
     if best_match and best_score > 0:
         return f"**{best_match['concept']}**: {best_match['answer']}"
 
-    from src.agent.llm_config import OllamaCloudClient
-    cloud_ollama = OllamaCloudClient(model="llama3.1:8b")
-    return cloud_ollama.generate(question)
+    from src.agent.llm_client import llm_client
+    return llm_client.generate(question)
 
 
 def _query_knowledge_graph_handler(question: str) -> str:
