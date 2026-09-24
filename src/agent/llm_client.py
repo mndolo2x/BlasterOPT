@@ -18,7 +18,7 @@ class BlastOPTLLM:
     Loads the base model + LoRA adapter from Hugging Face.
     """
 
-    def __init__(self, adapter_id: str = "malumbondolo/blastopt-pula-8b-lora"):
+    def __init__(self, adapter_id: str = "mndolo2x/blastopt-pula-8b-lora"):
         self.base_model_id = "OxxoCodes/Pula-8B-v0.1"
         self.adapter_id = adapter_id
         self.model = None
