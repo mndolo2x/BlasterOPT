@@ -117,58 +117,94 @@ class HuggingFaceLLM:
         return f"HuggingFace LLM ({self.model_id}) response: {prompt}"
 
 
-class Pula8BLLM:
+class BlastOPT_LLM:
     """
-    Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' AutoTokenizer & AutoModelForCausalLM.
+    Fine-tuned BlastOPT LLM loading base model 'OxxoCodes/Pula-8B-v0.1' and QLoRA adapter 'malumbondolo/blastopt-pula-8b-lora'.
     """
 
-    def __init__(self, model_id: str = "OxxoCodes/Pula-8B-v0.1"):
-        self.model_id = model_id
-        self._tokenizer = None
-        self._model = None
+    def __init__(self, base_model_id: str = "OxxoCodes/Pula-8B-v0.1", adapter_id: str = "malumbondolo/blastopt-pula-8b-lora"):
+        self.base_model_id = base_model_id
+        self.adapter_id = adapter_id
+        self.model = None
+        self.tokenizer = None
         self._is_fallback = False
 
-    def _get_model_and_tokenizer(self):
-        if self._tokenizer is None or self._model is None:
+    def _load_model(self):
+        if self.model is None or self.tokenizer is None:
             if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("TESTING") == "1":
                 self._is_fallback = True
             else:
                 try:
-                    from transformers import AutoTokenizer, AutoModelForCausalLM
-                    self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-                    self._model = AutoModelForCausalLM.from_pretrained(self.model_id, device_map="auto")
-                    logger.info(f"Loaded Setswana model & tokenizer for '{self.model_id}'.")
+                    import torch
+                    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+                    from peft import PeftModel
+
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                    )
+
+                    logger.info(f"Loading base model: {self.base_model_id}")
+                    base_model = AutoModelForCausalLM.from_pretrained(
+                        self.base_model_id,
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True,
+                    )
+
+                    logger.info(f"Loading fine-tuned adapter: {self.adapter_id}")
+                    self.model = PeftModel.from_pretrained(base_model, self.adapter_id)
+
+                    self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_id, trust_remote_code=True)
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                    logger.info("✅ BlastOPT fine-tuned model loaded successfully!")
                 except Exception as e:
-                    logger.warning(f"Error loading '{self.model_id}': {e}. Using offline Setswana fallback.")
+                    logger.warning(f"Error loading BlastOPT fine-tuned model '{self.adapter_id}': {e}. Using fallback.")
                     self._is_fallback = True
-        return self._tokenizer, self._model
+
+    def generate(self, prompt: str, max_new_tokens: int = 256, system_prompt: Optional[str] = None) -> str:
+        """Generate a response using the fine-tuned model or fallback."""
+        self._load_model()
+        if not self._is_fallback and self.model is not None and self.tokenizer is not None:
+            try:
+                import torch
+                full_prompt = f"{system_prompt or ''}\n{prompt}".strip()
+                inputs = self.tokenizer(full_prompt, return_tensors="pt").to(self.model.device)
+
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=max_new_tokens,
+                        temperature=0.7,
+                        do_sample=True,
+                        pad_token_id=self.tokenizer.eos_token_id,
+                    )
+
+                response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                return response[len(full_prompt):].strip()
+            except Exception as e:
+                logger.warning(f"BlastOPT_LLM generation error: {e}")
+
+        return f"BlastOPT LLM response: {prompt}"
+
+
+# Create a global instance to be used by the agent
+llm_client = BlastOPT_LLM()
+
+
+class Pula8BLLM:
+    """
+    Setswana-specialized LLM interface wrapping 'OxxoCodes/Pula-8B-v0.1' / BlastOPT fine-tuned adapter.
+    """
+
+    def __init__(self, model_id: str = "OxxoCodes/Pula-8B-v0.1"):
+        self.model_id = model_id
+        self._llm = llm_client
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generates Setswana text response using OxxoCodes/Pula-8B-v0.1 apply_chat_template or fallback."""
-        tokenizer, model = self._get_model_and_tokenizer()
-        if not self._is_fallback and tokenizer is not None and model is not None:
-            try:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
-
-                inputs = tokenizer.apply_chat_template(
-                    messages,
-                    add_generation_prompt=True,
-                    tokenize=True,
-                    return_dict=True,
-                    return_tensors="pt",
-                ).to(model.device)
-
-                outputs = model.generate(**inputs, max_new_tokens=100)
-                gen_text = tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
-                if gen_text:
-                    return gen_text.strip()
-            except Exception as e:
-                logger.warning(f"Pula-8B generation error: {e}")
-
-        return f"Pula-8B ({self.model_id}) phetolo ka Setswana: {prompt}"
+        """Generates Setswana text response using BlastOPT_LLM or fallback."""
+        return self._llm.generate(prompt, system_prompt=system_prompt)
 
 
 def select_llm(task_complexity: str = "medium", is_online: bool = True, language: str = "en") -> Any:
