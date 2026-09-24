@@ -114,6 +114,8 @@ except Exception:
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
 
+from src.agent.llm_client import llm_client
+
 try:
     from src.agent.ollama_health import full_health_check
 except Exception:
@@ -254,8 +256,13 @@ if voice_mode_active:
                 # Play synthesized speech response
                 st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
-# Sidebar Ollama Status Indicator
+# Sidebar Fine-Tuned LLM Status Indicator
 st.sidebar.markdown("---")
+if llm_client.is_available():
+    st.sidebar.success("LLM: Fine-tuned Pula-8B loaded")
+else:
+    st.sidebar.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+
 if "sidebar_ollama_status" not in st.session_state:
     st.session_state["sidebar_ollama_status"] = full_health_check()
 
