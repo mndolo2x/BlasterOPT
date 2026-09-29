@@ -42,15 +42,13 @@ from src.detonator_integration import (
 )
 from src.offline_sync import WriteAheadLog, SyncManager, resolve_conflicts
 from src.regulatory import load_regulatory_limits, check_compliance, generate_compliance_report
+from src.i18n import get_translation
 from src.integrations import connect_to_sap, connect_to_deswik, connect_to_surpac, push_to_sap
 from src.pinn import BlastPINN, predict_with_uncertainty, PINN_INPUT_COLS
 from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_off_explanation, plot_pareto_front
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
-from src.startup_diagnostics import run_startup_diagnostics
-from src.navigation import init_nav_state, render_hierarchical_sidebar, render_nav_chrome
-from src.agent.llm_client import llm_client
 
 import traceback
 
@@ -60,7 +58,7 @@ try:
 except Exception:
     _guardrail_error = traceback.format_exc()
     def get_guardrail_trips(*args, **kwargs):
-        st.error("[ERROR] Guardrail module failed to load")
+        st.error("❌ Guardrail module failed to load")
         with st.expander("Show error details"):
             st.code(_guardrail_error)
         return []
@@ -70,12 +68,12 @@ try:
 except Exception:
     _voice_error = traceback.format_exc()
     def process_voice_turn(*args, **kwargs):
-        st.error("[ERROR] Voice Interface module failed to load")
+        st.error("❌ Voice Interface module failed to load")
         with st.expander("Show error details"):
             st.code(_voice_error)
         return {"language": "en", "transcription": "", "text": "Voice module failed to load.", "audio": b""}
     def start_voice_session(*args, **kwargs):
-        st.error("[ERROR] Voice Interface module failed to load")
+        st.error("❌ Voice Interface module failed to load")
         with st.expander("Show error details"):
             st.code(_voice_error)
         return None
@@ -92,36 +90,38 @@ try:
 except Exception:
     _agent_ui_error = traceback.format_exc()
     def render_agent_chat(*args, **kwargs):
-        st.error("[ERROR] Agent Chat module failed to load")
+        st.error("❌ Agent Chat module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
     def render_guided_mode(*args, **kwargs):
-        st.error("[ERROR] Guided Mode module failed to load")
+        st.error("❌ Guided Mode module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
     def render_expert_mode(*args, **kwargs):
-        st.error("[ERROR] Expert Mode module failed to load")
+        st.error("❌ Expert Mode module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
     def render_voice_mode(*args, **kwargs):
-        st.error("[ERROR] Voice Mode module failed to load")
+        st.error("❌ Voice Mode module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
     def render_knowledge_qa(*args, **kwargs):
-        st.error("[ERROR] Knowledge Q&A module failed to load")
+        st.error("❌ Knowledge Q&A module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
     def render_system_health(*args, **kwargs):
-        st.error("[ERROR] System Health module failed to load")
+        st.error("❌ System Health module failed to load")
         with st.expander("Show error details"):
             st.code(_agent_ui_error)
+
+from src.agent.llm_client import llm_client
 
 try:
     from src.agent.ollama_health import full_health_check
 except Exception:
     _ollama_error = traceback.format_exc()
     def full_health_check(*args, **kwargs):
-        st.error("[ERROR] Ollama Health module failed to load")
+        st.error("❌ Ollama Health module failed to load")
         with st.expander("Show error details"):
             st.code(_ollama_error)
         return {"overall_status": "offline", "recommendations": []}
@@ -131,17 +131,17 @@ try:
 except Exception:
     _audit_error = traceback.format_exc()
     def get_interaction_history(*args, **kwargs):
-        st.error("[ERROR] Audit module failed to load")
+        st.error("❌ Audit module failed to load")
         with st.expander("Show error details"):
             st.code(_audit_error)
         return []
     def get_decision_history(*args, **kwargs):
-        st.error("[ERROR] Audit module failed to load")
+        st.error("❌ Audit module failed to load")
         with st.expander("Show error details"):
             st.code(_audit_error)
         return []
     def export_audit_log_json(*args, **kwargs):
-        st.error("[ERROR] Audit module failed to load")
+        st.error("❌ Audit module failed to load")
         with st.expander("Show error details"):
             st.code(_audit_error)
         return ""
@@ -156,42 +156,6 @@ from src.visualize import (
     plot_optimization_convergence,
     plot_2d_blast_pattern,
 )
-from src.render3d.blast_3d_viewer import render_blast_3d_viewer
-from src.blast_pattern_3d import (
-    PatternGenerator3D,
-    BlastHole,
-    BenchGeometry,
-    PatternType,
-    create_bench_geometry,
-    HoleDeviationCompensator,
-    DeckingDesigner,
-    SubdrillingOptimizer,
-    ToeBurdenAnalyzer,
-    BackbreakPredictor,
-    FreeFaceAnalyzer,
-    CollisionDetector,
-    TopographyModeler,
-    ConstraintBasedHolePlacer,
-)
-from src.visualize_3d import (
-    PatternVisualizer3D,
-    create_3d_design_summary,
-)
-from src.optimize_3d import (
-    PatternOptimizer3D,
-    optimize_pattern_for_cost,
-)
-from src.timing_design import (
-    TimingDesigner,
-    TimingEffectAnalyzer,
-    TimingOptimizer,
-    TimingSequence,
-)
-from src.timing_animation import (
-    SequenceAnimator,
-    WaveformGenerator,
-    create_timing_summary_report,
-)
 from src.explainability import (
     get_feature_contributions,
     plot_feature_contributions_waterfall,
@@ -202,7 +166,7 @@ from src.explainability import (
 # Page configuration
 st.set_page_config(
     page_title="BlastOpt Botswana | AI Blast Optimization",
-    page_icon="",
+    page_icon="💥",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -222,12 +186,8 @@ except Exception as exc:
         "Check the original chained exception below for root cause."
     ) from exc
 
-# Run startup subsystem health diagnostics
-if "startup_diagnostics" not in st.session_state:
-    st.session_state["startup_diagnostics"] = run_startup_diagnostics()
-
 if DEMO_MODE:
-    st.warning("[WARNING] DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
+    st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
 
 # Initialize Session State
 if "dataset" not in st.session_state:
@@ -260,7 +220,7 @@ if "last_predict_results" not in st.session_state:
 
 
 # Title and Header Banner
-st.title(" BlastOpt Botswana")
+st.title("🇧🇼 BlastOpt Botswana")
 st.markdown(
     "**AI-Driven Drilling & Blasting Design, Fragmentation Modeling & Genetic Algorithm Optimizer**"
 )
@@ -268,38 +228,25 @@ st.markdown(
 # Language Selector Sidebar
 st.sidebar.image("https://img.icons8.com/color/96/diamond.png", width=64)
 selected_lang_label = st.sidebar.selectbox(
-    " Language / Puo",
-    ["English ", "Setswana "],
+    "🌐 Language / Puo",
+    ["English 🇬🇧", "Setswana 🇧🇼"],
     index=0,
 )
 lang_code = "tn" if "Setswana" in selected_lang_label else "en"
-st.session_state["lang_code"] = lang_code
-
-from src.navigation import init_nav_state
-
-init_nav_state()
-render_hierarchical_sidebar()
-
-# Sidebar status indicator for LLM client
-st.sidebar.markdown("---")
-if llm_client.is_available():
-    st.sidebar.success("🟢 LLM Client: Online (Pula-8B / BlastOpt LoRA)")
-else:
-    st.sidebar.caption("⚪ LLM Client: Off-line / Mock Mode")
 
 # Voice Mode Toggle Sidebar
 st.sidebar.markdown("---")
-voice_mode_active = st.sidebar.toggle(" Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+voice_mode_active = st.sidebar.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
 
 if voice_mode_active:
-    st.sidebar.subheader(" Voice Agent Assistant")
+    st.sidebar.subheader("🎙️ Voice Agent Assistant")
     voice_audio_input = st.sidebar.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
 
     if voice_audio_input is not None:
         audio_bytes = voice_audio_input.read()
         st.sidebar.audio(audio_bytes, format="audio/wav")
 
-        if st.sidebar.button("Process Voice Command ", type="primary"):
+        if st.sidebar.button("Process Voice Command 🚀", type="primary"):
             with st.spinner("Processing speech-to-text and agent reasoning..."):
                 voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
 
@@ -309,28 +256,117 @@ if voice_mode_active:
                 # Play synthesized speech response
                 st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
-# Sidebar Ollama Status Indicator
+# Sidebar Fine-Tuned LLM Status Indicator
 st.sidebar.markdown("---")
+if llm_client.is_available():
+    st.sidebar.success("LLM: Fine-tuned Pula-8B loaded")
+else:
+    st.sidebar.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+
 if "sidebar_ollama_status" not in st.session_state:
     st.session_state["sidebar_ollama_status"] = full_health_check()
 
 ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
 ollama_icons = {
-    "healthy": " Ollama: Operational",
-    "cloud_active": " Ollama: Cloud Active",
-    "degraded": " Ollama: Degraded",
-    "offline": " Ollama: Offline",
-    "not_installed": " Ollama: Not Installed",
+    "healthy": "🟢 Ollama: Operational",
+    "cloud_active": "🟢 Ollama: Cloud Active",
+    "degraded": "🟡 Ollama: Degraded",
+    "offline": "🔴 Ollama: Offline",
+    "not_installed": "⚪ Ollama: Not Installed",
 }
-st.sidebar.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, ' Ollama Status Unknown')}")
-st.session_state["lang_code"] = lang_code
+st.sidebar.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
 
-# Hierarchical card navigation (home → category → page). Sidebar expanders jump directly.
-active_module = render_nav_chrome(include_sidebar=False)
+st.sidebar.title("Navigation")
+page = st.sidebar.radio(
+    "Select Module",
+    [
+        get_translation("nav_dashboard", lang_code),
+        get_translation("nav_ingestion", lang_code),
+        get_translation("nav_ml_manager", lang_code),
+        get_translation("nav_comparison", lang_code),
+        get_translation("nav_predictor", lang_code),
+        get_translation("nav_optimizer", lang_code),
+        get_translation("nav_pareto", lang_code),
+        get_translation("nav_economic", lang_code),
+        get_translation("nav_recommender", lang_code),
+        get_translation("nav_mwd", lang_code),
+        get_translation("nav_digital_twin", lang_code),
+        get_translation("nav_connectivity", lang_code),
+        get_translation("nav_detonator", lang_code),
+        get_translation("nav_sync", lang_code),
+        get_translation("nav_regulatory", lang_code),
+        get_translation("nav_pinn", lang_code),
+        get_translation("nav_integrations", lang_code),
+        get_translation("nav_model_cards", lang_code),
+        get_translation("nav_ensemble_uq", lang_code),
+        get_translation("nav_agent", lang_code),
+        get_translation("nav_pattern", lang_code),
+        get_translation("nav_guardrail_log", lang_code),
+        get_translation("nav_audit_log", lang_code),
+        get_translation("nav_system_health", lang_code),
+        get_translation("nav_visualize", lang_code),
+    ],
+)
+
+# Normalize page string matching across languages
+page_keys = {
+    get_translation("nav_dashboard", "en"): "dashboard",
+    get_translation("nav_dashboard", "tn"): "dashboard",
+    get_translation("nav_ingestion", "en"): "ingestion",
+    get_translation("nav_ingestion", "tn"): "ingestion",
+    get_translation("nav_ml_manager", "en"): "ml_manager",
+    get_translation("nav_ml_manager", "tn"): "ml_manager",
+    get_translation("nav_comparison", "en"): "comparison",
+    get_translation("nav_comparison", "tn"): "comparison",
+    get_translation("nav_predictor", "en"): "predictor",
+    get_translation("nav_predictor", "tn"): "predictor",
+    get_translation("nav_optimizer", "en"): "optimizer",
+    get_translation("nav_optimizer", "tn"): "optimizer",
+    get_translation("nav_pareto", "en"): "pareto",
+    get_translation("nav_pareto", "tn"): "pareto",
+    get_translation("nav_economic", "en"): "economic",
+    get_translation("nav_economic", "tn"): "economic",
+    get_translation("nav_recommender", "en"): "recommender",
+    get_translation("nav_recommender", "tn"): "recommender",
+    get_translation("nav_mwd", "en"): "mwd",
+    get_translation("nav_mwd", "tn"): "mwd",
+    get_translation("nav_digital_twin", "en"): "digital_twin",
+    get_translation("nav_digital_twin", "tn"): "digital_twin",
+    get_translation("nav_connectivity", "en"): "connectivity",
+    get_translation("nav_connectivity", "tn"): "connectivity",
+    get_translation("nav_detonator", "en"): "detonator",
+    get_translation("nav_detonator", "tn"): "detonator",
+    get_translation("nav_sync", "en"): "sync",
+    get_translation("nav_sync", "tn"): "sync",
+    get_translation("nav_regulatory", "en"): "regulatory",
+    get_translation("nav_regulatory", "tn"): "regulatory",
+    get_translation("nav_pinn", "en"): "pinn",
+    get_translation("nav_pinn", "tn"): "pinn",
+    get_translation("nav_integrations", "en"): "integrations",
+    get_translation("nav_integrations", "tn"): "integrations",
+    get_translation("nav_model_cards", "en"): "model_cards",
+    get_translation("nav_model_cards", "tn"): "model_cards",
+    get_translation("nav_ensemble_uq", "en"): "ensemble_uq",
+    get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
+    get_translation("nav_agent", "en"): "agent",
+    get_translation("nav_agent", "tn"): "agent",
+    get_translation("nav_pattern", "en"): "pattern",
+    get_translation("nav_pattern", "tn"): "pattern",
+    get_translation("nav_guardrail_log", "en"): "guardrail_log",
+    get_translation("nav_guardrail_log", "tn"): "guardrail_log",
+    get_translation("nav_audit_log", "en"): "audit_log",
+    get_translation("nav_audit_log", "tn"): "audit_log",
+    get_translation("nav_system_health", "en"): "system_health",
+    get_translation("nav_system_health", "tn"): "system_health",
+    get_translation("nav_visualize", "en"): "visualize",
+    get_translation("nav_visualize", "tn"): "visualize",
+}
+
+active_module = page_keys.get(page, "dashboard")
 
 # --- MODULE 1: DASHBOARD & DATA EXPLORER ---
 if active_module == "dashboard":
-    st.header(" Mining & Blasting Data Dashboard")
+    st.header("📊 Mining & Blasting Data Dashboard")
 
     df = st.session_state["dataset"]
 
@@ -354,9 +390,9 @@ if active_module == "dashboard":
 
 # --- MODULE 2: DATA INGESTION & GENERATOR ---
 elif active_module == "ingestion":
-    st.header(" Data Ingestion & Synthetic Generator")
+    st.header("⚙️ Data Ingestion & Synthetic Generator")
 
-    tab1, tab2 = st.tabs([" Generate Synthetic Blast Logs", " Upload Custom Blast CSV"])
+    tab1, tab2 = st.tabs(["⚡ Generate Synthetic Blast Logs", "📁 Upload Custom Blast CSV"])
 
     with tab1:
         st.subheader("Physics-Guided Synthetic Blast Data Generator")
@@ -417,7 +453,7 @@ elif active_module == "ingestion":
                         st.session_state["dataset"] = real_processed_df
                         st.session_state["data_source_mode"] = "real"
                         st.success("Successfully validated, cleaned, and loaded real mine production dataset!")
-                        st.info("Anomaly report generated at `data/processed/data_anomalies.log`.")
+                        st.info("💡 Anomaly report generated at `data/processed/data_anomalies.log`.")
                         st.dataframe(real_processed_df.head(10), use_container_width=True)
                 except Exception as e:
                     st.error(f"Error processing real mine dataset: {e}")
@@ -427,14 +463,14 @@ elif active_module == "ingestion":
 
 # --- MODULE 3: ML MODEL MANAGER ---
 elif active_module == "ml_manager":
-    st.header(" Machine Learning Model Training & Evaluation")
+    st.header("🤖 Machine Learning Model Training & Evaluation")
 
     df = st.session_state["dataset"]
 
-    tab_train, tab_diag = st.tabs([" Model Training & Evaluation", " Model Registry Diagnostics"])
+    tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
 
     with tab_diag:
-        st.subheader(" Model Registry Diagnostics")
+        st.subheader("📊 Model Registry Diagnostics")
         import models.registry as reg_module
         from models.registry import get_registry
         diag_reg = get_registry()
@@ -447,7 +483,7 @@ elif active_module == "ml_manager":
         m_col3.metric("Load Errors", len(diag_reg.get_load_errors()))
         with m_col4:
             st.write("")
-            if st.button(" Rescan Registry"):
+            if st.button("🔄 Rescan Registry"):
                 diag_reg.discover()
                 st.success("Rescanned registry without app restart!")
                 st.rerun()
@@ -509,7 +545,7 @@ elif active_module == "ml_manager":
         if metadata.supports_explainability:
             st.success("✅ Explainability supported")
         if metadata.requires_gpu:
-            st.warning("[WARNING] Requires GPU for training")
+            st.warning("⚠️ Requires GPU for training")
         cv_folds = st.slider("Cross Validation Folds", 3, 10, 5)
 
         if st.button("Train Models", type="primary"):
@@ -659,7 +695,7 @@ elif active_module == "predictor":
         if ov_status == "SAFE":
             st.success("✅ **OVERALL STATUS: SAFE** — All 95% upper confidence bounds comply strictly with site and regulatory thresholds.")
         elif ov_status == "REQUIRES_REVIEW":
-            st.warning("[WARNING] **OVERALL STATUS: REQUIRES REVIEW** — Mean predictions comply, but 95% upper confidence bounds cross threshold limits. Certified blaster review and mandatory override reasoning required.")
+            st.warning("⚠️ **OVERALL STATUS: REQUIRES REVIEW** — Mean predictions comply, but 95% upper confidence bounds cross threshold limits. Certified blaster review and mandatory override reasoning required.")
         else:
             st.error("🚨 **OVERALL STATUS: UNSAFE / INFEASIBLE** — Design violates maximum allowed safety limits. Export and transmission disabled.")
 
@@ -682,7 +718,7 @@ elif active_module == "predictor":
 
         submit_btn_disabled = (ov_status == "UNSAFE") or (ov_status == "REQUIRES_REVIEW" and not ack_review_checkbox)
 
-        if st.button("Submit for Approval ", disabled=submit_btn_disabled, type="primary"):
+        if st.button("Submit for Approval 🚀", disabled=submit_btn_disabled, type="primary"):
             if safety_dict:
                 s_report = SafetyReport(**safety_dict)
             else:
@@ -721,7 +757,7 @@ elif active_module == "predictor":
         st.dataframe(ver_df, use_container_width=True)
 
         st.markdown("---")
-        with st.expander(" Why this prediction?", expanded=True):
+        with st.expander("🔍 Why this prediction?", expanded=True):
             target_explain = st.selectbox(
                 "Select Outcome to Explain",
                 ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
@@ -769,7 +805,7 @@ elif active_module == "predictor":
                 })
             st.dataframe(pd.DataFrame(top5_rows), use_container_width=True)
 
-            st.subheader(" Interactive SHAP Force Plot")
+            st.subheader("📊 Interactive SHAP Force Plot")
             force_fig = exp_panel.get("shap", {}).get("force_plot")
             if force_fig is not None:
                 st.plotly_chart(force_fig, use_container_width=True)
@@ -793,7 +829,7 @@ elif active_module == "predictor":
 
 # --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
 elif active_module == "optimizer":
-    st.header(" Genetic Algorithm Parameter Optimizer")
+    st.header("⚡ Genetic Algorithm Parameter Optimizer")
 
     st.markdown("Find optimal **Burden**, **Spacing**, **Stemming**, and **Powder Factor** to minimize cost subject to vibration & flyrock safety limits.")
 
@@ -879,7 +915,7 @@ elif active_module == "optimizer":
             st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
 
             # Per-design SHAP Explainability
-            st.subheader(" SHAP Explanation per Pareto Design")
+            st.subheader("🔍 SHAP Explanation per Pareto Design")
             for rank, item in enumerate(top_5, 1):
                 p = item["parameters"]
                 o = item["outputs"]
@@ -963,7 +999,7 @@ elif active_module == "economic":
     c_econ1, c_econ2 = st.columns([1, 2])
 
     with c_econ1:
-        st.subheader(" Configurable Unit Cost Parameters")
+        st.subheader("⚙️ Configurable Unit Cost Parameters")
 
         drilling_rate = st.slider(
             "Drilling Rate ($/m)", 5.0, 30.0, 12.0, step=0.5,
@@ -1016,7 +1052,7 @@ elif active_module == "economic":
         }
 
     with c_econ2:
-        st.subheader(" Real-Time Mine-to-Mill Cost Breakdown")
+        st.subheader("📊 Real-Time Mine-to-Mill Cost Breakdown")
 
         # Compute cost breakdown in real time
         cost_breakdown = total_cost_per_tonne(blast_params_econ, unit_costs=unit_costs_config)
@@ -1110,7 +1146,7 @@ elif active_module == "recommender":
             st.dataframe(similar_df[display_cols], use_container_width=True)
 
             st.markdown("---")
-            st.subheader(" Outcomes Comparison: Current Design vs Historical Blasts")
+            st.subheader("📊 Outcomes Comparison: Current Design vs Historical Blasts")
 
             # Predicted outcomes for current proposed design
             curr_pred = predict_single_blast(query_payload, model_pipeline=st.session_state.get("pipeline", None))
@@ -1187,7 +1223,7 @@ elif active_module == "mwd":
             st.success(f"Simulated MWD sample transmitted for {mwd_hole_id}!")
 
     with col_mwd2:
-        st.subheader(" Live MWD Telemetry Stream & Specific Energy")
+        st.subheader("📊 Live MWD Telemetry Stream & Specific Energy")
 
         # Mock telemetry feed if history is empty
         if not MWD_HISTORY:
@@ -1221,13 +1257,13 @@ elif active_module == "mwd":
 
         depth_diff = measured_depth - designed_depth
         if abs(depth_diff) > 1.0:
-            st.error(f"[WARNING] **GEOMETRY DEVIATION ALERT:** Hole depth deviates by {depth_diff:+.2f} m from design target ({designed_depth:.1f} m).")
-            st.warning(" **ADAPTIVE CHARGING PLAN:** Automatically adjusting sub-drilling stemming length and bulk explosive density to prevent flyrock and toe accumulation.")
+            st.error(f"⚠️ **GEOMETRY DEVIATION ALERT:** Hole depth deviates by {depth_diff:+.2f} m from design target ({designed_depth:.1f} m).")
+            st.warning("⚡ **ADAPTIVE CHARGING PLAN:** Automatically adjusting sub-drilling stemming length and bulk explosive density to prevent flyrock and toe accumulation.")
         else:
             st.success("✅ **GEOMETRY COMPLIANT:** As-drilled hole dimensions are within ±1.0 m tolerance bounds of design specifications.")
 
         st.markdown("---")
-        st.subheader(" Model 1: Dynamic Adaptive Charging & Risk Controller")
+        st.subheader("⚡ Model 1: Dynamic Adaptive Charging & Risk Controller")
 
         col_ad1, col_ad2 = st.columns(2)
 
@@ -1260,7 +1296,7 @@ elif active_module == "mwd":
             else:
                 st.error("🛡️ **RISK CONTROLLER WARNING:** Predicted limit violation in adjusted design!")
                 for v in risk_eval["violations"]:
-                    st.write(f"- [WARNING] {v}")
+                    st.write(f"- ⚠️ {v}")
                 for r in risk_eval["recommendations"]:
                     st.info(f"💡 {r}")
 
@@ -1279,7 +1315,7 @@ elif active_module == "digital_twin":
         c_dt1, c_dt2 = st.columns([1, 2])
 
         with c_dt1:
-            st.subheader(" Digital Twin Bench Inputs")
+            st.subheader("⚙️ Digital Twin Bench Inputs")
             bench_id_input = st.text_input("Bench ID", value="BENCH_JWA_15S")
             rock_type_input = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Waste_Granite_Hard", "Kimberlite_Soft", "Sandstone_Medium"])
             rock_A_dt = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, 8.5, step=0.5)
@@ -1343,7 +1379,7 @@ elif active_module == "digital_twin":
             st.plotly_chart(fig_3d, use_container_width=True)
 
             st.markdown("---")
-            st.subheader(" Fragmentation Size Distribution & Percentiles")
+            st.subheader("💥 Fragmentation Size Distribution & Percentiles")
 
             frag_data = twin_sim["fragmentation"]
             col_f1, col_f2, col_f3 = st.columns(3)
@@ -1451,7 +1487,7 @@ elif active_module == "connectivity":
         st.info(f"**Sandvik Status:** `{sandvik_conn['status'].upper()}` (ISO 15143-3 Compliant)")
         st.info(f"**Epiroc Status:** `{epiroc_conn['status'].upper()}` (ISO 15143-3 Compliant)")
 
-        st.subheader(" Push Pattern to Drill Rig")
+        st.subheader("🚀 Push Pattern to Drill Rig")
         selected_vendor = st.selectbox("Select Drill Vendor", ["Sandvik", "Epiroc"])
 
         if selected_vendor == "Sandvik":
@@ -1527,7 +1563,7 @@ elif active_module == "connectivity":
 
 # --- MODULE: ELECTRONIC DETONATOR INTEGRATION ---
 elif active_module == "detonator":
-    st.header(" Electronic Detonator Field-to-Cloud Integration")
+    st.header("⚡ Electronic Detonator Field-to-Cloud Integration")
     st.markdown(
         "Direct integration with major electronic initiation systems in Botswana (**AEL IntelliShot**, **BME AXXIS**, **Orica i-kon III**). "
         "Upload millisecond-precision timing sequences, validate regulatory compliance, and download firing confirmations."
@@ -1536,7 +1572,7 @@ elif active_module == "detonator":
     c_det1, c_det2 = st.columns([1, 2])
 
     with c_det1:
-        st.subheader(" System Selection & Sequence Upload")
+        st.subheader("⚙️ System Selection & Sequence Upload")
         det_system = st.selectbox("Select Electronic Detonator System", ["AEL IntelliShot", "BME AXXIS", "Orica i-kon III"])
         blast_id_det = st.text_input("Blast Pattern ID", value="BLAST_JWA_2024_08")
 
@@ -1567,9 +1603,9 @@ elif active_module == "detonator":
             if st.button("Upload Timing Sequence", type="primary"):
                 up_res = upload_timing_sequence(det_system, seq_payload, blast_id=blast_id_det)
                 if up_res.get("status") == "blocked":
-                    st.error(f"[ERROR] {up_res.get('message', 'Timing sequence upload blocked.')}")
+                    st.error(f"❌ {up_res.get('message', 'Timing sequence upload blocked.')}")
                     for v in up_res.get("violations", []):
-                        st.write(f"- [WARNING] {v}")
+                        st.write(f"- ⚠️ {v}")
                 else:
                     st.success(f"Uploaded to {up_res['detonator_system']}!")
 
@@ -1579,7 +1615,7 @@ elif active_module == "detonator":
                 st.success(f"Downloaded confirmation for {conf_res['blast_id']}!")
 
     with c_det2:
-        st.subheader(" Firing Confirmations & Field Diagnostics")
+        st.subheader("📊 Firing Confirmations & Field Diagnostics")
 
         df_conf_list = load_firing_confirmations()
         if not df_conf_list:
@@ -1592,7 +1628,7 @@ elif active_module == "detonator":
         st.dataframe(df_conf, use_container_width=True)
 
         st.markdown("---")
-        st.subheader(" Electronic System Vendor Architecture")
+        st.subheader("🔍 Electronic System Vendor Architecture")
         st.info("**AEL IntelliShot:** Uses Commander control boxes and Tagger handheld devices with smart lead wire auto-tagging.")
         st.info("**BME AXXIS:** AXXIS Titanium / Gii dual-capacitor architecture with sub-millisecond firing window accuracy.")
         st.info("**Orica i-kon III:** High-capacity Logger/Blaster suite supporting up to 4,800 caps per blast with encrypted telemetry.")
@@ -1600,7 +1636,7 @@ elif active_module == "detonator":
 
 # --- MODULE: SYNC STATUS & WRITE-AHEAD LOG ---
 elif active_module == "sync":
-    st.header(" Offline-First Sync Status & Write-Ahead Log (WAL) Manager")
+    st.header("🔄 Offline-First Sync Status & Write-Ahead Log (WAL) Manager")
     st.markdown(
         "Ensures zero data loss in remote Botswana open-pit benches (Jwaneng, Orapa, Karowe) "
         "by queuing field actions in a persistent **Write-Ahead Log (WAL)** and replaying queue with exponential backoff retries upon connection."
@@ -1613,7 +1649,7 @@ elif active_module == "sync":
     sync_manager = SyncManager(wal=wal_instance)
 
     with c_sync1:
-        st.subheader(" Connection & Queue Status")
+        st.subheader("⚙️ Connection & Queue Status")
         is_online_sim = st.toggle("Simulate Network Connection", value=True, help="Toggle between Online and Offline pit floor connection.")
 
         pending_wal = wal_instance.get_pending()
@@ -1633,7 +1669,7 @@ elif active_module == "sync":
             entry = wal_instance.append(sim_action_type, {"hole_id": sim_hole, "measured_value": sim_val, "role": "blaster"})
             st.success(f"Action enqueued to WAL! ID: {entry['wal_id']}")
 
-        if st.button("Force Sync Now "):
+        if st.button("Force Sync Now 🚀"):
             sync_res = sync_manager.sync_all(online_check_fn=lambda: is_online_sim)
             if sync_res["status"] == "offline":
                 st.error("Cannot sync: Network device is currently offline.")
@@ -1687,7 +1723,7 @@ elif active_module == "regulatory":
         st.metric("Min Stemming Confinement", f"{reg_limits.get('min_stemming_m', 2.5):.1f} m")
 
     with c_reg2:
-        st.subheader(" Proposed Blast Design Compliance Evaluation")
+        st.subheader("🔍 Proposed Blast Design Compliance Evaluation")
 
         last_in = st.session_state.get("last_predict_inputs", {})
         last_out = st.session_state.get("last_predict_results", {})
@@ -1697,10 +1733,10 @@ elif active_module == "regulatory":
         if comp_eval["is_compliant"]:
             st.success("✅ **FULLY COMPLIANT:** Proposed blast design satisfies all Botswana Department of Mines environmental & safety regulations.")
         else:
-            st.error("[ERROR] **NON-COMPLIANT:** Detected regulatory threshold violations in proposed design!")
+            st.error("❌ **NON-COMPLIANT:** Detected regulatory threshold violations in proposed design!")
             st.subheader("Detected Violations:")
             for v in comp_eval["violations"]:
-                st.write(f"- [WARNING] {v}")
+                st.write(f"- ⚠️ {v}")
 
             st.subheader("Actionable Engineering Recommendations:")
             for r in comp_eval["recommendations"]:
@@ -1738,7 +1774,7 @@ elif active_module == "integrations":
     c_int1, c_int2 = st.columns([1, 2])
 
     with c_int1:
-        st.subheader(" System API Status & Verification")
+        st.subheader("⚙️ System API Status & Verification")
 
         st.markdown("### 🏢 1. SAP ERP (Procurement & Costing)")
         if st.button("Test SAP Connection", type="primary"):
@@ -1759,7 +1795,7 @@ elif active_module == "integrations":
             st.json(surpac_res["retrieved_geology"])
 
     with c_int2:
-        st.subheader(" Enterprise Data Flow Summary")
+        st.subheader("📊 Enterprise Data Flow Summary")
 
         df_flow = pd.DataFrame([
             {"System": "SAP ERP", "Inbound Data": "Explosive $/kg, Drilling $/m, Budget Limits", "Outbound Data": "Actual post-blast $/t expenditure", "Protocol": "REST / OData"},
@@ -1791,7 +1827,7 @@ elif active_module == "pinn":
     c_pinn1, c_pinn2 = st.columns([1, 2])
 
     with c_pinn1:
-        st.subheader(" PINN 12 Input Parameters")
+        st.subheader("⚙️ PINN 12 Input Parameters")
         last_in = st.session_state.get("last_predict_inputs", {})
 
         b_pinn = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2)
@@ -1815,7 +1851,7 @@ elif active_module == "pinn":
         mc_samples = st.slider("Monte Carlo Dropout Pass Samples", 20, 300, 100, step=20)
 
     with c_pinn2:
-        st.subheader(" PINN Predictions & 95% Confidence Intervals")
+        st.subheader("📊 PINN Predictions & 95% Confidence Intervals")
 
         pinn_model = BlastPINN(input_dim=12)
         uncertainty_res = predict_with_uncertainty(pinn_model, np.array([pinn_feature_vec]), n_samples=mc_samples)
@@ -1845,13 +1881,13 @@ elif active_module == "pinn":
         st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
 
         if is_high_unc:
-            st.error("[WARNING] **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
+            st.error("⚠️ **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
             st.warning("💡 **RECOMMENDATION:** High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.")
         else:
             st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
 
         st.markdown("---")
-        st.subheader(" DeepSHAP Feature Contribution Explanation for PINN")
+        st.subheader("🔍 DeepSHAP Feature Contribution Explanation for PINN")
 
         pinn_df_input = pd.DataFrame([pinn_feature_vec], columns=PINN_INPUT_COLS)
         pinn_shap = get_shap_explanation(
@@ -1876,7 +1912,7 @@ elif active_module == "pinn":
 
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
 elif active_module == "pareto":
-    st.header(" Model 3: Multi-Objective NSGA-II Pareto Optimizer")
+    st.header("⚡ Model 3: Multi-Objective NSGA-II Pareto Optimizer")
     st.markdown(
         "Discovers the non-dominated **Pareto Frontier** across 5 competing blast design objectives: "
         "minimizing fragmentation ($D_{80}$), minimizing ground vibration ($PPV$), minimizing airblast ($dB$), "
@@ -1914,7 +1950,7 @@ elif active_module == "pareto":
         if "pareto_front_df" in st.session_state and not st.session_state["pareto_front_df"].empty:
             df_p = st.session_state["pareto_front_df"]
 
-            st.subheader(" Interactive Pareto Front Scatter Plot")
+            st.subheader("📊 Interactive Pareto Front Scatter Plot")
             c_p_x, c_p_y = st.columns(2)
             with c_p_x:
                 obj_x = st.selectbox("X-Axis Objective", ["d80_mm", "ppv_mms", "airblast_dbl", "cost_per_tonne_usd", "crusher_throughput_tph"], index=0)
@@ -2088,7 +2124,7 @@ elif active_module == "ensemble_uq":
     c_uq1, c_uq2 = st.columns([1, 2])
 
     with c_uq1:
-        st.subheader(" Blast Input Parameters")
+        st.subheader("⚙️ Blast Input Parameters")
         last_in = st.session_state.get("last_predict_inputs", {})
 
         b_uq = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2, key="uq_b")
@@ -2102,7 +2138,7 @@ elif active_module == "ensemble_uq":
 
         n_members = st.slider("Bagging Ensemble Members per Family", 3, 20, 5, step=1)
 
-        if st.button("Retrain Ensemble ", type="primary"):
+        if st.button("Retrain Ensemble 🔄", type="primary"):
             with st.spinner("Retraining multi-architecture bagging ensemble across bootstrap sub-samples..."):
                 df_curr = st.session_state["dataset"]
                 feature_cols_present = [c for c in FEATURE_COLS if c in df_curr.columns]
@@ -2114,7 +2150,7 @@ elif active_module == "ensemble_uq":
                 st.success("Ensemble retraining complete!")
 
     with c_uq2:
-        st.subheader(" Ensemble Predictions & 95% Confidence Intervals")
+        st.subheader("📊 Ensemble Predictions & 95% Confidence Intervals")
 
         ens_obj = st.session_state.get("active_ensemble_uq", EnsembleUQ(n_models=5))
         uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
@@ -2145,7 +2181,7 @@ elif active_module == "ensemble_uq":
         st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
 
         if uq_res.get("high_uncertainty", False):
-            st.error("[WARNING] **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
+            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
             st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
         else:
             st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
@@ -2169,7 +2205,7 @@ elif active_module == "ensemble_uq":
 
 # --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
 elif active_module == "agent":
-    st.header(" BlasterOPT Conversational Agent Assistant")
+    st.header("🤖 BlasterOPT Conversational Agent Assistant")
     st.markdown(
         "Interactive AI decision support agent for open-pit diamond mining operations. "
         "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "
@@ -2179,7 +2215,7 @@ elif active_module == "agent":
     c_ag1, c_ag2 = st.columns([1, 3])
 
     with c_ag1:
-        st.subheader(" Agent Controls & Context")
+        st.subheader("⚙️ Agent Controls & Context")
 
         user_role_sel = st.selectbox(
             "User Operating Role",
@@ -2232,7 +2268,7 @@ elif active_module == "audit_log":
         "**Mines, Quarries, Works and Machinery Act (Cap. 44:02)**."
     )
 
-    tab_a1, tab_a2 = st.tabs(["💬 Conversation Interactions Log", " Engineering Decisions & Overrides"])
+    tab_a1, tab_a2 = st.tabs(["💬 Conversation Interactions Log", "⚙️ Engineering Decisions & Overrides"])
 
     col_flt1, col_flt2 = st.columns(2)
     with col_flt1:
@@ -2286,7 +2322,7 @@ elif active_module == "audit_log":
 
     st.markdown("---")
     st.subheader("🏛️ Regulatory Submission Package Export")
-    if st.button("Generate Regulatory Audit Package (JSON Format) ", type="primary"):
+    if st.button("Generate Regulatory Audit Package (JSON Format) 🚀", type="primary"):
         export_file = export_audit_log_json()
         with open(export_file, "r", encoding="utf-8") as f:
             export_content = f.read()
@@ -2339,55 +2375,8 @@ elif active_module == "guardrail_log":
         st.info("No guardrail trips recorded for the selected filter.")
 
 
-# --- MODULE: OLLAMA SYSTEM HEALTH & STARTUP DIAGNOSTICS ---
+# --- MODULE: OLLAMA SYSTEM HEALTH ---
 elif active_module == "system_health":
-    st.header("🩺 System Health & Startup Diagnostics")
-
-    diag_res = st.session_state.get("startup_diagnostics", run_startup_diagnostics())
-    ov_st = diag_res.get("overall_status", "unknown")
-
-    d_col1, d_col2, d_col3, d_col4 = st.columns(4)
-    d_col1.metric("Overall System Health", ov_st.upper())
-    d_col2.metric("Subsystems Inspected", diag_res.get("modules_checked_count", 0))
-    d_col3.metric("Operational Subsystems", diag_res.get("modules_passed_count", 0))
-    d_col4.metric("Failed Subsystems", diag_res.get("modules_failed_count", 0))
-
-    if ov_st == "healthy":
-        st.success("✅ All core and optional subsystems loaded operationally at startup!")
-    elif ov_st == "degraded":
-        st.warning("[WARNING] Some optional subsystems failed to load. Core app capabilities remain operational.")
-    else:
-        st.error("🚨 Critical startup failures detected across subsystems!")
-
-    if st.button(" Re-run Startup Subsystem Diagnostics"):
-        st.session_state["startup_diagnostics"] = run_startup_diagnostics()
-        st.rerun()
-
-    st.markdown("---")
-    st.subheader("📋 Subsystem Health Breakdown")
-
-    mod_statuses = diag_res.get("module_statuses", {})
-    table_data = []
-    for mod_name, mod_info in mod_statuses.items():
-        table_data.append({
-            "Subsystem Module": mod_name,
-            "Status": mod_info["status"].upper(),
-            "Error": mod_info["error"] or "None",
-            "Module Path": mod_info["file"] or "N/A",
-        })
-    st.dataframe(pd.DataFrame(table_data), use_container_width=True)
-
-    # Render error tracebacks for failed modules
-    failed_mods = {k: v for k, v in mod_statuses.items() if v["status"] == "failed"}
-    if failed_mods:
-        st.subheader("🚨 Subsystem Exception Tracebacks")
-        for f_name, f_info in failed_mods.items():
-            with st.expander(f"Traceback for {f_name}"):
-                st.error(f"Error: {f_info['error']}")
-                st.code(f_info["traceback"] or "No traceback captured.")
-
-    st.markdown("---")
-    st.subheader("🦙 Ollama Health Diagnostics")
     render_system_health()
 
 
@@ -2418,547 +2407,6 @@ elif active_module == "pattern":
             hole_delay_ms=hole_delay,
         )
         st.plotly_chart(fig_pattern, use_container_width=True)
-
-
-# --- MODULE 6B: 3D BLAST PATTERN DESIGN ---
-elif active_module == "blast_3d_viewer":
-    render_blast_3d_viewer()
-
-elif active_module == "pattern_3d":
-    st.header("3D Blast Pattern Design & Visualization")
-
-    # Initialize 3D pattern generator and visualizer
-    pattern_generator = PatternGenerator3D()
-    visualizer = PatternVisualizer3D()
-
-    # Layout with sidebar controls and main visualization
-    col_3d_controls, col_3d_display = st.columns([1, 3])
-
-    with col_3d_controls:
-        st.subheader("Pattern Parameters")
-
-        # Pattern type selection
-        pattern_type = st.selectbox(
-            "Pattern Layout",
-            ["Rectangular", "Staggered", "Echelon", "V-Pattern"],
-            index=0
-        )
-
-        # Bench geometry parameters
-        st.subheader("Bench Geometry")
-        bench_height = st.number_input("Bench Height (m)", 5.0, 30.0, 12.0)
-        bench_width = st.number_input("Bench Width (m)", 10.0, 50.0, 20.0)
-        bench_slope = st.number_input("Bench Slope (deg)", 60.0, 90.0, 75.0)
-        crest_elevation = st.number_input("Crest Elevation (m)", 50.0, 200.0, 100.0)
-        face_angle = st.number_input("Face Angle (deg)", 50.0, 90.0, 70.0)
-
-        # Blast design parameters
-        st.subheader("Blast Design")
-        burden = st.number_input("Burden (m)", 3.0, 10.0, 6.0)
-        spacing = st.number_input("Spacing (m)", 4.0, 12.0, 7.0)
-        hole_diameter = st.number_input("Hole Diameter (mm)", 150.0, 380.0, 250.0)
-        stemming = st.number_input("Stemming (m)", 2.0, 8.0, 4.0)
-        powder_factor = st.number_input("Powder Factor (kg/m3)", 0.3, 1.2, 0.65)
-
-        # Pattern dimensions
-        st.subheader("Pattern Dimensions")
-        num_rows = st.slider("Number of Rows", 2, 10, 5)
-        num_cols = st.slider("Number of Columns", 4, 15, 6)
-
-        # Additional options
-        st.subheader("Advanced Options")
-        show_bench = st.checkbox("Show Bench Surface", value=True)
-        show_face = st.checkbox("Show Bench Face", value=True)
-        show_deviations = st.checkbox("Show Hole Deviations", value=False)
-        show_annotations = st.checkbox("Show Hole Annotations", value=True)
-
-        # Pattern-specific parameters
-        if pattern_type == "Echelon":
-            echelon_offset = st.number_input("Echelon Offset (m)", 0.5, 5.0, 2.0)
-        elif pattern_type == "V-Pattern":
-            v_angle = st.number_input("V-Pattern Angle (deg)", 15.0, 60.0, 30.0)
-
-        # Generate pattern button
-        if st.button("Generate 3D Pattern", type="primary"):
-            # Create bench geometry
-            bench_geometry = create_bench_geometry(
-                bench_height_m=bench_height,
-                bench_width_m=bench_width,
-                bench_slope_deg=bench_slope,
-                crest_elevation=crest_elevation,
-                face_angle_deg=face_angle
-            )
-
-            # Generate pattern based on type
-            if pattern_type == "Rectangular":
-                holes = pattern_generator.generate_rectangular_pattern(
-                    bench_geometry=bench_geometry,
-                    burden_m=burden,
-                    spacing_m=spacing,
-                    hole_diameter_mm=hole_diameter,
-                    stemming_m=stemming,
-                    powder_factor_kg_m3=powder_factor,
-                    num_rows=num_rows,
-                    num_cols=num_cols
-                )
-            elif pattern_type == "Staggered":
-                holes = pattern_generator.generate_staggered_pattern(
-                    bench_geometry=bench_geometry,
-                    burden_m=burden,
-                    spacing_m=spacing,
-                    hole_diameter_mm=hole_diameter,
-                    stemming_m=stemming,
-                    powder_factor_kg_m3=powder_factor,
-                    num_rows=num_rows,
-                    num_cols=num_cols
-                )
-            elif pattern_type == "Echelon":
-                holes = pattern_generator.generate_echelon_pattern(
-                    bench_geometry=bench_geometry,
-                    burden_m=burden,
-                    spacing_m=spacing,
-                    hole_diameter_mm=hole_diameter,
-                    stemming_m=stemming,
-                    powder_factor_kg_m3=powder_factor,
-                    num_rows=num_rows,
-                    num_cols=num_cols,
-                    echelon_offset_m=echelon_offset
-                )
-            elif pattern_type == "V-Pattern":
-                holes = pattern_generator.generate_v_pattern(
-                    bench_geometry=bench_geometry,
-                    burden_m=burden,
-                    spacing_m=spacing,
-                    hole_diameter_mm=hole_diameter,
-                    stemming_m=stemming,
-                    powder_factor_kg_m3=powder_factor,
-                    num_rows=num_rows,
-                    num_cols=num_cols,
-                    v_angle_deg=v_angle
-                )
-
-            # Add deviations if requested
-            if show_deviations:
-                deviation_compensator = HoleDeviationCompensator()
-                holes = deviation_compensator.add_deviation_to_holes(holes, deviation_profile="random")
-
-            # Store in session state
-            st.session_state["3d_holes"] = holes
-            st.session_state["3d_bench_geometry"] = bench_geometry
-            st.session_state["3d_pattern_type"] = pattern_type
-            st.session_state["3d_show_options"] = {
-                "show_bench": show_bench,
-                "show_face": show_face,
-                "show_deviations": show_deviations,
-                "show_annotations": show_annotations
-            }
-
-            st.success(f"Generated {len(holes)} holes with {pattern_type} pattern")
-
-    with col_3d_display:
-        if "3d_holes" in st.session_state:
-            holes = st.session_state["3d_holes"]
-            bench_geometry = st.session_state["3d_bench_geometry"]
-            show_options = st.session_state["3d_show_options"]
-
-            # Create 3D visualization
-            fig_3d = visualizer.plot_3d_pattern(
-                holes=holes,
-                bench_geometry=bench_geometry,
-                show_bench=show_options["show_bench"],
-                show_face=show_options["show_face"],
-                show_deviations=show_options["show_deviations"],
-                show_annotations=show_options["show_annotations"]
-            )
-
-            st.plotly_chart(fig_3d, use_container_width=True)
-
-            # Display pattern statistics
-            pattern_summary = create_3d_design_summary(
-                BlastPattern3D(
-                    pattern_id="current_design",
-                    pattern_type=PatternType(st.session_state["3d_pattern_type"].lower()),
-                    bench_geometry=bench_geometry,
-                    holes=holes,
-                    initiation_sequence=[],
-                    timing_ms=[],
-                    design_parameters={},
-                    created_at="now"
-                )
-            )
-
-            st.subheader("Pattern Statistics")
-            col_stats1, col_stats2, col_stats3 = st.columns(3)
-
-            with col_stats1:
-                st.metric("Total Holes", pattern_summary["total_holes"])
-                st.metric("Total Charge (kg)", f"{pattern_summary['total_charge_mass_kg']:.1f}")
-
-            with col_stats2:
-                st.metric("Avg Hole Length (m)", f"{pattern_summary['avg_hole_length_m']:.1f}")
-                st.metric("Pattern Area (m²)", f"{pattern_summary['pattern_area_m2']:.1f}")
-
-            with col_stats3:
-                st.metric("Powder Factor (kg/m³)", f"{pattern_summary['powder_factor_kg_m3']:.3f}")
-                st.metric("Bench Volume (m³)", f"{pattern_summary['bench_volume_m3']:.1f}")
-
-            # Additional visualizations
-            st.subheader("Additional Views")
-
-            tab_3d_1, tab_3d_2, tab_3d_3, tab_3d_4 = st.tabs(["Statistics", "Cross-Section", "Hole Data", "Optimization"])
-
-            with tab_3d_1:
-                fig_stats = visualizer.plot_pattern_statistics(holes)
-                st.plotly_chart(fig_stats, use_container_width=True)
-
-            with tab_3d_2:
-                section_offset = st.slider("Cross-Section Offset (m)", 0.0, float(bench_geometry.bench_width_m), 0.0)
-                fig_cross = visualizer.plot_cross_section(holes, bench_geometry, section_offset)
-                st.plotly_chart(fig_cross, use_container_width=True)
-
-            with tab_3d_3:
-                # Create hole data table
-                hole_data = []
-                for hole in holes:
-                    hole_data.append({
-                        "Hole ID": hole.hole_id,
-                        "X (m)": f"{hole.x:.2f}",
-                        "Y (m)": f"{hole.y:.2f}",
-                        "Collar Elevation (m)": f"{hole.collar_elevation:.2f}",
-                        "Toe Elevation (m)": f"{hole.toe_elevation:.2f}",
-                        "Hole Length (m)": f"{hole.hole_length:.2f}",
-                        "Charge Mass (kg)": f"{hole.charge_mass_kg:.1f}",
-                        "Burden (m)": f"{hole.burden_m:.2f}",
-                        "Spacing (m)": f"{hole.spacing_m:.2f}"
-                    })
-
-                st.dataframe(pd.DataFrame(hole_data), use_container_width=True)
-
-            with tab_3d_4:
-                st.subheader("Pattern Optimization")
-
-                # Optimization parameters
-                opt_target_d50 = st.number_input("Target d50 (mm)", 100.0, 500.0, 220.0)
-                opt_max_ppv = st.number_input("Max PPV (mm/s)", 5.0, 20.0, 10.0)
-                opt_monitoring_dist = st.number_input("Monitoring Distance (m)", 200.0, 1000.0, 400.0)
-
-                if st.button("Optimize Pattern for Cost", type="primary"):
-                    with st.spinner("Running optimization..."):
-                        try:
-                            # Run optimization
-                            opt_result = optimize_pattern_for_cost(
-                                bench_geometry=bench_geometry,
-                                pattern_type=PatternType(st.session_state["3d_pattern_type"].lower()),
-                                target_d50_mm=opt_target_d50,
-                                max_ppv_mms=opt_max_ppv,
-                                monitoring_distance_m=opt_monitoring_dist
-                            )
-
-                            # Display results
-                            st.success("Optimization completed!")
-
-                            col_opt1, col_opt2 = st.columns(2)
-
-                            with col_opt1:
-                                st.subheader("Optimized Parameters")
-                                opt_params = opt_result['optimized_parameters']
-                                st.metric("Burden (m)", f"{opt_params['burden_m']:.2f}")
-                                st.metric("Spacing (m)", f"{opt_params['spacing_m']:.2f}")
-                                st.metric("Stemming (m)", f"{opt_params['stemming_m']:.2f}")
-                                st.metric("Powder Factor (kg/m³)", f"{opt_params['powder_factor_kg_m3']:.3f}")
-
-                            with col_opt2:
-                                st.subheader("Optimization Results")
-                                st.metric("Objective Value", f"{opt_result['objective_value']:.2f}")
-                                st.metric("Iterations", opt_result['num_iterations'])
-                                st.metric("Success", "Yes" if opt_result['optimization_success'] else "No")
-
-                            # Display optimized pattern
-                            st.subheader("Optimized Pattern Preview")
-                            opt_holes = opt_result['holes']
-                            fig_opt = visualizer.plot_3d_pattern(
-                                holes=opt_holes,
-                                bench_geometry=bench_geometry,
-                                show_bench=True,
-                                show_face=True,
-                                show_deviations=False,
-                                show_annotations=True
-                            )
-                            st.plotly_chart(fig_opt, use_container_width=True)
-
-                            # Option to apply optimized parameters
-                            if st.button("Apply Optimized Parameters"):
-                                st.session_state["3d_holes"] = opt_holes
-                                st.success("Optimized pattern applied!")
-                                st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Optimization failed: {e}")
-                            st.exception(e)
-        else:
-            st.info("Click 'Generate 3D Pattern' to create a blast pattern design")
-
-
-# --- MODULE 6C: TIMING DESIGN ---
-elif active_module == "timing_design":
-    st.header("Advanced Timing Design & Electronic Detonators")
-
-    # Initialize timing modules
-    timing_designer = TimingDesigner()
-    timing_analyzer = TimingEffectAnalyzer()
-    timing_optimizer = TimingOptimizer()
-    sequence_animator = SequenceAnimator()
-
-    # Layout with controls and visualization
-    col_timing_controls, col_timing_display = st.columns([1, 3])
-
-    with col_timing_controls:
-        st.subheader("Timing Pattern Selection")
-
-        timing_pattern = st.selectbox(
-            "Initiation Pattern",
-            ["Row by Row", "V-Initiation", "Echelon", "Combined Delay"],
-            index=0
-        )
-
-        st.subheader("Timing Parameters")
-
-        if timing_pattern == "Row by Row":
-            row_delay = st.number_input("Inter-Row Delay (ms)", 0, 100, 42)
-            hole_delay = st.number_input("Inter-Hole Delay (ms)", 0, 50, 17)
-            start_delay = st.number_input("Start Delay (ms)", 0, 500, 0)
-
-        elif timing_pattern == "V-Initiation":
-            center_delay = st.number_input("Center Hole Delay (ms)", 0, 100, 0)
-            delay_increment = st.number_input("Delay Increment (ms)", 5, 50, 17)
-            max_delay = st.number_input("Maximum Delay (ms)", 100, 1000, 500)
-
-        elif timing_pattern == "Echelon":
-            base_delay = st.number_input("Base Delay (ms)", 0, 100, 0)
-            row_delay = st.number_input("Row Delay (ms)", 0, 100, 42)
-            echelon_delay = st.number_input("Echelon Delay (ms)", 5, 50, 17)
-            direction = st.selectbox("Direction", ["Forward", "Backward"])
-
-        elif timing_pattern == "Combined Delay":
-            in_hole_delay = st.number_input("In-Hole Delay (ms)", 100, 500, 200)
-            surface_delay = st.number_input("Surface Delay (ms)", 0, 100, 42)
-            row_delay = st.number_input("Row Delay (ms)", 0, 50, 17)
-
-        st.subheader("Analysis Parameters")
-
-        target_d50 = st.number_input("Target d50 (mm)", 100.0, 500.0, 220.0)
-        max_ppv_target = st.number_input("Max PPV Target (mm/s)", 5.0, 20.0, 10.0)
-        monitoring_distance = st.number_input("Monitoring Distance (m)", 200.0, 1000.0, 400.0)
-        max_charge = st.number_input("Max Charge per Delay (kg)", 100.0, 1000.0, 500.0)
-
-        # Generate timing button
-        if st.button("Generate Timing Sequence", type="primary"):
-            if "3d_holes" in st.session_state:
-                holes = st.session_state["3d_holes"]
-                bench_geometry = st.session_state["3d_bench_geometry"]
-
-                # Generate timing based on pattern
-                if timing_pattern == "Row by Row":
-                    detonators = timing_designer.design_row_by_row_timing(
-                        holes, row_delay, hole_delay, start_delay
-                    )
-                elif timing_pattern == "V-Initiation":
-                    detonators = timing_designer.design_v_initiation_timing(
-                        holes, center_delay, delay_increment, max_delay
-                    )
-                elif timing_pattern == "Echelon":
-                    detonators = timing_designer.design_echelon_timing(
-                        holes, base_delay, row_delay, echelon_delay, direction.lower()
-                    )
-                else:  # Combined
-                    detonators = timing_designer.design_combined_delay_timing(
-                        holes, in_hole_delay, surface_delay, row_delay
-                    )
-
-                # Create timing sequence
-                timing_sequence = TimingSequence(
-                    sequence_id="CURRENT_DESIGN",
-                    blast_id="TEMP_BLAST",
-                    detonators=detonators,
-                    initiation_pattern=timing_pattern.lower().replace(" ", "_"),
-                    created_at="now"
-                )
-
-                # Store in session state
-                st.session_state["timing_sequence"] = timing_sequence
-                st.success(f"Generated timing sequence with {len(detonators)} detonators")
-            else:
-                st.warning("Please generate a 3D pattern first in the 3D Pattern Design module")
-
-    with col_timing_display:
-        if "timing_sequence" in st.session_state:
-            timing_sequence = st.session_state["timing_sequence"]
-            holes = st.session_state["3d_holes"]
-            bench_geometry = st.session_state["3d_bench_geometry"]
-
-            # Timing visualization tabs
-            tab_timing_1, tab_timing_2, tab_timing_3, tab_timing_4 = st.tabs([
-                "Timing Visualization", "Effects Analysis", "Optimization", "Animation"
-            ])
-
-            with tab_timing_1:
-                st.subheader("3D Pattern with Timing Colors")
-
-                # Create hole coordinates mapping
-                hole_coords = {hole.hole_id: (hole.x, hole.y, hole.collar_elevation) for hole in holes}
-
-                visualizer = PatternVisualizer3D()
-                fig_timing_3d = visualizer.plot_timing_sequence_3d(
-                    holes=holes,
-                    timing_sequence=timing_sequence,
-                    bench_geometry=bench_geometry,
-                    show_timing_colors=True
-                )
-                st.plotly_chart(fig_timing_3d, use_container_width=True)
-
-                # Timing statistics
-                st.subheader("Timing Statistics")
-                detonators = timing_sequence.detonators
-                delays = [det.delay_ms for det in detonators]
-
-                col_t1, col_t2, col_t3, col_t4 = st.columns(4)
-                col_t1.metric("Min Delay", f"{min(delays)} ms")
-                col_t2.metric("Max Delay", f"{max(delays)} ms")
-                col_t3.metric("Avg Delay", f"{np.mean(delays):.1f} ms")
-                col_t4.metric("Std Delay", f"{np.std(delays):.1f} ms")
-
-            with tab_timing_2:
-                st.subheader("Timing Effects Analysis")
-
-                # Fragmentation effect
-                burden = st.session_state.get("last_predict_inputs", {}).get("burden_m", 6.0)
-                spacing = st.session_state.get("last_predict_inputs", {}).get("spacing_m", 7.0)
-
-                frag_analysis = timing_analyzer.analyze_fragmentation_effect(
-                    timing_sequence, burden, spacing
-                )
-
-                col_e1, col_e2 = st.columns(2)
-
-                with col_e1:
-                    st.subheader("Fragmentation Impact")
-                    st.metric("Base d50", f"{frag_analysis['base_d50_mm']:.1f} mm")
-                    st.metric("Improved d50", f"{frag_analysis['improved_d50_mm']:.1f} mm")
-                    st.metric("Reduction", f"{frag_analysis['d50_reduction_percent']:.1f}%")
-                    st.metric("Timing Uniformity", f"{frag_analysis['timing_uniformity']:.3f}")
-
-                with col_e2:
-                    st.subheader("Vibration Impact")
-                    vib_analysis = timing_analyzer.analyze_vibration_effect(
-                        timing_sequence, max_charge, monitoring_distance
-                    )
-
-                    st.metric("Untimed PPV", f"{vib_analysis['ppv_untimed_mms']:.2f} mm/s")
-                    st.metric("Timed PPV", f"{vib_analysis['ppv_timed_mms']:.2f} mm/s")
-                    st.metric("Reduction", f"{vib_analysis['vibration_reduction_percent']:.1f}%")
-                    st.metric("Effectiveness", f"{vib_analysis['timing_effectiveness']:.3f}")
-
-                # Face burst analysis
-                st.subheader("Face Burst Analysis")
-                face_analysis = timing_analyzer.analyze_face_burst_quality(
-                    timing_sequence, bench_geometry, burden
-                )
-
-                st.metric("Face Burst Quality", f"{face_analysis['face_burst_quality']:.3f}")
-                st.metric("Burden Adequacy", f"{face_analysis['burden_adequacy']:.3f}")
-                st.info(f"Recommendation: {face_analysis['recommendation']}")
-
-            with tab_timing_3:
-                st.subheader("Multi-Objective Timing Optimization")
-
-                opt_target = st.selectbox(
-                    "Optimization Target",
-                    ["Fragmentation", "Vibration", "Multi-Objective"],
-                    index=2
-                )
-
-                if st.button("Run Timing Optimization", type="primary"):
-                    with st.spinner("Optimizing timing sequence..."):
-                        if opt_target == "Fragmentation":
-                            opt_result = timing_optimizer.optimize_for_fragmentation(
-                                holes, bench_geometry, burden, spacing
-                            )
-                        elif opt_target == "Vibration":
-                            opt_result = timing_optimizer.optimize_for_vibration(
-                                holes, max_charge, monitoring_distance, target_ppv=max_ppv_target
-                            )
-                        else:  # Multi-objective
-                            opt_result = timing_optimizer.optimize_multi_objective(
-                                holes, bench_geometry, burden, spacing, max_charge, monitoring_distance
-                            )
-
-                    st.success("Optimization completed!")
-
-                    # Display results
-                    if opt_target == "Multi-Objective":
-                        st.subheader("Best Pattern")
-                        st.info(f"Best pattern: {opt_result['best_pattern']}")
-
-                        best_frag = opt_result['best_fragmentation_analysis']
-                        best_vib = opt_result['best_vibration_analysis']
-
-                        col_opt_t1, col_opt_t2 = st.columns(2)
-                        with col_opt_t1:
-                            st.metric("Fragmentation Improvement", f"{best_frag['fragmentation_improvement']:.3f}")
-                            st.metric("d50 Reduction", f"{best_frag['d50_reduction_percent']:.1f}%")
-
-                        with col_opt_t2:
-                            st.metric("Vibration Reduction", f"{best_vib['vibration_reduction_percent']:.1f}%")
-                            st.metric("Timing Effectiveness", f"{best_vib['timing_effectiveness']:.3f}")
-                    else:
-                        st.info(f"Optimization for {opt_target} completed. Check Analysis tab for results.")
-
-            with tab_timing_4:
-                st.subheader("Timing Animation & Waveforms")
-
-                anim_type = st.selectbox(
-                    "Animation Type",
-                    ["Timing Sequence", "PPV Waveform", "Fragmentation Timeline"]
-                )
-
-                if anim_type == "Timing Sequence":
-                    animator = SequenceAnimator()
-                    fig_anim = animator.create_timing_animation(timing_sequence)
-                    st.plotly_chart(fig_anim, use_container_width=True)
-
-                elif anim_type == "PPV Waveform":
-                    waveform_gen = WaveformGenerator()
-                    fig_waveform = waveform_gen.generate_ppv_waveform(
-                        timing_sequence, monitoring_distance, max_charge=max_charge
-                    )
-                    st.plotly_chart(fig_waveform, use_container_width=True)
-
-                elif anim_type == "Fragmentation Timeline":
-                    # Create default fragmentation progression
-                    max_delay = max(det.delay_ms for det in timing_sequence.detonators)
-                    frag_progression = np.linspace(0, 100, int(max_delay / 50) + 1)
-
-                    waveform_gen = WaveformGenerator()
-                    fig_frag = waveform_gen.generate_fragmentation_timeline(
-                        timing_sequence, frag_progression
-                    )
-                    st.plotly_chart(fig_frag, use_container_width=True)
-
-                # Timing error analysis
-                st.subheader("Timing Error Tolerance Analysis")
-                error_std = st.slider("Timing Error Std Dev (ms)", 0.5, 5.0, 2.0)
-
-                if st.button("Analyze Error Effects"):
-                    error_analyzer = TimingErrorAnalyzer()
-                    error_analysis = error_analyzer.analyze_timing_error_effects(
-                        timing_sequence, error_std
-                    )
-
-                    st.info(f"Tolerance Adequacy: {error_analysis['tolerance_adequacy']:.3f}")
-                    st.info(f"Group Disruption: {error_analysis['group_disruption']:.3f}")
-                    st.info(f"Recommendation: {error_analysis['recommendation']}")
-        else:
-            st.info("Generate a 3D pattern first, then create timing sequence")
 
 
 # --- MODULE 7: VISUALIZE ---

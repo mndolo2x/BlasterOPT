@@ -1,4 +1,0 @@
-# System packages for Streamlit Cloud deployment
-# This file is used for apt-get installations on Streamlit Cloud
-
-# No additional system packages required

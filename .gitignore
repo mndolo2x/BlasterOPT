@@ -1,8 +1,9 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -20,53 +21,27 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
-.venv
+.venv/
 
-# IDE
+# Saved models and data caches
+data/processed/*.csv
+!data/processed/.gitkeep
+data/raw/*.csv
+!data/raw/.gitkeep
+models/*.joblib
+!models/.gitkeep
+
+# IDEs and OS files
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# Streamlit
-.streamlit/
-
-# Data
-data/raw/*.csv
-data/processed/*.csv
-data/audit/*.jsonl
-
-# Models
-models/*.pkl
-models/*.h5
-models/*.pt
-
-# Logs
-*.log
-
-# OS
 .DS_Store
-Thumbs.db
+*.swp
 
-# Environment
-.env
-.env.local
-
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Temporary files
-*.tmp
-*.bak
-test_*.py
+# Runtime logs and generated PDFs
+*.log
+*.pdf
+*.db
