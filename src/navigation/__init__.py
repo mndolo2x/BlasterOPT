@@ -37,6 +37,7 @@ FILE_TO_MODULE: Dict[str, str] = {
     "conversational_agent": "agent",
     "blast_pattern": "pattern",
     "blast_pattern_3d": "pattern_3d",
+    "blast_3d_viewer": "blast_3d_viewer",
     "timing_design": "timing_design",
     "digital_twin": "digital_twin",
     "predictor": "predictor",

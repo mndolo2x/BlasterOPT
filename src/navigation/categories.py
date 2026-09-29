@@ -35,6 +35,7 @@ CATEGORIES: Dict[str, Dict[str, Any]] = {
             {"file": "pages/conversational_agent.py", "title": "Conversational Agent", "icon": "🗣️", "description": "Plain-language blast design (English & Setswana)"},
             {"file": "pages/blast_pattern.py", "title": "2D Blast Pattern & Delays", "icon": "📐", "description": "Visual layout of holes and timing sequence"},
             {"file": "pages/blast_pattern_3d.py", "title": "3D Blast Pattern Design", "icon": "🧊", "description": "3D pattern layout, bench face, and deck design"},
+            {"file": "pages/blast_3d_viewer.py", "title": "3D Blast Engineering Viewer", "icon": "🔍", "description": "8-tab 3D bench, subdrill, toe burden, backbreak, collision & timing analysis"},
             {"file": "pages/timing_design.py", "title": "Advanced Timing Design", "icon": "⏱️", "description": "Electronic detonator initiation patterns and delay optimization"},
             {"file": "pages/digital_twin.py", "title": "Digital Twin of Bench", "icon": "💎", "description": "3D visualization with what-if scenarios"},
             {"file": "pages/predictor.py", "title": "Predictor & Kuz-Ram Curve", "icon": "📈", "description": "Predict fragmentation, PPV, airblast"},

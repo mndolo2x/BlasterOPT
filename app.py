@@ -156,6 +156,7 @@ from src.visualize import (
     plot_optimization_convergence,
     plot_2d_blast_pattern,
 )
+from src.render3d.blast_3d_viewer import render_blast_3d_viewer
 from src.blast_pattern_3d import (
     PatternGenerator3D,
     BlastHole,
@@ -2420,6 +2421,9 @@ elif active_module == "pattern":
 
 
 # --- MODULE 6B: 3D BLAST PATTERN DESIGN ---
+elif active_module == "blast_3d_viewer":
+    render_blast_3d_viewer()
+
 elif active_module == "pattern_3d":
     st.header("3D Blast Pattern Design & Visualization")
 
