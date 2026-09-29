@@ -1,35 +1,15 @@
 {
   "metadata": {
     "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) Compliance Audit",
-    "export_timestamp": "2026-09-29T12:11:55.919598+00:00",
+    "export_timestamp": "2026-09-29T12:27:35.164993+00:00",
     "retention_policy": "7 Years Mandatory Persistence",
-    "total_interactions": 3,
-    "total_decisions": 3
+    "total_interactions": 1,
+    "total_decisions": 1
   },
   "interactions": [
     {
-      "id": 3,
-      "timestamp": "2026-09-29T12:11:55.904161+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 2,
-      "timestamp": "2026-09-29T12:09:56.511803+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
       "id": 1,
-      "timestamp": "2026-09-29T11:39:10.167764+00:00",
+      "timestamp": "2026-09-29T12:27:35.127432+00:00",
       "session_id": "SESS_AUDIT_TEST_01",
       "user_id": "ENG_AUDIT_01",
       "user_message": "Design blast for bench 14",
@@ -40,30 +20,8 @@
   ],
   "decisions": [
     {
-      "id": 3,
-      "timestamp": "2026-09-29T12:11:55.911503+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 2,
-      "timestamp": "2026-09-29T12:09:56.524559+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
       "id": 1,
-      "timestamp": "2026-09-29T11:39:10.175700+00:00",
+      "timestamp": "2026-09-29T12:27:35.143233+00:00",
       "session_id": "SESS_AUDIT_TEST_02",
       "user_id": "BLASTER_01",
       "design_id": "DES_JWA_101",
