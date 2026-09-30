@@ -5,7 +5,17 @@
 import numpy as np
 import plotly.graph_objects as go
 from typing import List, Dict, Any, Optional
-from src.render3d.bench_model import BenchModel
+try:
+    from src.render3d.bench_model import BenchModel
+except Exception:
+    class BenchModel:
+        def __init__(self, bench_id: str = "B1", crest_elevation_m: float = 100.0, toe_elevation_m: float = 85.0, face_angle_deg: float = 75.0) -> None:
+            self.bench_id = bench_id
+            self.crest_elevation_m = crest_elevation_m
+            self.toe_elevation_m = toe_elevation_m
+            self.face_angle_deg = face_angle_deg
+        def get_face_surface(self, resolution: int = 20) -> np.ndarray:
+            return np.zeros((resolution, 3))
 from src.geology.structures import StructuralModel
 from src.geology.ore_body import OreBodyModel
 

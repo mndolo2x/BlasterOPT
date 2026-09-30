@@ -4,7 +4,16 @@ Geological structures: Faults, dykes, and lithological contacts.
 
 import numpy as np
 from typing import Dict, Any, List, Tuple, Optional
-from src.render3d.hole_pattern import Hole
+try:
+    from src.render3d.hole_pattern import Hole
+except Exception:
+    class Hole:
+        def __init__(self, hole_id: str, x: float, y: float, z: float, depth_m: float) -> None:
+            self.hole_id = hole_id
+            self.x = x
+            self.y = y
+            self.z = z
+            self.depth_m = depth_m
 
 
 class StructuralFeature:

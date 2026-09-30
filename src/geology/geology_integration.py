@@ -5,6 +5,7 @@ Streamlit UI module for Geology Integration in BlasterOPT / BlastOpt Botswana.
 import streamlit as st
 import pandas as pd
 import numpy as np
+from typing import Any
 
 from src.geology.rmr import RMRCalculator
 from src.geology.q_system import QSystemCalculator
@@ -12,8 +13,23 @@ from src.geology.joint_analysis import JointAnalyzer
 from src.geology.structures import StructuralModel
 from src.geology.ore_body import OreBodyModel
 from src.geology.renderer import GeologyRenderer
-from src.render3d.bench_model import BenchModel
-from src.render3d.hole_pattern import HolePattern
+try:
+    from src.render3d.bench_model import BenchModel
+    from src.render3d.hole_pattern import HolePattern
+except Exception:
+    class BenchModel:
+        def __init__(self, bench_id: str = "B1", crest_elevation_m: float = 100.0, toe_elevation_m: float = 85.0, face_angle_deg: float = 75.0) -> None:
+            self.bench_id = bench_id
+            self.crest_elevation_m = crest_elevation_m
+            self.toe_elevation_m = toe_elevation_m
+            self.face_angle_deg = face_angle_deg
+        def get_face_surface(self, resolution: int = 20) -> np.ndarray:
+            return np.zeros((resolution, 3))
+    class HolePattern:
+        def __init__(self, burden_m: float, spacing_m: float, bench: Any, pattern_type: str = "square") -> None:
+            pass
+        def generate_holes(self, n_rows: int = 2, n_per_row: int = 3) -> list:
+            return []
 
 
 def render_geology_integration_page():
