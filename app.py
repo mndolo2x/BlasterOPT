@@ -526,11 +526,37 @@ elif active_module == "ml_manager":
         st.stop()
 
     trainable_meta = [m for m in registered_models_meta if getattr(m, "supports_pipeline_training", True)]
-    model_options = {m.display_name: m.name for m in trainable_meta} if trainable_meta else {m.display_name: m.name for m in registered_models_meta}
+    all_meta = trainable_meta if trainable_meta else registered_models_meta
+
+    biust_models = [m for m in all_meta if any(t in m.tags for t in ["custom", "pinn", "ensemble", "calibration", "ga-ann"])]
+    baseline_models = [m for m in all_meta if m not in biust_models]
+
+    model_options = {}
+    selectbox_options = []
+
+    if biust_models:
+        header_biust = "── BIUST Research Models ──"
+        selectbox_options.append(header_biust)
+        for m in sorted(biust_models, key=lambda x: x.display_name):
+            selectbox_options.append(m.display_name)
+            model_options[m.display_name] = m.name
+
+    if baseline_models:
+        header_base = "── Baseline Models ──"
+        selectbox_options.append(header_base)
+        for m in sorted(baseline_models, key=lambda x: x.display_name):
+            selectbox_options.append(m.display_name)
+            model_options[m.display_name] = m.name
 
     with col_m1:
-        selected_display = st.selectbox("Select Algorithm", list(model_options.keys()))
-        selected_name = model_options[selected_display]
+        selected_display = st.selectbox("Select Algorithm", selectbox_options, index=1 if len(selectbox_options) > 1 else 0)
+        if selected_display.startswith("──"):
+            # Header selected; fallback to first valid model
+            first_valid_display = list(model_options.keys())[0] if model_options else "random_forest"
+            selected_name = model_options.get(first_valid_display, "random_forest")
+        else:
+            selected_name = model_options[selected_display]
+
         model_type = selected_name
         metadata = registry.get_metadata(selected_name)
 
