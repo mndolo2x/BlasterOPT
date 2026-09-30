@@ -4,6 +4,11 @@ Unit tests for src/safety/ package modules.
 
 import pytest
 from src.safety import (
+    DustModel,
+    GasModel,
+    NoiseModel,
+    EnvironmentalAssessment,
+    BlastRiskAnalyzer,
     predict_dust_dispersion,
     predict_toxic_gases,
     predict_noise_overpressure,
@@ -11,6 +16,47 @@ from src.safety import (
     calculate_risk_matrix,
     SafetyRenderer,
 )
+
+
+def test_dust_mass_calculation():
+    """Dust mass must match Tyupin & Bolotova (2026) range."""
+    model = DustModel(explosive_type="ANFO", charge_mass_kg=1000)
+    result = model.calculate_dust_mass(1000)
+    assert 180 <= result["dust_mass_kg"] <= 250
+
+
+def test_gas_emission_factors():
+    """CO and NOx emissions must match emission factor table."""
+    model = GasModel(explosive_type="ANFO")
+    result = model.calculate_gas_emissions(1000)
+    assert abs(result["CO_kg"] - 15.0) < 0.1
+    assert abs(result["NOx_kg"] - 8.0) < 0.1
+
+
+def test_noise_attenuation():
+    """SPL must decrease with distance."""
+    model = NoiseModel(charge_per_delay_kg=100, depth_of_burial_m=10)
+    r1 = model.calculate_noise_at_distance(500)
+    r2 = model.calculate_noise_at_distance(1000)
+    assert r2["spl_db"] < r1["spl_db"]
+
+
+def test_risk_matrix_returns_valid_level():
+    """Risk level must be one of the defined categories."""
+    analyzer = BlastRiskAnalyzer()
+    params = {"closest_receptor_dist_m": 500.0}
+    result = analyzer.calculate_overall_risk(params)
+    assert result["overall_risk_level"] in ["low", "moderate", "high", "critical"]
+
+
+def test_eia_breakdown_has_five_categories():
+    """Environmental assessment must score all five categories."""
+    receptors = {"village": 800.0}
+    params = {"explosive_mass_kg": 500.0}
+    eia = EnvironmentalAssessment(blast_params=params, receptor_distances=receptors)
+    result = eia.calculate_total_impact()
+    assert len(result["breakdown"]) == 5
+    assert all(1 <= v <= 5 for v in result["breakdown"].values())
 
 
 def test_dust_dispersion():
