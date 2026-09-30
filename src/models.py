@@ -551,5 +551,32 @@ MODEL_REGISTRY = {
             "hole_diameter", "max_charge_per_delay", "spacing", "hole_depth"
         ],
         "reference": "Saubi, O. et al. (2025). Int. J. Mining and Mineral Engineering, 16(2), 148-167."
+    },
+    "random_forest_baseline": {
+        "display_name": "Random Forest Baseline",
+        "type": "baseline",
+        "architecture": "RandomForestRegressor",
+        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "source": "Scikit-Learn Baseline",
+        "performance": {"r2_mean": 0.85},
+        "reference": "Scikit-Learn Standard Ensemble Baseline"
+    },
+    "xgboost_baseline": {
+        "display_name": "XGBoost Baseline",
+        "type": "baseline",
+        "architecture": "XGBRegressor",
+        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "source": "XGBoost Baseline",
+        "performance": {"r2_mean": 0.88},
+        "reference": "XGBoost Gradient Boosting Baseline"
+    },
+    "ridge_baseline": {
+        "display_name": "Ridge Regression Baseline",
+        "type": "baseline",
+        "architecture": "Ridge",
+        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "source": "Scikit-Learn Baseline",
+        "performance": {"r2_mean": 0.75},
+        "reference": "Linear Ridge Regression Baseline"
     }
 }
