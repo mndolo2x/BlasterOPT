@@ -14,6 +14,7 @@ from src.fragmentation.distributions import (
 )
 from src.fragmentation.image_analysis import ImageAnalysisImporter, parse_wipfrag_data
 from src.fragmentation.calibration import FragmentationCalibrator, calibrate_rock_factor
+from src.fragmentation.blast_design_engine import BlastDesignEngine
 from src.fragmentation.renderer import (
     FragmentationRenderer,
     plot_fragmentation_curve,
@@ -40,4 +41,5 @@ __all__ = [
     "plot_fragmentation_curve",
     "plot_model_comparison",
     "plot_calibration_scatter",
+    "BlastDesignEngine",
 ]
