@@ -482,7 +482,7 @@ MODEL_REGISTRY = {
         "type": "biust",
         "architecture": "10-70-25-3",
         "optimizer": "genetic_algorithm",
-        "outputs": ["fragmentation", "vibration", "airblast"],
+        "outputs": ["d50_mm", "ppv_mms", "flyrock_m"],
         "source": "Jwaneng Mine, 120 production blasts",
         "performance": {
             "fragmentation_r2": 0.910,

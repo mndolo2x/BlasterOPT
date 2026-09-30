@@ -30,7 +30,7 @@ class GAANNBlastModel(BaseBlastModel):
                 "burden", "spacing", "powder_factor", "stemming",
                 "rock_factor", "blastability_index", "charge_per_delay"
             ],
-            output_features=["fragmentation_p80", "ppv", "airblast"],
+            output_features=["d50_mm", "ppv_mms", "flyrock_m"],
             supports_training=True,
             supports_pipeline_training=True,
             supports_uncertainty=False,
@@ -40,19 +40,20 @@ class GAANNBlastModel(BaseBlastModel):
         )
 
     def fit(self, X, y, **kwargs):
-        self.is_fitted = True
-        return self
+        # Untrained model requires actual PyTorch training loop on GPU/CPU.
+        # Mark as not fitted if training was not executed.
+        self.is_fitted = False
+        raise NotImplementedError("GA-ANN model PyTorch pipeline training is not implemented on CPU. Trained PyTorch weights required.")
 
     def predict(self, X):
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
         if not self.is_fitted:
-            preds = np.tile([220.0, 4.20, 110.0], (len(X_df), 1))
-        else:
-            try:
-                preds_raw = self.model.predict(X_df)
-                preds = preds_raw[:, :3] if preds_raw.shape[1] >= 3 else preds_raw
-            except Exception:
-                preds = np.tile([220.0, 4.20, 110.0], (len(X_df), 1))
+            raise ValueError("Model is not trained. Training required before prediction.")
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        try:
+            preds_raw = self.model.predict(X_df)
+            preds = preds_raw[:, :3] if preds_raw.shape[1] >= 3 else preds_raw
+        except Exception as exc:
+            raise ValueError(f"Failed to generate predictions for GA-ANN model: {exc}") from exc
 
         return pd.DataFrame(preds, columns=self.get_metadata().output_features, index=X_df.index)
 

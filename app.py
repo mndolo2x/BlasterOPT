@@ -576,14 +576,23 @@ elif active_module == "ml_manager":
 
         if st.button("Train Models", type="primary"):
             with st.spinner("Training models across all target metrics..."):
-                pipeline = BlastMLPipeline(model_type=model_type, seed=42)
-                metrics = pipeline.train_and_evaluate(df, cv_folds=cv_folds)
-                pipeline.save_models()
-                st.session_state["pipeline"] = pipeline
-                st.success(f"Successfully trained {model_type.upper()} models!")
+                try:
+                    pipeline = BlastMLPipeline(model_type=model_type, seed=42)
+                    metrics = pipeline.train_and_evaluate(df, cv_folds=cv_folds)
+                    pipeline.save_models()
+                    st.session_state["pipeline"] = pipeline
+                    st.session_state["training_error"] = None
+                    st.success(f"Successfully trained {model_type.upper()} models!")
+                except Exception as exc:
+                    st.session_state["pipeline"] = None
+                    st.session_state["training_error"] = str(exc)
+                    st.error(f"⚠️ Training failed: {exc}")
 
     with col_m2:
-        if st.session_state["pipeline"] is not None:
+        if st.session_state.get("training_error"):
+            st.warning("⚠️ Model is not trained. Training required before evaluation.")
+            st.info(f"**Training Log / Reason:** {st.session_state['training_error']}")
+        elif st.session_state["pipeline"] is not None:
             pipeline = st.session_state["pipeline"]
             st.subheader("Model Evaluation Metrics (Cross Validation)")
 
