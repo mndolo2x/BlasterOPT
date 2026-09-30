@@ -470,6 +470,7 @@ def train_all_models(df: pd.DataFrame, save_dir: str = "models/") -> Dict[str, A
 
 MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
+        "type": "biust",
         "architecture": "10-70-25-3",
         "optimizer": "genetic_algorithm",
         "outputs": ["fragmentation", "vibration", "airblast"],
@@ -492,6 +493,7 @@ MODEL_REGISTRY = {
         "reference": "Saubi, O. et al. (2026). Discover Applied Sciences, 8(5), 547."
     },
     "ann_rf_ensemble_jwaneng": {
+        "type": "biust",
         "architecture": "ensemble",
         "outputs": ["fragmentation", "vibration"],
         "source": "Jwaneng Mine, 120 production blasts",
@@ -511,6 +513,7 @@ MODEL_REGISTRY = {
         "reference": "Saubi, O. et al. (2025). Scientific Reports, 15, 33871."
     },
     "pso_ann_orapa": {
+        "type": "biust",
         "architecture": "7-65-30-1",
         "optimizer": "particle_swarm",
         "outputs": ["fragmentation"],
@@ -525,6 +528,7 @@ MODEL_REGISTRY = {
         "reference": "Saubi, O. et al. (2025). Journal of Mining Institute, 275, 179-195."
     },
     "airblast_minimizer": {
+        "type": "biust",
         "architecture": "ANN",
         "outputs": ["airblast"],
         "source": "Debswana open-pit, 94 blasts",
