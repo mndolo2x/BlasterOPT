@@ -88,11 +88,19 @@ def get_model_instance(model_type: str = "random_forest", seed: int = 42):
             raise exc
         pass
 
-    if model_key in ["random_forest", "rf"]:
+    if model_key == "ga_ann_jwaneng" and HAS_TORCH:
+        return GAANNModel(input_size=len(FEATURE_COLS))
+    elif model_key == "ann_rf_ensemble_jwaneng":
+        return ANN_RF_Ensemble()
+    elif model_key == "pso_ann_orapa" and HAS_TORCH:
+        return PSOANNModel(input_size=7)
+    elif model_key == "airblast_minimizer" and HAS_TORCH:
+        return AirblastMinimizerModel(input_size=8)
+    elif model_key in ["random_forest", "rf", "random_forest_baseline"]:
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
-    elif model_key in ["xgboost", "xgb"]:
+    elif model_key in ["xgboost", "xgb", "xgboost_baseline"]:
         return XGBRegressor(n_estimators=100, learning_rate=0.08, max_depth=6, random_state=seed, n_jobs=-1)
-    elif model_key in ["ridge", "linear"]:
+    elif model_key in ["ridge", "linear", "ridge_baseline"]:
         return Ridge(alpha=1.0)
     else:
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
