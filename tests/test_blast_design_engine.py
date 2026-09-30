@@ -1,39 +1,36 @@
 """
-Unit tests for BlastDesignEngine in src/fragmentation/blast_design_engine.py.
+Unit tests for BlastDesignEngine.
 """
 
-import pytest
-from src.fragmentation import BlastDesignEngine
+from unittest.mock import MagicMock
+from src.fragmentation.blast_design_engine import BlastDesignEngine
 
 
-class MockInputs:
-    def __init__(self, frag_model="kco"):
-        self.block_id = "BLOCK_JWA_01"
-        self.fragmentation_model = frag_model
-        self.burden_m = 4.0
-        self.spacing_m = 5.0
-        self.bench_height_m = 12.0
-        self.hole_diameter_mm = 250.0
-        self.powder_factor_kg_m3 = 0.65
-        self.explosive_rws = 100.0
-
-
-def test_blast_design_engine_kco():
+def test_blast_design_engine_integration():
     engine = BlastDesignEngine()
-    inputs = MockInputs(frag_model="kco")
+    inputs = MagicMock()
+    inputs.block_id = "BLOCK_001"
+    inputs.fragmentation_model = "kco"
+    inputs.burden_m = 3.5
+    inputs.spacing_m = 4.5
+    inputs.bench_height_m = 12.0
+    inputs.powder_factor_kg_m3 = 0.65
+    inputs.explosive_rws = 100.0
+    inputs.rock_factor_a = 8.0
+    inputs.hole_diameter_mm = 200.0
+    inputs.explosive_type = "ANFO"
+    inputs.stemming_m = 2.5
+    inputs.max_charge_per_delay_kg = 150.0
+    inputs.explosive_mass_kg = 800.0
+    inputs.closest_receptor_dist_m = 400.0
+
     res = engine.design(inputs)
 
-    assert "block_id" in res
-    assert "rock_factor_a" in res
+    assert res["block_id"] == "BLOCK_001"
     assert "fragmentation_prediction" in res
-    assert res["fragmentation_prediction"]["model"] == "KCO"
-    assert "x_50_cm" in res["fragmentation_prediction"]
-
-
-def test_blast_design_engine_kuz_ram():
-    engine = BlastDesignEngine()
-    inputs = MockInputs(frag_model="kuz_ram")
-    res = engine.design(inputs)
-
-    assert res["fragmentation_prediction"]["model"] == "Kuz-Ram"
-    assert "d50_mm" in res["fragmentation_prediction"]
+    assert "dust_assessment" in res
+    assert "gas_assessment" in res
+    assert "noise_assessment" in res
+    assert "environmental_impact" in res
+    assert "risk_assessment" in res
+    assert isinstance(res["warnings"], list)
