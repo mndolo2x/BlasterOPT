@@ -16,6 +16,7 @@ from src.safety.renderer import (
     plot_risk_matrix,
     plot_environmental_breakdown,
 )
+from src.safety.safety_environmental import render_safety_environmental_page
 
 __all__ = [
     "DustModel",
@@ -34,4 +35,5 @@ __all__ = [
     "plot_noise_attenuation",
     "plot_risk_matrix",
     "plot_environmental_breakdown",
+    "render_safety_environmental_page",
 ]
