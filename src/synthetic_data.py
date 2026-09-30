@@ -233,6 +233,7 @@ def generate_synthetic_blast_data(
         "cost_per_tonne_usd": np.round(cost_per_tonne, 2),
     })
 
+    assert data.shape[0] == num_samples, f"Expected {num_samples} rows, got {data.shape[0]}"
     return data
 
 
