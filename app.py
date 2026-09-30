@@ -49,6 +49,9 @@ from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_o
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
+from src.geology.geology_integration import render_geology_integration_page
+from src.fragmentation.fragmentation_analysis import render_fragmentation_analysis_page
+from src.safety.safety_environmental import render_safety_environmental_page
 
 import traceback
 
@@ -636,6 +639,15 @@ elif active_module == "comparison":
 
 
 # --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
+elif active_module == "geology_integration":
+    render_geology_integration_page()
+
+elif active_module == "fragmentation_analysis":
+    render_fragmentation_analysis_page()
+
+elif active_module == "safety_environmental":
+    render_safety_environmental_page()
+
 elif active_module == "predictor":
     st.header("🎯 Single Blast Design Predictor & Fragmentation Curve")
 
