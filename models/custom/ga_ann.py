@@ -30,7 +30,7 @@ class GAANNBlastModel(BaseBlastModel):
                 "burden", "spacing", "powder_factor", "stemming",
                 "rock_factor", "blastability_index", "charge_per_delay"
             ],
-            output_features=["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+            output_features=["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"],
             supports_training=True,
             supports_pipeline_training=True,
             supports_uncertainty=False,

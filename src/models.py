@@ -355,7 +355,7 @@ class ANN_RF_Ensemble:
 if HAS_TORCH:
     class GAANNModel(nn.Module):
         """
-        GA-ANN model (10-70-25-4) with physics-informed baseline.
+        GA-ANN model (10-70-25-3) with physics-informed baseline.
 
         The neural network predicts residuals from the Kuznetsov/Cunningham
         physics baseline. This guarantees physically plausible outputs even
@@ -365,7 +365,7 @@ if HAS_TORCH:
             Input layer: 10 features
             Hidden layer 1: 70 neurons, ReLU
             Hidden layer 2: 25 neurons, ReLU
-            Output layer: 4 targets (d50_mm, ppv_mms, flyrock_m, cost_per_tonne_usd)
+            Output layer: 3 targets (fragmentation_d80_cm, vibration_ppv_mms, airblast_db)
 
         Reference: Saubi, O. et al. (2026). "Simultaneous prediction and
         optimisation of rock fragmentation and ground vibration using an
@@ -378,25 +378,31 @@ if HAS_TORCH:
             2: powder_factor_kg_m3
             3: stemming_m
             4: rock_factor_A
-            5: blastability_index
-            6: charge_per_delay_kg
-            7: hole_depth_m
-            8: hole_diameter_mm
-            9: explosive_rws
+            5: hole_depth_m
+            6: hole_diameter_mm
+            7: max_charge_per_delay_kg
+            8: explosive_rws
+            9: bench_height_m
 
-        Outputs (4):
-            0: d50_mm
-            1: ppv_mms
-            2: flyrock_m
-            3: cost_per_tonne_usd
+        Outputs (3):
+            0: fragmentation_d80_cm
+            1: vibration_ppv_mms
+            2: airblast_db
         """
+
+        INPUT_COLUMNS = [
+            "burden_m", "spacing_m", "powder_factor_kg_m3", "stemming_m",
+            "rock_factor_A", "hole_depth_m", "hole_diameter_mm",
+            "max_charge_per_delay_kg", "explosive_rws", "bench_height_m"
+        ]
+        OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
         def __init__(self, input_size: int = 10):
             super().__init__()
             self.input_size = input_size
             self.hidden1 = nn.Linear(input_size, 70)
             self.hidden2 = nn.Linear(70, 25)
-            self.output = nn.Linear(25, 4)
+            self.output = nn.Linear(25, 3)
             self.relu = nn.ReLU()
             self._is_trained = False
 
@@ -410,7 +416,7 @@ if HAS_TORCH:
 
         def predict(self, X: Any) -> pd.DataFrame:
             """
-            Predict d50, ppv, flyrock, cost using the physics baseline
+            Predict d80_cm, ppv_mms, airblast_db using the physics baseline
             plus the trained residual.
 
             If the model is not trained, returns the physics baseline only.
@@ -421,7 +427,12 @@ if HAS_TORCH:
             if not self._is_trained:
                 return baseline
 
-            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+            if available_cols:
+                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+            else:
+                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
             if X_mat.shape[1] < self.input_size:
                 padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
                 X_mat = np.hstack([X_mat, padding])
@@ -434,10 +445,9 @@ if HAS_TORCH:
                 residual = self.forward(X_tensor).numpy()
 
             result = baseline.copy()
-            result["d50_mm"] += residual[:, 0]
-            result["ppv_mms"] += residual[:, 1]
-            result["flyrock_m"] += residual[:, 2]
-            result["cost_per_tonne_usd"] += residual[:, 3]
+            result["fragmentation_d80_cm"] += residual[:, 0]
+            result["vibration_ppv_mms"] += residual[:, 1]
+            result["airblast_db"] += residual[:, 2]
 
             return result
 
@@ -446,7 +456,6 @@ if HAS_TORCH:
             from src.physics_core import (
                 kuznetsov_x50, cunningham_uniformity,
                 rosin_rammler_d80, usbm_ppv, siskind_airblast,
-                lundborg_flyrock, total_cost_per_tonne,
             )
 
             results = []
@@ -456,37 +465,42 @@ if HAS_TORCH:
                 rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
                 d_mm = float(row.get("hole_diameter_mm", 250.0))
                 h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
+                bh = max(float(row.get("bench_height_m", 15.0)), 1.0)
                 stem = max(float(row.get("stemming_m", 5.0)), 0.1)
-                q_hole = max(float(row.get("charge_mass_per_hole_kg", row.get("charge_per_hole", 320.0))), 1.0)
-                q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 640.0))), 1.0)
-                dist = max(float(row.get("monitoring_distance_m", 450.0)), 10.0)
+                q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 320.0))), 0.1)
+                q_hole = max(float(row.get("charge_mass_per_hole_kg", q_delay / 2.0)), 1.0)
+                dist = max(float(row.get("monitoring_distance_m", 500.0)), 10.0)
                 rws = max(float(row.get("explosive_rws", 100.0)), 10.0)
-                pf = float(row.get("powder_factor_kg_m3", q_hole / (b * s * h)))
-                rock_density = float(row.get("rock_density_t_m3", 2.65))
 
-                # Kuz-Ram Median Fragment Size (cm -> mm)
-                kuz_d50_cm = rf * (pf ** -0.8) * (q_hole ** (1.0 / 6.0)) * ((115.0 / rws) ** (19.0 / 30.0))
-                d50_val = kuz_d50_cm * 10.0
-
-                # USBM Ground Vibration PPV
-                ppv_val = usbm_ppv(max_charge_per_delay_kg=q_delay, distance_m=dist)
-
-                # Scaled Charge Flyrock Distance
-                k_fly = 20.0
-                flyrock_val = k_fly * ((q_hole ** (2.0 / 3.0)) / b) * ((stem / b) ** -0.5)
-
-                # Operating Cost per Tonne
-                tonnes = b * s * h * rock_density
-                drilling_cost_per_m = 12.0 + (d_mm / 100.0) * 8.0
-                explosive_cost_per_kg = 1.2 + (rws / 100.0) * 0.8
-                total_hole_cost = (h * drilling_cost_per_m) + (q_hole * explosive_cost_per_kg) + 15.0
-                cost_val = np.clip(total_hole_cost / max(tonnes, 1.0), 0.5, 15.0)
+                x50_cm = kuznetsov_x50(
+                    rock_factor_a=rf,
+                    burden_m=b,
+                    spacing_m=s,
+                    hole_depth_m=h,
+                    charge_mass_kg=q_hole,
+                    explosive_rws=rws,
+                )
+                n_val = cunningham_uniformity(
+                    burden_m=b,
+                    spacing_m=s,
+                    hole_diameter_mm=d_mm,
+                    bench_height_m=bh,
+                    charge_length_m=max(h - stem, 1.0),
+                )
+                d80_cm = rosin_rammler_d80(x50_cm, n_val)
+                ppv_mms = usbm_ppv(
+                    max_charge_per_delay_kg=q_delay,
+                    distance_m=dist,
+                )
+                airblast_db = siskind_airblast(
+                    max_charge_per_delay_kg=q_delay,
+                    distance_m=dist,
+                )
 
                 results.append({
-                    "d50_mm": float(d50_val),
-                    "ppv_mms": float(ppv_val),
-                    "flyrock_m": float(flyrock_val),
-                    "cost_per_tonne_usd": float(cost_val),
+                    "fragmentation_d80_cm": float(d80_cm),
+                    "vibration_ppv_mms": float(ppv_mms),
+                    "airblast_db": float(airblast_db),
                 })
 
             return pd.DataFrame(results, index=X.index)
@@ -501,26 +515,24 @@ if HAS_TORCH:
             if isinstance(y, pd.DataFrame):
                 y_df = y.copy()
             elif isinstance(y, pd.Series):
-                col_name = y.name if y.name in ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"] else "d50_mm"
+                col_name = y.name if y.name in self.OUTPUT_COLUMNS else "fragmentation_d80_cm"
                 y_df = pd.DataFrame(y.values, index=X_df.index, columns=[col_name])
             elif isinstance(y, np.ndarray):
                 if y.ndim == 1:
-                    y_df = pd.DataFrame(y, index=X_df.index, columns=["d50_mm"])
+                    y_df = pd.DataFrame(y, index=X_df.index, columns=["fragmentation_d80_cm"])
                 else:
-                    y_df = pd.DataFrame(y, index=X_df.index, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"][:y.shape[1]])
+                    y_df = pd.DataFrame(y, index=X_df.index, columns=self.OUTPUT_COLUMNS[:y.shape[1]])
             else:
                 y_df = pd.DataFrame(y, index=X_df.index)
 
             # Align targets with required outputs
-            for col in ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]:
+            for col in self.OUTPUT_COLUMNS:
                 if col not in y_df.columns:
                     y_df[col] = baseline[col]
 
             residuals = pd.DataFrame(index=X_df.index)
-            residuals["d50_mm"] = y_df["d50_mm"] - baseline["d50_mm"]
-            residuals["ppv_mms"] = y_df["ppv_mms"] - baseline["ppv_mms"]
-            residuals["flyrock_m"] = y_df["flyrock_m"] - baseline["flyrock_m"]
-            residuals["cost_per_tonne_usd"] = y_df["cost_per_tonne_usd"] - baseline["cost_per_tonne_usd"]
+            for col in self.OUTPUT_COLUMNS:
+                residuals[col] = y_df[col] - baseline[col]
 
             X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
             if X_mat.shape[1] < self.input_size:
@@ -530,18 +542,35 @@ if HAS_TORCH:
                 X_mat = X_mat[:, :self.input_size]
 
             X_tensor = torch.tensor(X_mat, dtype=torch.float32)
-            y_tensor = torch.tensor(residuals[["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]].values, dtype=torch.float32)
+            y_tensor = torch.tensor(residuals[self.OUTPUT_COLUMNS].values, dtype=torch.float32)
 
-            optimizer = optim.Adam(self.parameters(), lr=0.01)
+            optimizer = optim.Adam(self.parameters(), lr=1e-3)
             criterion = nn.MSELoss()
 
+            best_loss = float("inf")
+            patience_counter = 0
+            best_state = None
+
             self.train()
-            for _ in range(50):
+            for epoch in range(500):
                 optimizer.zero_grad()
                 out = self.forward(X_tensor)
                 loss = criterion(out, y_tensor)
                 loss.backward()
                 optimizer.step()
+
+                loss_val = float(loss.item())
+                if loss_val < best_loss:
+                    best_loss = loss_val
+                    patience_counter = 0
+                    best_state = self.state_dict()
+                else:
+                    patience_counter += 1
+                    if patience_counter >= 50:
+                        break
+
+            if best_state is not None:
+                self.load_state_dict(best_state)
 
             self.eval()
             self._is_trained = True
@@ -657,7 +686,7 @@ MODEL_REGISTRY = {
         "type": "biust",
         "architecture": "10-70-25-3",
         "optimizer": "genetic_algorithm",
-        "outputs": ["d50_mm", "ppv_mms", "flyrock_m"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"],
         "source": "Jwaneng Mine, 120 production blasts",
         "performance": {
             "fragmentation_r2": 0.910,
