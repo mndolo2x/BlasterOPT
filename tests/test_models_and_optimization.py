@@ -100,7 +100,7 @@ def test_ga_ann_model():
     model = GAANNModel(input_size=10)
     x = torch.randn(5, 10)
     out = model(x)
-    assert out.shape == (5, 3)
+    assert out.shape == (5, 4)
 
 
 def test_pso_ann_model():

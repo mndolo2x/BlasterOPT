@@ -168,9 +168,15 @@ class BlastMLPipeline:
                 m = get_model_instance(self.model_type, self.seed)
                 m.fit(X_tr, y_tr)
                 preds_raw = m.predict(X_val)
-                preds = preds_raw.values if isinstance(preds_raw, pd.DataFrame) else preds_raw
-                if preds.ndim > 1:
-                    preds = preds[:, 0]
+                if isinstance(preds_raw, pd.DataFrame):
+                    if target in preds_raw.columns:
+                        preds = preds_raw[target].values
+                    else:
+                        preds = preds_raw.iloc[:, 0].values
+                else:
+                    preds = preds_raw
+                    if preds.ndim > 1:
+                        preds = preds[:, 0]
 
                 r2_scores.append(r2_score(y_val, preds))
                 rmse_scores.append(np.sqrt(mean_squared_error(y_val, preds)))
@@ -349,28 +355,197 @@ class ANN_RF_Ensemble:
 if HAS_TORCH:
     class GAANNModel(nn.Module):
         """
-        Multi-output GA-ANN for simultaneous prediction of fragmentation,
-        ground vibration, and airblast at Jwaneng Mine.
+        GA-ANN model (10-70-25-4) with physics-informed baseline.
 
-        Architecture: 10-70-25-3 (10 inputs, 70 neurons hidden1, 25 hidden2, 3 outputs)
-        Performance: R² = 0.910 (fragmentation), 0.925 (vibration), 0.967 (airblast)
-        Source: Jwaneng Mine, 120 production blasts.
-        Reference: Saubi et al. (2026). Discover Applied Sciences, 8(5), 547.
+        The neural network predicts residuals from the Kuznetsov/Cunningham
+        physics baseline. This guarantees physically plausible outputs even
+        when the network is untrained.
+
+        Architecture:
+            Input layer: 10 features
+            Hidden layer 1: 70 neurons, ReLU
+            Hidden layer 2: 25 neurons, ReLU
+            Output layer: 4 targets (d50_mm, ppv_mms, flyrock_m, cost_per_tonne_usd)
+
+        Reference: Saubi, O. et al. (2026). "Simultaneous prediction and
+        optimisation of rock fragmentation and ground vibration using an
+        ANN-RF ensemble in open-pit blasting." Discover Applied Sciences,
+        8(5), 547.
+
+        Input features (10):
+            0: burden_m
+            1: spacing_m
+            2: powder_factor_kg_m3
+            3: stemming_m
+            4: rock_factor_A
+            5: blastability_index
+            6: charge_per_delay_kg
+            7: hole_depth_m
+            8: hole_diameter_mm
+            9: explosive_rws
+
+        Outputs (4):
+            0: d50_mm
+            1: ppv_mms
+            2: flyrock_m
+            3: cost_per_tonne_usd
         """
-        def __init__(self, input_size=10):
+
+        def __init__(self, input_size: int = 10):
             super().__init__()
+            self.input_size = input_size
             self.hidden1 = nn.Linear(input_size, 70)
             self.hidden2 = nn.Linear(70, 25)
-            self.output = nn.Linear(25, 3)  # fragmentation, vibration, airblast
+            self.output = nn.Linear(25, 4)
             self.relu = nn.ReLU()
-            self.dropout = nn.Dropout(0.1)  # light regularization
+            self._is_trained = False
 
         def forward(self, x):
             x = self.relu(self.hidden1(x))
-            x = self.dropout(x)
             x = self.relu(self.hidden2(x))
-            x = self.dropout(x)
             return self.output(x)
+
+        def is_trained(self) -> bool:
+            return self._is_trained
+
+        def predict(self, X: Any) -> pd.DataFrame:
+            """
+            Predict d50, ppv, flyrock, cost using the physics baseline
+            plus the trained residual.
+
+            If the model is not trained, returns the physics baseline only.
+            """
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            baseline = self._physics_baseline(X_df)
+
+            if not self._is_trained:
+                return baseline
+
+            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+            if X_mat.shape[1] < self.input_size:
+                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
+                X_mat = np.hstack([X_mat, padding])
+            elif X_mat.shape[1] > self.input_size:
+                X_mat = X_mat[:, :self.input_size]
+
+            X_tensor = torch.tensor(X_mat, dtype=torch.float32)
+            self.eval()
+            with torch.no_grad():
+                residual = self.forward(X_tensor).numpy()
+
+            result = baseline.copy()
+            result["d50_mm"] += residual[:, 0]
+            result["ppv_mms"] += residual[:, 1]
+            result["flyrock_m"] += residual[:, 2]
+            result["cost_per_tonne_usd"] += residual[:, 3]
+
+            return result
+
+        def _physics_baseline(self, X: pd.DataFrame) -> pd.DataFrame:
+            """Compute physics-based predictions for each row."""
+            from src.physics_core import (
+                kuznetsov_x50, cunningham_uniformity,
+                rosin_rammler_d80, usbm_ppv, siskind_airblast,
+                lundborg_flyrock, total_cost_per_tonne,
+            )
+
+            results = []
+            for _, row in X.iterrows():
+                b = max(float(row.get("burden_m", 6.0)), 0.1)
+                s = max(float(row.get("spacing_m", 7.0)), 0.1)
+                rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
+                d_mm = float(row.get("hole_diameter_mm", 250.0))
+                h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
+                stem = max(float(row.get("stemming_m", 5.0)), 0.1)
+                q_hole = max(float(row.get("charge_mass_per_hole_kg", row.get("charge_per_hole", 320.0))), 1.0)
+                q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 640.0))), 1.0)
+                dist = max(float(row.get("monitoring_distance_m", 450.0)), 10.0)
+                rws = max(float(row.get("explosive_rws", 100.0)), 10.0)
+                pf = float(row.get("powder_factor_kg_m3", q_hole / (b * s * h)))
+                rock_density = float(row.get("rock_density_t_m3", 2.65))
+
+                # Kuz-Ram Median Fragment Size (cm -> mm)
+                kuz_d50_cm = rf * (pf ** -0.8) * (q_hole ** (1.0 / 6.0)) * ((115.0 / rws) ** (19.0 / 30.0))
+                d50_val = kuz_d50_cm * 10.0
+
+                # USBM Ground Vibration PPV
+                ppv_val = usbm_ppv(max_charge_per_delay_kg=q_delay, distance_m=dist)
+
+                # Scaled Charge Flyrock Distance
+                k_fly = 20.0
+                flyrock_val = k_fly * ((q_hole ** (2.0 / 3.0)) / b) * ((stem / b) ** -0.5)
+
+                # Operating Cost per Tonne
+                tonnes = b * s * h * rock_density
+                drilling_cost_per_m = 12.0 + (d_mm / 100.0) * 8.0
+                explosive_cost_per_kg = 1.2 + (rws / 100.0) * 0.8
+                total_hole_cost = (h * drilling_cost_per_m) + (q_hole * explosive_cost_per_kg) + 15.0
+                cost_val = np.clip(total_hole_cost / max(tonnes, 1.0), 0.5, 15.0)
+
+                results.append({
+                    "d50_mm": float(d50_val),
+                    "ppv_mms": float(ppv_val),
+                    "flyrock_m": float(flyrock_val),
+                    "cost_per_tonne_usd": float(cost_val),
+                })
+
+            return pd.DataFrame(results, index=X.index)
+
+        def fit(self, X: Any, y: Any, **kwargs) -> Any:
+            """Train the neural network on residuals from the physics baseline."""
+            import torch.optim as optim
+
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            baseline = self._physics_baseline(X_df)
+
+            if isinstance(y, pd.DataFrame):
+                y_df = y.copy()
+            elif isinstance(y, pd.Series):
+                col_name = y.name if y.name in ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"] else "d50_mm"
+                y_df = pd.DataFrame(y.values, index=X_df.index, columns=[col_name])
+            elif isinstance(y, np.ndarray):
+                if y.ndim == 1:
+                    y_df = pd.DataFrame(y, index=X_df.index, columns=["d50_mm"])
+                else:
+                    y_df = pd.DataFrame(y, index=X_df.index, columns=["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"][:y.shape[1]])
+            else:
+                y_df = pd.DataFrame(y, index=X_df.index)
+
+            # Align targets with required outputs
+            for col in ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]:
+                if col not in y_df.columns:
+                    y_df[col] = baseline[col]
+
+            residuals = pd.DataFrame(index=X_df.index)
+            residuals["d50_mm"] = y_df["d50_mm"] - baseline["d50_mm"]
+            residuals["ppv_mms"] = y_df["ppv_mms"] - baseline["ppv_mms"]
+            residuals["flyrock_m"] = y_df["flyrock_m"] - baseline["flyrock_m"]
+            residuals["cost_per_tonne_usd"] = y_df["cost_per_tonne_usd"] - baseline["cost_per_tonne_usd"]
+
+            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+            if X_mat.shape[1] < self.input_size:
+                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
+                X_mat = np.hstack([X_mat, padding])
+            elif X_mat.shape[1] > self.input_size:
+                X_mat = X_mat[:, :self.input_size]
+
+            X_tensor = torch.tensor(X_mat, dtype=torch.float32)
+            y_tensor = torch.tensor(residuals[["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]].values, dtype=torch.float32)
+
+            optimizer = optim.Adam(self.parameters(), lr=0.01)
+            criterion = nn.MSELoss()
+
+            self.train()
+            for _ in range(50):
+                optimizer.zero_grad()
+                out = self.forward(X_tensor)
+                loss = criterion(out, y_tensor)
+                loss.backward()
+                optimizer.step()
+
+            self.eval()
+            self._is_trained = True
+            return self
 
     class PSOANNModel(nn.Module):
         """
