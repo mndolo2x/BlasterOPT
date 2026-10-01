@@ -49,6 +49,8 @@ from src.pareto_optimizer import run_nsga2, select_best_design, generate_trade_o
 from src.model_cards import generate_model_card
 from src.explainability_audit import log_explanation, get_recent_explanations, get_explanation_history
 from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_uncertainty as predict_ensemble_uq, plot_uncertainty_decomposition
+from src.geology import render_geology_page
+from src.fragmentation import render_fragmentation_page
 from src.safety import render_safety_environmental_page
 
 import traceback
@@ -301,11 +303,13 @@ page = st.sidebar.radio(
         get_translation("nav_model_cards", lang_code),
         get_translation("nav_ensemble_uq", lang_code),
         get_translation("nav_agent", lang_code),
+        get_translation("nav_geology", lang_code),
+        get_translation("nav_fragmentation", lang_code),
+        get_translation("nav_safety", lang_code),
         get_translation("nav_pattern", lang_code),
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_audit_log", lang_code),
         get_translation("nav_system_health", lang_code),
-        "🛡️ Safety & Environmental",
         get_translation("nav_visualize", lang_code),
     ],
 )
@@ -352,6 +356,12 @@ page_keys = {
     get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
     get_translation("nav_agent", "en"): "agent",
     get_translation("nav_agent", "tn"): "agent",
+    get_translation("nav_geology", "en"): "geology",
+    get_translation("nav_geology", "tn"): "geology",
+    get_translation("nav_fragmentation", "en"): "fragmentation",
+    get_translation("nav_fragmentation", "tn"): "fragmentation",
+    get_translation("nav_safety", "en"): "safety",
+    get_translation("nav_safety", "tn"): "safety",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
@@ -360,7 +370,6 @@ page_keys = {
     get_translation("nav_audit_log", "tn"): "audit_log",
     get_translation("nav_system_health", "en"): "system_health",
     get_translation("nav_system_health", "tn"): "system_health",
-    "🛡️ Safety & Environmental": "safety",
     get_translation("nav_visualize", "en"): "visualize",
     get_translation("nav_visualize", "tn"): "visualize",
 }
@@ -2416,6 +2425,16 @@ elif active_module == "guardrail_log":
 # --- MODULE: OLLAMA SYSTEM HEALTH ---
 elif active_module == "system_health":
     render_system_health()
+
+
+# --- MODULE: GEOLOGY & GEOMECHANICS ---
+elif active_module == "geology":
+    render_geology_page(lang_code)
+
+
+# --- MODULE: ADVANCED FRAGMENTATION ---
+elif active_module == "fragmentation":
+    render_fragmentation_page(lang_code)
 
 
 # --- MODULE: SAFETY & ENVIRONMENTAL ASSESSMENT ---
