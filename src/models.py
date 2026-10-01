@@ -320,36 +320,243 @@ class BlastMLPipeline:
 
 class ANN_RF_Ensemble:
     """
-    Ensemble of ANN and Random Forest for simultaneous prediction of
-    fragmentation and ground vibration at Jwaneng Mine.
+    Ensemble of ANN and Random Forest predicting residuals over physics baseline for
+    fragmentation_d80_cm and vibration_ppv_mms at Jwaneng Mine.
 
-    Performance: R² = 0.956 (fragmentation), 0.930 (vibration)
-    Key drivers (Tree-SHAP):
-        Fragmentation: powder_factor, burden
-        Vibration: burden, charge_per_delay, distance
-    Source: Jwaneng Mine, 120 production blasts.
+    Architecture:
+        Physics Baseline + 0.5 * ANN(10-50-25-2) + 0.5 * RandomForestRegressor(100 trees, max_depth=15)
+
+    Outputs (2):
+        1: fragmentation_d80_cm
+        2: vibration_ppv_mms
+
     Reference: Saubi et al. (2025). Scientific Reports, 15, 33871.
     """
-    def __init__(self, ann_model=None, rf_model=None, ann_weight: float = 0.5):
-        self.ann_model = ann_model
-        self.rf_model = rf_model if rf_model is not None else RandomForestRegressor(n_estimators=100, random_state=42)
+
+    OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms"]
+    INPUT_COLUMNS = [
+        "burden_m", "spacing_m", "powder_factor_kg_m3", "stemming_m",
+        "rock_factor_A", "hole_depth_m", "hole_diameter_mm",
+        "max_charge_per_delay_kg", "explosive_rws", "bench_height_m"
+    ]
+
+    def __init__(self, ann_weight: float = 0.5, random_state: int = 42):
         self.ann_weight = ann_weight
-        self.scaler = StandardScaler()
+        self.rf_weight = 1.0 - ann_weight
+        self.random_state = random_state
+        self.rf_model = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=random_state)
+        self.scaler_x = StandardScaler()
+        self.scaler_y = StandardScaler()
+        self._is_trained = False
 
-    def fit(self, X, y_frag, y_vib):
-        X_scaled = self.scaler.fit_transform(X)
-        y = np.column_stack([y_frag, y_vib])
-        self.rf_model.fit(X_scaled, y)
-        if self.ann_model is not None and hasattr(self.ann_model, "fit"):
-            self.ann_model.fit(X_scaled, y)
+        if HAS_TORCH:
+            self.ann_net = torch.nn.Sequential(
+                torch.nn.Linear(10, 50),
+                torch.nn.ReLU(),
+                torch.nn.Linear(50, 25),
+                torch.nn.ReLU(),
+                torch.nn.Linear(25, 2)
+            )
+        else:
+            self.ann_net = None
 
-    def predict(self, X):
-        X_scaled = self.scaler.transform(X)
-        rf_preds = self.rf_model.predict(X_scaled)
-        if self.ann_model is not None and hasattr(self.ann_model, "predict"):
-            ann_preds = self.ann_model.predict(X_scaled)
-            return self.ann_weight * ann_preds + (1.0 - self.ann_weight) * rf_preds
-        return rf_preds
+    def is_trained(self) -> bool:
+        return self._is_trained
+
+    def _physics_baseline(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Compute physics baseline for fragmentation_d80_cm and vibration_ppv_mms."""
+        from src.physics_core import (
+            kuznetsov_x50, cunningham_uniformity, rosin_rammler_d80, usbm_ppv,
+        )
+
+        results = []
+        for _, row in X.iterrows():
+            b = max(float(row.get("burden_m", 6.0)), 0.1)
+            s = max(float(row.get("spacing_m", 7.0)), 0.1)
+            rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
+            d_mm = float(row.get("hole_diameter_mm", 250.0))
+            h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
+            bh = max(float(row.get("bench_height_m", 15.0)), 1.0)
+            stem = max(float(row.get("stemming_m", 5.0)), 0.1)
+            q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 320.0))), 0.1)
+            q_hole = max(float(row.get("charge_mass_per_hole_kg", q_delay / 2.0)), 1.0)
+            dist = max(float(row.get("monitoring_distance_m", 500.0)), 10.0)
+            rws = max(float(row.get("explosive_rws", 100.0)), 10.0)
+
+            x50_cm = kuznetsov_x50(
+                rock_factor_a=rf,
+                burden_m=b,
+                spacing_m=s,
+                hole_depth_m=h,
+                charge_mass_kg=q_hole,
+                explosive_rws=rws,
+            )
+            n_val = cunningham_uniformity(
+                burden_m=b,
+                spacing_m=s,
+                hole_diameter_mm=d_mm,
+                bench_height_m=bh,
+                charge_length_m=max(h - stem, 1.0),
+            )
+            d80_cm = rosin_rammler_d80(x50_cm, n_val)
+            ppv_mms = usbm_ppv(
+                max_charge_per_delay_kg=q_delay,
+                distance_m=dist,
+            )
+
+            results.append({
+                "fragmentation_d80_cm": float(d80_cm),
+                "vibration_ppv_mms": float(ppv_mms),
+            })
+
+        return pd.DataFrame(results, index=X.index)
+
+    def fit(self, X: Any, y: Any = None, y_vib: Any = None) -> Any:
+        """Fit ANN and Random Forest on baseline residual targets."""
+        import torch.optim as optim
+
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        baseline = self._physics_baseline(X_df)
+
+        if isinstance(y, pd.DataFrame):
+            y_df = y.copy()
+        elif y_vib is not None:
+            y_df = pd.DataFrame({
+                "fragmentation_d80_cm": np.asarray(y).ravel(),
+                "vibration_ppv_mms": np.asarray(y_vib).ravel(),
+            }, index=X_df.index)
+        elif isinstance(y, np.ndarray):
+            if y.ndim == 1:
+                y_df = pd.DataFrame(y, index=X_df.index, columns=["fragmentation_d80_cm"])
+            else:
+                y_df = pd.DataFrame(y, index=X_df.index, columns=self.OUTPUT_COLUMNS[:y.shape[1]])
+        else:
+            y_df = pd.DataFrame(y, index=X_df.index)
+
+        for col in self.OUTPUT_COLUMNS:
+            if col not in y_df.columns:
+                y_df[col] = baseline[col]
+
+        residuals = pd.DataFrame(index=X_df.index)
+        for col in self.OUTPUT_COLUMNS:
+            residuals[col] = y_df[col] - baseline[col]
+
+        available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+        if available_cols:
+            X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+        else:
+            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+        if X_mat.shape[1] < 10:
+            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+            X_mat = np.hstack([X_mat, padding])
+        elif X_mat.shape[1] > 10:
+            X_mat = X_mat[:, :10]
+
+        X_scaled = self.scaler_x.fit_transform(X_mat)
+        res_scaled = self.scaler_y.fit_transform(residuals[self.OUTPUT_COLUMNS].values)
+
+        # Train Random Forest on scaled residuals
+        self.rf_model.fit(X_scaled, res_scaled)
+
+        # Train ANN on scaled residuals
+        if HAS_TORCH and self.ann_net is not None:
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            y_tensor = torch.tensor(res_scaled, dtype=torch.float32)
+
+            optimizer = optim.Adam(self.ann_net.parameters(), lr=1e-2, weight_decay=1e-4)
+            criterion = torch.nn.MSELoss()
+
+            self.ann_net.train()
+            for _ in range(300):
+                optimizer.zero_grad()
+                out = self.ann_net(X_tensor)
+                loss = criterion(out, y_tensor)
+                loss.backward()
+                optimizer.step()
+            self.ann_net.eval()
+
+        self._is_trained = True
+        return self
+
+    def predict(self, X: Any) -> pd.DataFrame:
+        """Combine physics baseline + 0.5 * ANN_residual + 0.5 * RF_residual."""
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        baseline = self._physics_baseline(X_df)
+
+        if not self._is_trained:
+            return baseline
+
+        available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+        if available_cols:
+            X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+        else:
+            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+        if X_mat.shape[1] < 10:
+            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+            X_mat = np.hstack([X_mat, padding])
+        elif X_mat.shape[1] > 10:
+            X_mat = X_mat[:, :10]
+
+        X_scaled = self.scaler_x.transform(X_mat)
+
+        # RF residual
+        rf_res_s = self.rf_model.predict(X_scaled)
+
+        # ANN residual
+        if HAS_TORCH and self.ann_net is not None:
+            self.ann_net.eval()
+            with torch.no_grad():
+                ann_res_s = self.ann_net(torch.tensor(X_scaled, dtype=torch.float32)).numpy()
+        else:
+            ann_res_s = rf_res_s
+
+        combined_res_s = self.ann_weight * ann_res_s + self.rf_weight * rf_res_s
+        combined_res = self.scaler_y.inverse_transform(combined_res_s)
+
+        result = baseline.copy()
+        result["fragmentation_d80_cm"] += combined_res[:, 0]
+        result["vibration_ppv_mms"] += combined_res[:, 1]
+
+        return result
+
+    def predict_ann_only(self, X: Any) -> pd.DataFrame:
+        """Returns predictions using only the physics baseline + ANN residual."""
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        baseline = self._physics_baseline(X_df)
+
+        if not self._is_trained:
+            return baseline
+
+        available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+        if available_cols:
+            X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+        else:
+            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+        if X_mat.shape[1] < 10:
+            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+            X_mat = np.hstack([X_mat, padding])
+        elif X_mat.shape[1] > 10:
+            X_mat = X_mat[:, :10]
+
+        X_scaled = self.scaler_x.transform(X_mat)
+
+        if HAS_TORCH and self.ann_net is not None:
+            self.ann_net.eval()
+            with torch.no_grad():
+                ann_res_s = self.ann_net(torch.tensor(X_scaled, dtype=torch.float32)).numpy()
+        else:
+            ann_res_s = np.zeros((len(X_df), 2))
+
+        ann_res = self.scaler_y.inverse_transform(ann_res_s)
+
+        result = baseline.copy()
+        result["fragmentation_d80_cm"] += ann_res[:, 0]
+        result["vibration_ppv_mms"] += ann_res[:, 1]
+
+        return result
 
 
 if HAS_TORCH:
