@@ -785,26 +785,240 @@ if HAS_TORCH:
 
     class PSOANNModel(nn.Module):
         """
-        PSO-ANN for fragmentation prediction at Orapa Mine.
+        PSO-ANN for fragmentation prediction (fragmentation_d80_cm) at Orapa Mine.
 
         Architecture: 7-65-30-1 (7 inputs, 65 hidden1, 30 hidden2, 1 output)
-        Performance: Optimal fragmentation ~86%
-        Key drivers: rock_factor (15.3%), blastability_index (14.7%),
-                     spacing_to_burden_ratio (14.7%)
-        Source: Orapa Mine, 120 blasting events.
+        Outputs (1): fragmentation_d80_cm
+        Optimizer: Particle Swarm Optimization (PSO)
+
         Reference: Saubi et al. (2025). Journal of Mining Institute, 275, 179-195.
         """
-        def __init__(self, input_size=7):
+
+        OUTPUT_COLUMNS = ["fragmentation_d80_cm"]
+        INPUT_COLUMNS = [
+            "spacing_m", "burden_m", "hole_diameter_mm",
+            "hole_depth_m", "stemming_m", "powder_factor_kg_m3", "rock_factor_A"
+        ]
+
+        def __init__(self, input_size: int = 7):
             super().__init__()
+            self.input_size = input_size
             self.hidden1 = nn.Linear(input_size, 65)
             self.hidden2 = nn.Linear(65, 30)
             self.output = nn.Linear(30, 1)
             self.relu = nn.ReLU()
+            self._is_trained = False
+            self.loss_history: List[float] = []
 
         def forward(self, x):
             x = self.relu(self.hidden1(x))
             x = self.relu(self.hidden2(x))
             return self.output(x)
+
+        def is_trained(self) -> bool:
+            return self._is_trained
+
+        def _physics_baseline(self, X: pd.DataFrame) -> pd.DataFrame:
+            """Compute physics baseline for fragmentation_d80_cm with E=100 (ANFO)."""
+            from src.physics_core import (
+                kuznetsov_x50, cunningham_uniformity, rosin_rammler_d80,
+            )
+
+            results = []
+            for _, row in X.iterrows():
+                b = max(float(row.get("burden_m", 6.0)), 0.1)
+                s = max(float(row.get("spacing_m", 7.0)), 0.1)
+                rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
+                d_mm = float(row.get("hole_diameter_mm", 250.0))
+                h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
+                bh = max(float(row.get("bench_height_m", h)), 1.0)
+                stem = max(float(row.get("stemming_m", 5.0)), 0.1)
+                pf = float(row.get("powder_factor_kg_m3", 0.65))
+
+                q_hole = max(pf * b * s * h, 1.0)
+
+                x50_cm = kuznetsov_x50(
+                    rock_factor_a=rf,
+                    burden_m=b,
+                    spacing_m=s,
+                    hole_depth_m=h,
+                    charge_mass_kg=q_hole,
+                    explosive_rws=100.0,
+                )
+                n_val = cunningham_uniformity(
+                    burden_m=b,
+                    spacing_m=s,
+                    hole_diameter_mm=d_mm,
+                    bench_height_m=bh,
+                    charge_length_m=max(h - stem, 1.0),
+                )
+                d80_cm = rosin_rammler_d80(x50_cm, n_val)
+
+                results.append({
+                    "fragmentation_d80_cm": float(d80_cm),
+                })
+
+            return pd.DataFrame(results, index=X.index)
+
+        def fit(
+            self,
+            X: Any,
+            y: Any,
+            n_particles: int = 30,
+            n_iterations: int = 100,
+            c1: float = 1.5,
+            c2: float = 1.5,
+            w: float = 0.7,
+            **kwargs,
+        ) -> Any:
+            """
+            Train neural network weights on physics baseline residuals using Particle Swarm Optimization (PSO).
+            """
+            from sklearn.preprocessing import StandardScaler
+
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            baseline = self._physics_baseline(X_df)
+
+            if isinstance(y, pd.DataFrame):
+                y_df = y.copy()
+            elif isinstance(y, pd.Series):
+                y_df = pd.DataFrame({self.OUTPUT_COLUMNS[0]: y.values}, index=X_df.index)
+            elif isinstance(y, np.ndarray):
+                y_df = pd.DataFrame(y.ravel(), index=X_df.index, columns=[self.OUTPUT_COLUMNS[0]])
+            else:
+                y_df = pd.DataFrame(y, index=X_df.index)
+
+            if self.OUTPUT_COLUMNS[0] not in y_df.columns:
+                y_df[self.OUTPUT_COLUMNS[0]] = baseline[self.OUTPUT_COLUMNS[0]]
+
+            residuals = y_df[self.OUTPUT_COLUMNS[0]] - baseline[self.OUTPUT_COLUMNS[0]]
+
+            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+            if available_cols:
+                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+            else:
+                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+            if X_mat.shape[1] < self.input_size:
+                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
+                X_mat = np.hstack([X_mat, padding])
+            elif X_mat.shape[1] > self.input_size:
+                X_mat = X_mat[:, :self.input_size]
+
+            self.scaler_x = StandardScaler()
+            self.scaler_y = StandardScaler()
+
+            X_scaled = self.scaler_x.fit_transform(X_mat)
+            res_scaled = self.scaler_y.fit_transform(residuals.values.reshape(-1, 1))
+
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            y_tensor = torch.tensor(res_scaled, dtype=torch.float32)
+
+            # Flatten weight parameters vector
+            num_params = sum(p.numel() for p in self.parameters())
+
+            def set_weights(weights_vec):
+                idx = 0
+                for p in self.parameters():
+                    length = p.numel()
+                    p.data = torch.tensor(weights_vec[idx:idx + length], dtype=torch.float32).view(p.shape)
+                    idx += length
+
+            def calc_loss(weights_vec):
+                set_weights(weights_vec)
+                self.eval()
+                with torch.no_grad():
+                    preds = self.forward(X_tensor)
+                    loss = torch.mean((preds - y_tensor) ** 2).item()
+                return loss
+
+            # Particle Swarm Initialization
+            np.random.seed(42)
+            particles = np.random.uniform(-0.5, 0.5, size=(n_particles, num_params))
+            velocities = np.zeros((n_particles, num_params))
+
+            pbest_positions = particles.copy()
+            pbest_scores = np.array([calc_loss(p) for p in particles])
+
+            gbest_idx = np.argmin(pbest_scores)
+            gbest_position = pbest_positions[gbest_idx].copy()
+            gbest_score = pbest_scores[gbest_idx]
+
+            self.loss_history = [gbest_score]
+
+            # PSO Iterations Loop
+            for it in range(n_iterations):
+                for i in range(n_particles):
+                    r1 = np.random.rand(num_params)
+                    r2 = np.random.rand(num_params)
+
+                    # Velocity update
+                    velocities[i] = (
+                        w * velocities[i]
+                        + c1 * r1 * (pbest_positions[i] - particles[i])
+                        + c2 * r2 * (gbest_position - particles[i])
+                    )
+                    # Position update
+                    particles[i] += velocities[i]
+
+                    # Evaluate score
+                    score = calc_loss(particles[i])
+
+                    if score < pbest_scores[i]:
+                        pbest_scores[i] = score
+                        pbest_positions[i] = particles[i].copy()
+
+                        if score < gbest_score:
+                            gbest_score = score
+                            gbest_position = particles[i].copy()
+
+                self.loss_history.append(gbest_score)
+
+            # Set best weights
+            set_weights(gbest_position)
+            self._is_trained = True
+            return self
+
+        def predict(self, X: Any) -> pd.DataFrame:
+            """Predict fragmentation_d80_cm using physics baseline + PSO-ANN residual."""
+            from sklearn.preprocessing import StandardScaler
+
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            baseline = self._physics_baseline(X_df)
+
+            if not self._is_trained:
+                return baseline
+
+            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+            if available_cols:
+                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+            else:
+                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+            if X_mat.shape[1] < self.input_size:
+                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
+                X_mat = np.hstack([X_mat, padding])
+            elif X_mat.shape[1] > self.input_size:
+                X_mat = X_mat[:, :self.input_size]
+
+            if hasattr(self, "scaler_x"):
+                X_scaled = self.scaler_x.transform(X_mat)
+            else:
+                X_scaled = X_mat
+
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            self.eval()
+            with torch.no_grad():
+                res_pred_s = self.forward(X_tensor).numpy()
+
+            if hasattr(self, "scaler_y"):
+                res_pred = self.scaler_y.inverse_transform(res_pred_s)
+            else:
+                res_pred = res_pred_s
+
+            result = baseline.copy()
+            result["fragmentation_d80_cm"] += res_pred[:, 0]
+            return result
 
     class AirblastMinimizerModel(nn.Module):
         """
