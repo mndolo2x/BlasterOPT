@@ -188,6 +188,13 @@ def generate_synthetic_blast_data(
     flyrock_dist_m = flyrock_dist_m * np.random.normal(1.0, 0.10, size=num_samples)
     flyrock_dist_m = np.clip(flyrock_dist_m, 10.0, 450.0)
 
+    # --- Target C2: Airblast Overpressure (dB) ---
+    airblast_db = 165.0 - 25.0 * np.log10(np.maximum(monitoring_distance, 10.0) / (np.maximum(max_charge_per_delay, 0.1) ** (1.0 / 3.0)))
+    airblast_db = np.clip(airblast_db * np.random.normal(1.0, 0.05, size=num_samples), 40.0, 140.0)
+
+    # --- Target A2: Fragmentation D80 (cm) ---
+    d80_cm = kuz_ram_d50_cm * (np.log(5.0) / 0.693) ** (1.0 / np.maximum(n_uniformity, 0.1))
+
     # --- Target D: Drilling & Blasting Cost ($ / tonne) ---
     # Cost = (Drilling Cost + Explosive Cost + Accessories Cost) / Tonnes per hole
     drilling_cost_per_m = 12.0 + (hole_diameter / 100.0) * 8.0 # $12 - $35 / m
@@ -227,8 +234,11 @@ def generate_synthetic_blast_data(
         "monitoring_distance_m": np.round(monitoring_distance, 1),
         # Target variables
         "d50_mm": np.round(d50_mm, 2),
+        "fragmentation_d80_cm": np.round(d80_cm, 2),
         "uniformity_index_n": np.round(n_uniformity, 2),
         "ppv_mms": np.round(ppv_mms, 2),
+        "vibration_ppv_mms": np.round(ppv_mms, 2),
+        "airblast_db": np.round(airblast_db, 1),
         "flyrock_m": np.round(flyrock_dist_m, 2),
         "cost_per_tonne_usd": np.round(cost_per_tonne, 2),
     })
