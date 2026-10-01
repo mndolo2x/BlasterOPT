@@ -177,8 +177,8 @@ def lundborg_flyrock(
     """
     Flyrock distance (m) using the Lundborg model.
 
-    Formula (Lundborg 1975, modified):
-        R = K × (charge_mass)^0.5 × exp(-stemming / burden)
+    Formula (Lundborg 1975):
+        R = K × (charge_mass)^0.5 / burden × exp(-stemming / burden)
 
     Where:
         K = empirical constant (typically 260 for hard rock)
@@ -193,7 +193,10 @@ def lundborg_flyrock(
         Flyrock distance in meters.
     """
     K = 260.0
-    R = K * (charge_mass_kg ** 0.5) * np.exp(-stemming_m / max(burden_m, 0.1))
+    b = max(burden_m, 0.1)
+    s = max(stemming_m, 0.1)
+    q = max(charge_mass_kg, 0.1)
+    R = K * (q ** 0.5) / b * np.exp(-s / b)
     return float(np.clip(R, 5.0, 500.0))
 
 

@@ -1294,6 +1294,110 @@ if HAS_TORCH:
             return ranked
 
 
+class FlyrockPredictor:
+    """
+    Physics-only Flyrock distance predictor using Lundborg (1975) model.
+
+    Formula:
+        R = 260 * (charge_mass)^0.5 * exp(-stemming / burden)
+
+    Clipped to [5, 500] meters.
+
+    Outputs (1): flyrock_m
+
+    Reference: Lundborg, N. (1975). "The probability of flyrock."
+    Swedish Detonic Research Foundation Report DS 1975:5.
+    """
+
+    OUTPUT_COLUMNS = ["flyrock_m"]
+    INPUT_COLUMNS = ["charge_mass_per_hole_kg", "stemming_m", "burden_m"]
+
+    def __init__(self, **kwargs):
+        pass
+
+    def fit(self, X: Any, y: Any = None, **kwargs) -> "FlyrockPredictor":
+        """No-op fit for physics-only predictor."""
+        return self
+
+    def predict(self, X: Any) -> pd.DataFrame:
+        """Predicts flyrock distance in meters."""
+        from src.physics_core import lundborg_flyrock
+
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        results = []
+
+        for _, row in X_df.iterrows():
+            q_hole = max(float(row.get("charge_mass_per_hole_kg", row.get("charge_mass_kg", row.get("max_charge_per_delay_kg", 320.0)))), 0.1)
+            stem = float(row.get("stemming_m", 5.0))
+            burden = max(float(row.get("burden_m", 6.0)), 0.1)
+
+            r = lundborg_flyrock(
+                charge_mass_kg=q_hole,
+                stemming_m=stem,
+                burden_m=burden,
+            )
+
+            results.append({"flyrock_m": float(r)})
+
+        return pd.DataFrame(results, index=X_df.index)
+
+
+class CostPredictor:
+    """
+    Physics-only Drill-and-Blast Cost Predictor using BlasterOPT internal cost model.
+
+    Formula:
+        drilling_cost = 15.0 * hole_depth * n_holes
+        explosive_cost = 1.30 * charge_mass * n_holes
+        labor_cost = 5000.0
+        total_cost = drilling_cost + explosive_cost + labor_cost
+        cost_per_tonne = total_cost / tonnage
+
+    Where:
+        n_holes = 50
+        tonnage = 50000
+
+    Outputs (1): cost_per_tonne_usd
+
+    Reference: BlasterOPT internal cost model calibrated to Debswana open-pit operating costs.
+    """
+
+    OUTPUT_COLUMNS = ["cost_per_tonne_usd"]
+    INPUT_COLUMNS = ["hole_depth_m", "charge_mass_per_hole_kg"]
+
+    def __init__(self, **kwargs):
+        pass
+
+    def fit(self, X: Any, y: Any = None, **kwargs) -> "CostPredictor":
+        """No-op fit for physics-only predictor."""
+        return self
+
+    def predict(self, X: Any) -> pd.DataFrame:
+        """Predicts drill-and-blast cost per tonne in USD/t."""
+        from src.physics_core import total_cost_per_tonne
+
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+        results = []
+
+        for _, row in X_df.iterrows():
+            hole_depth = float(row.get("hole_depth_m", row.get("bench_height_m", 15.0)))
+            charge_mass = float(row.get("charge_mass_per_hole_kg", row.get("charge_mass_kg", row.get("max_charge_per_delay_kg", 320.0))))
+
+            cost = total_cost_per_tonne(
+                drilling_cost_per_m=15.0,
+                hole_depth_m=hole_depth,
+                n_holes=50,
+                explosive_cost_per_kg=1.30,
+                charge_mass_per_hole_kg=charge_mass,
+                labor_cost=5000.0,
+                tonnage=50000.0,
+            )
+
+            results.append({"cost_per_tonne_usd": float(cost)})
+
+        return pd.DataFrame(results, index=X_df.index)
+
+
 def train_all_models(df: pd.DataFrame, save_dir: str = "models/") -> Dict[str, Any]:
     """
     Trains all research and ensemble models on dataset, saves artifacts to save_dir,
