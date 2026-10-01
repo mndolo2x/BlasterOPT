@@ -27,23 +27,16 @@ except ImportError:
     nn = object
 
 FEATURE_COLS = [
-    "rock_factor_A",
-    "bench_height_m",
-    "hole_diameter_mm",
     "burden_m",
     "spacing_m",
-    "stemming_m",
-    "charge_mass_per_hole_kg",
     "powder_factor_kg_m3",
+    "stemming_m",
+    "rock_factor_A",
+    "hole_depth_m",
+    "hole_diameter_mm",
     "max_charge_per_delay_kg",
-    "monitoring_distance_m",
-    "spacing_burden_ratio",
-    "stiffness_ratio",
-    "stemming_burden_ratio",
-    "scaled_distance",
-    "energy_factor_mj_m3",
-    "pf_burden_interaction",
-    "spacing_stemming_interaction",
+    "explosive_rws",
+    "bench_height_m",
 ]
 
 TARGET_COLS = ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
@@ -130,15 +123,27 @@ class BlastMLPipeline:
 
         kf = KFold(n_splits=cv_folds, shuffle=True, random_state=self.seed)
 
+        from models.registry import get_registry
+        reg = get_registry()
+        try:
+            meta = reg.get_metadata(self.model_type)
+            targets_to_evaluate = meta.output_features
+        except Exception:
+            config = MODEL_REGISTRY.get(self.model_type, {})
+            targets_to_evaluate = config.get("outputs", TARGET_COLS)
+
         # Normalize target column aliases if present in DataFrame
         target_map = {
             "d50_mm": ["d50_mm", "d50", "fragmentation_p80", "p80", "fragmentation"],
+            "fragmentation_d80_cm": ["fragmentation_d80_cm", "fragmentation_p80", "d80", "d50_mm", "fragmentation"],
             "ppv_mms": ["ppv_mms", "ppv", "vibration"],
-            "flyrock_m": ["flyrock_m", "flyrock", "airblast"],
+            "vibration_ppv_mms": ["vibration_ppv_mms", "ppv_mms", "ppv", "vibration"],
+            "airblast_db": ["airblast_db", "airblast"],
+            "flyrock_m": ["flyrock_m", "flyrock"],
             "cost_per_tonne_usd": ["cost_per_tonne_usd", "cost", "cost_usd"]
         }
 
-        for target in TARGET_COLS:
+        for target in targets_to_evaluate:
             col_found = None
             if target in df.columns:
                 col_found = target

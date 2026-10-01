@@ -572,10 +572,18 @@ elif active_module == "ml_manager":
         model_type = selected_name
         metadata = registry.get_metadata(selected_name)
 
+        config = MODEL_REGISTRY.get(selected_name, {})
+        outputs_list = config.get("outputs", metadata.output_features if metadata else [])
+
         # Show metadata and features
         st.caption(f"**Description:** {metadata.description}")
         st.caption(f"**Inputs:** {', '.join(metadata.input_features)}")
-        st.caption(f"**Outputs:** {', '.join(metadata.output_features)}")
+        st.caption(f"**Outputs:** {', '.join(outputs_list)}")
+
+        if config and "reference_r2" in config:
+            st.markdown("**Reference R² (from BIUST paper):**")
+            for col_name, r2_val in config["reference_r2"].items():
+                st.caption(f"  • `{col_name}`: {r2_val:.3f}")
 
         # Show capability badges
         if metadata.supports_uncertainty:
@@ -614,9 +622,10 @@ elif active_module == "ml_manager":
             # Feature Importances
             st.subheader("Feature Importances")
             importances = pipeline.get_feature_importances()
+            available_targets = list(pipeline.metrics.keys()) if (pipeline and pipeline.metrics) else outputs_list
             target_to_plot = st.selectbox(
                 "Select Target for Importance Plot",
-                ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
+                available_targets,
             )
             fig_imp = plot_feature_importance(importances, target=target_to_plot)
             st.plotly_chart(fig_imp, use_container_width=True)

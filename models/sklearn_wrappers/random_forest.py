@@ -24,7 +24,7 @@ class RandomForestModel(BaseBlastModel):
             version="1.0.0",
             author="BlastOpt Team",
             input_features=["burden", "spacing", "powder_factor", "stemming", "rock_factor"],
-            output_features=["fragmentation_p80", "ppv", "airblast"],
+            output_features=["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
             supports_training=True,
             supports_uncertainty=False,
             supports_explainability=True,

@@ -1,145 +1,15 @@
 {
   "metadata": {
     "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) Compliance Audit",
-    "export_timestamp": "2026-10-01T14:29:01.646761+00:00",
+    "export_timestamp": "2026-10-01T20:16:12.030980+00:00",
     "retention_policy": "7 Years Mandatory Persistence",
-    "total_interactions": 17,
-    "total_decisions": 17
+    "total_interactions": 4,
+    "total_decisions": 4
   },
   "interactions": [
     {
-      "id": 17,
-      "timestamp": "2026-10-01T14:29:01.618465+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 16,
-      "timestamp": "2026-10-01T13:59:17.907960+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 15,
-      "timestamp": "2026-10-01T13:25:48.057982+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 14,
-      "timestamp": "2026-10-01T13:07:23.826166+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 13,
-      "timestamp": "2026-10-01T12:41:53.481771+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 12,
-      "timestamp": "2026-10-01T12:01:21.499908+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 11,
-      "timestamp": "2026-10-01T11:56:09.414165+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 10,
-      "timestamp": "2026-10-01T11:52:27.808741+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 9,
-      "timestamp": "2026-10-01T11:49:51.300247+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 8,
-      "timestamp": "2026-10-01T09:38:10.281236+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 7,
-      "timestamp": "2026-10-01T08:36:53.239573+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 6,
-      "timestamp": "2026-10-01T07:45:22.440046+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
-      "id": 5,
-      "timestamp": "2026-10-01T07:17:27.426835+00:00",
-      "session_id": "SESS_AUDIT_TEST_01",
-      "user_id": "ENG_AUDIT_01",
-      "user_message": "Design blast for bench 14",
-      "agent_response": "Generated design for bench 14",
-      "tools_called_json": "[\"design_blast\", \"predict_vibration\"]",
-      "guardrail_trips_json": "[]"
-    },
-    {
       "id": 4,
-      "timestamp": "2026-10-01T06:59:46.313016+00:00",
+      "timestamp": "2026-10-01T20:16:12.016625+00:00",
       "session_id": "SESS_AUDIT_TEST_01",
       "user_id": "ENG_AUDIT_01",
       "user_message": "Design blast for bench 14",
@@ -149,7 +19,7 @@
     },
     {
       "id": 3,
-      "timestamp": "2026-10-01T06:56:42.395304+00:00",
+      "timestamp": "2026-10-01T20:11:51.440262+00:00",
       "session_id": "SESS_AUDIT_TEST_01",
       "user_id": "ENG_AUDIT_01",
       "user_message": "Design blast for bench 14",
@@ -159,7 +29,7 @@
     },
     {
       "id": 2,
-      "timestamp": "2026-09-30T22:49:05.461852+00:00",
+      "timestamp": "2026-10-01T19:13:55.328886+00:00",
       "session_id": "SESS_AUDIT_TEST_01",
       "user_id": "ENG_AUDIT_01",
       "user_message": "Design blast for bench 14",
@@ -169,7 +39,7 @@
     },
     {
       "id": 1,
-      "timestamp": "2026-09-30T21:52:42.046198+00:00",
+      "timestamp": "2026-10-01T19:09:43.731219+00:00",
       "session_id": "SESS_AUDIT_TEST_01",
       "user_id": "ENG_AUDIT_01",
       "user_message": "Design blast for bench 14",
@@ -180,151 +50,8 @@
   ],
   "decisions": [
     {
-      "id": 17,
-      "timestamp": "2026-10-01T14:29:01.631003+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 16,
-      "timestamp": "2026-10-01T13:59:17.925056+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 15,
-      "timestamp": "2026-10-01T13:25:48.069094+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 14,
-      "timestamp": "2026-10-01T13:07:23.846189+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 13,
-      "timestamp": "2026-10-01T12:41:53.495985+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 12,
-      "timestamp": "2026-10-01T12:01:21.506770+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 11,
-      "timestamp": "2026-10-01T11:56:09.421820+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 10,
-      "timestamp": "2026-10-01T11:52:27.815987+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 9,
-      "timestamp": "2026-10-01T11:49:51.316302+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 8,
-      "timestamp": "2026-10-01T09:38:10.296384+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 7,
-      "timestamp": "2026-10-01T08:36:53.248619+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 6,
-      "timestamp": "2026-10-01T07:45:22.449385+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
-      "id": 5,
-      "timestamp": "2026-10-01T07:17:27.444689+00:00",
-      "session_id": "SESS_AUDIT_TEST_02",
-      "user_id": "BLASTER_01",
-      "design_id": "DES_JWA_101",
-      "decision": "OVERRIDE_STEMMING",
-      "reason_code": "HIGH_AIRBLAST_RISK",
-      "original_value": "{\"stemming_m\": 4.5}",
-      "new_value": "{\"stemming_m\": 5.5}"
-    },
-    {
       "id": 4,
-      "timestamp": "2026-10-01T06:59:46.319915+00:00",
+      "timestamp": "2026-10-01T20:16:12.023642+00:00",
       "session_id": "SESS_AUDIT_TEST_02",
       "user_id": "BLASTER_01",
       "design_id": "DES_JWA_101",
@@ -335,7 +62,7 @@
     },
     {
       "id": 3,
-      "timestamp": "2026-10-01T06:56:42.414436+00:00",
+      "timestamp": "2026-10-01T20:11:51.448981+00:00",
       "session_id": "SESS_AUDIT_TEST_02",
       "user_id": "BLASTER_01",
       "design_id": "DES_JWA_101",
@@ -346,7 +73,7 @@
     },
     {
       "id": 2,
-      "timestamp": "2026-09-30T22:49:05.475493+00:00",
+      "timestamp": "2026-10-01T19:13:55.339465+00:00",
       "session_id": "SESS_AUDIT_TEST_02",
       "user_id": "BLASTER_01",
       "design_id": "DES_JWA_101",
@@ -357,7 +84,7 @@
     },
     {
       "id": 1,
-      "timestamp": "2026-09-30T21:52:42.065795+00:00",
+      "timestamp": "2026-10-01T19:09:43.739347+00:00",
       "session_id": "SESS_AUDIT_TEST_02",
       "user_id": "BLASTER_01",
       "design_id": "DES_JWA_101",
