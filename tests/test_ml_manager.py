@@ -40,3 +40,28 @@ def test_feature_cols_matches_model_input_size():
     assert model.output.out_features == 3
     expected_arch = f"{len(FEATURE_COLS)}-70-25-3"
     assert MODEL_REGISTRY["ga_ann_jwaneng"]["architecture"] == expected_arch
+
+
+def test_manual_cv_score_gaann():
+    """Verify manual_cv_score returns multi-output CV metrics for GAANNModel."""
+    from src.synthetic_data import generate_synthetic_data
+    from src.models import manual_cv_score
+
+    df = generate_synthetic_data(n_samples=100, seed=42)
+    X = df[FEATURE_COLS]
+    y = df[GAANNModel.OUTPUT_COLUMNS]
+
+    res = manual_cv_score(
+        model_class=lambda: GAANNModel(input_size=len(FEATURE_COLS)),
+        X=X,
+        y=y,
+        cv=3,
+    )
+
+    assert set(res.keys()) == set(GAANNModel.OUTPUT_COLUMNS)
+    for col, metrics in res.items():
+        assert "r2_mean" in metrics
+        assert "r2_std" in metrics
+        assert "rmse_mean" in metrics
+        assert isinstance(metrics["r2_mean"], float)
+        assert isinstance(metrics["rmse_mean"], float)

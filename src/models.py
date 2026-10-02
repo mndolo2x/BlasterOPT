@@ -99,6 +99,64 @@ def get_model_instance(model_type: str = "random_forest", seed: int = 42):
         return RandomForestRegressor(n_estimators=100, random_state=seed, max_depth=12, n_jobs=-1)
 
 
+def manual_cv_score(
+    model_class: Any,
+    X: pd.DataFrame,
+    y: pd.DataFrame,
+    cv: int = 5,
+    **fit_kwargs: Any,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Manual cross-validation for PyTorch-based and multi-output models.
+
+    Args:
+        model_class: callable that returns a fresh model instance
+        X: feature DataFrame
+        y: target DataFrame (multi-output)
+        cv: number of folds
+        **fit_kwargs: passed to model.fit()
+
+    Returns:
+        dict mapping target column name -> {"r2_mean", "r2_std", "rmse_mean"}
+    """
+    kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+    results = {col: {"r2": [], "rmse": []} for col in y.columns}
+
+    for train_idx, test_idx in kf.split(X):
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        model = model_class()
+        model.fit(X_train, y_train, **fit_kwargs)
+        preds = model.predict(X_test)
+
+        for col in y.columns:
+            y_true = y_test[col].values
+            if isinstance(preds, pd.DataFrame):
+                y_pred = preds[col].values
+            elif isinstance(preds, np.ndarray) and preds.ndim > 1:
+                col_idx = list(y.columns).index(col)
+                y_pred = preds[:, col_idx] if col_idx < preds.shape[1] else preds[:, 0]
+            else:
+                y_pred = np.asarray(preds).ravel()
+
+            ss_res = float(np.sum((y_true - y_pred) ** 2))
+            ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
+            r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+            rmse = float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+            results[col]["r2"].append(r2)
+            results[col]["rmse"].append(rmse)
+
+    return {
+        col: {
+            "r2_mean": float(np.mean(v["r2"])),
+            "r2_std": float(np.std(v["r2"])),
+            "rmse_mean": float(np.mean(v["rmse"])),
+        }
+        for col, v in results.items()
+    }
+
+
 class BlastMLPipeline:
     """
     Multi-target machine learning model suite for blasting performance predictions.

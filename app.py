@@ -845,28 +845,45 @@ elif active_module == "ml_manager":
             f"• Trained at: {st.session_state.get(f'trained_{selected_key}_at')}"
         )
 
-        # Cross-validation
-        from sklearn.model_selection import cross_val_score, KFold
-        import numpy as np
+        # Cross-validation using manual_cv_score for multi-output & PyTorch models
+        from src.models import (
+            manual_cv_score, GAANNModel, ANN_RF_Ensemble, PSOANNModel,
+            AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
+        )
+        from sklearn.ensemble import RandomForestRegressor as SklearnRF
+        from sklearn.linear_model import Ridge as SklearnRidge
+        from xgboost import XGBRegressor as SklearnXGB
+
+        model_classes = {
+            "ga_ann_jwaneng": GAANNModel,
+            "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
+            "pso_ann_orapa": PSOANNModel,
+            "airblast_minimizer": AirblastMinimizerModel,
+            "flyrock_predictor": FlyrockPredictor,
+            "cost_predictor": CostPredictor,
+            "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
+            "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
+            "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+        }
+        factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
 
         X = training_df[required_features]
-        cv = KFold(n_splits=5, shuffle=True, random_state=42)
+        y = training_df[required_outputs]
+
+        cv_results = manual_cv_score(
+            model_class=factory,
+            X=X,
+            y=y,
+            cv=5,
+        )
 
         eval_rows = []
-        for output in required_outputs:
-            y = training_df[output]
-            scores = cross_val_score(model, X, y, cv=cv, scoring="r2")
-            r2_mean = float(np.mean(scores))
-            r2_std = float(np.std(scores))
-
-            if r2_mean < -1.0:
-                st.error(f"⚠️ R² for `{output}` is {r2_mean:.2f}. Impossible for a trained model.")
-                continue
-
+        for col, metrics in cv_results.items():
             eval_rows.append({
-                "Output": output,
-                "R2_mean": round(r2_mean, 4),
-                "R2_std": round(r2_std, 4),
+                "Output": col,
+                "R2_mean": round(metrics["r2_mean"], 4),
+                "R2_std": round(metrics["r2_std"], 4),
+                "RMSE_mean": round(metrics["rmse_mean"], 4),
             })
 
         if eval_rows:
