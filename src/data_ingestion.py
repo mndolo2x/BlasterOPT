@@ -255,3 +255,11 @@ def prepare_ingested_dataset(
         engineered.to_csv(save_path, index=False)
 
     return engineered
+
+
+def dataframe_fingerprint(df: pd.DataFrame) -> str:
+    """Compute a stable hash of the DataFrame contents."""
+    import hashlib
+    return hashlib.sha256(
+        pd.util.hash_pandas_object(df, index=True).values.tobytes()
+    ).hexdigest()[:16]

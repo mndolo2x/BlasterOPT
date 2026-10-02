@@ -6,6 +6,8 @@ Main Dashboard and Interactive Mining Analytics Suite.
 import os
 import sys
 import glob
+import hashlib
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -16,7 +18,7 @@ if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 from src.synthetic_data import generate_synthetic_blast_data
-from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features
+from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint
 from src.models import BlastMLPipeline, MODEL_REGISTRY, FEATURE_COLS
 from src.predict import predict_single_blast, total_cost_per_tonne
 from src.recommender import find_similar_blasts
@@ -196,7 +198,15 @@ if DEMO_MODE:
 if "dataset" not in st.session_state:
     # Default initial dataset
     synth_df = generate_synthetic_blast_data(num_samples=300, seed=42)
-    st.session_state["dataset"] = engineer_features(synth_df)
+    init_df = engineer_features(synth_df)
+    st.session_state["dataset"] = init_df
+    st.session_state["df"] = init_df
+    st.session_state["data_ready"] = True
+    st.session_state["data_source"] = "synthetic"
+    st.session_state["data_rows"] = init_df.shape[0]
+    st.session_state["data_cols"] = init_df.shape[1]
+    st.session_state["data_loaded_at"] = datetime.now().isoformat()
+    st.session_state["data_details"] = "Initial synthetic 300 rows, seed=42"
 
 if "pipeline" not in st.session_state:
     st.session_state["pipeline"] = None
@@ -259,7 +269,28 @@ if voice_mode_active:
                 # Play synthesized speech response
                 st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
-# Sidebar Fine-Tuned LLM Status Indicator
+# Sidebar System Status Indicator
+st.sidebar.markdown("---")
+st.sidebar.markdown("### System Status")
+
+if st.session_state.get("data_ready", False):
+    sys_df = st.session_state["df"]
+    st.sidebar.success(
+        f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols  \n"
+        f"{st.session_state.get('data_source', 'unknown').title()}"
+    )
+else:
+    st.sidebar.warning("📊 No data loaded")
+
+trained_sys = st.session_state.get("trained_models", {})
+if trained_sys:
+    st.sidebar.success(f"🧠 {len(trained_sys)} model(s) trained")
+    for sys_key in trained_sys.keys():
+        disp_name = MODEL_REGISTRY.get(sys_key, {}).get("display_name", sys_key)
+        st.sidebar.caption(f"  • {disp_name}")
+else:
+    st.sidebar.warning("🧠 No models trained")
+
 st.sidebar.markdown("---")
 if llm_client.is_available():
     st.sidebar.success("LLM: Fine-tuned Pula-8B loaded")
@@ -427,6 +458,13 @@ elif active_module == "ingestion":
             )
             processed_df = engineer_features(clean_and_preprocess(new_df))
             st.session_state["dataset"] = processed_df
+            st.session_state["df"] = processed_df
+            st.session_state["data_ready"] = True
+            st.session_state["data_source"] = "synthetic"
+            st.session_state["data_rows"] = processed_df.shape[0]
+            st.session_state["data_cols"] = processed_df.shape[1]
+            st.session_state["data_loaded_at"] = datetime.now().isoformat()
+            st.session_state["data_details"] = f"Synthetic {processed_df.shape[0]} rows, seed={seed_val}"
             st.success(f"Generated and loaded {len(processed_df)} synthetic blast records!")
             st.dataframe(processed_df.head(10), use_container_width=True)
 
@@ -463,6 +501,13 @@ elif active_module == "ingestion":
                             anomaly_log_path="data/processed/data_anomalies.log"
                         )
                         st.session_state["dataset"] = real_processed_df
+                        st.session_state["df"] = real_processed_df
+                        st.session_state["data_ready"] = True
+                        st.session_state["data_source"] = "uploaded"
+                        st.session_state["data_rows"] = real_processed_df.shape[0]
+                        st.session_state["data_cols"] = real_processed_df.shape[1]
+                        st.session_state["data_loaded_at"] = datetime.now().isoformat()
+                        st.session_state["data_details"] = f"Uploaded CSV {real_processed_df.shape[0]} rows"
                         st.session_state["data_source_mode"] = "real"
                         st.success("Successfully validated, cleaned, and loaded real mine production dataset!")
                         st.info("💡 Anomaly report generated at `data/processed/data_anomalies.log`.")
@@ -476,8 +521,6 @@ elif active_module == "ingestion":
 # --- MODULE 3: ML MODEL MANAGER ---
 elif active_module == "ml_manager":
     st.header("🤖 Machine Learning Model Training & Evaluation")
-
-    df = st.session_state["dataset"]
 
     tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
 
@@ -527,110 +570,296 @@ elif active_module == "ml_manager":
             st.success("No load errors encountered during filesystem auto-discovery.")
 
     with tab_train:
-        col_m1, col_m2 = st.columns([1, 2])
+        st.subheader("1. Select Training Data")
+        st.caption("Choose which dataset this model will train on.")
 
-    from models.registry import get_registry
-    registry = get_registry()
-    registered_models_meta = registry.list_models()
+        data_source = st.radio(
+            "Training data source",
+            options=[
+                "Use synthetic data from Data Ingestion page",
+                "Upload real data (CSV)",
+                "Regenerate fresh synthetic data",
+            ],
+            index=0,
+        )
 
-    if not registered_models_meta:
-        st.error("No models registered. Check the models/ directory and logs.")
-        st.stop()
-
-    trainable_meta = [m for m in registered_models_meta if getattr(m, "supports_pipeline_training", True)]
-    all_meta = trainable_meta if trainable_meta else registered_models_meta
-
-    biust_models = [m for m in all_meta if any(t in m.tags for t in ["custom", "pinn", "ensemble", "calibration", "ga-ann"])]
-    baseline_models = [m for m in all_meta if m not in biust_models]
-
-    model_options = {}
-    selectbox_options = []
-
-    if biust_models:
-        header_biust = "── BIUST Research Models ──"
-        selectbox_options.append(header_biust)
-        for m in sorted(biust_models, key=lambda x: x.display_name):
-            selectbox_options.append(m.display_name)
-            model_options[m.display_name] = m.name
-
-    if baseline_models:
-        header_base = "── Baseline Models ──"
-        selectbox_options.append(header_base)
-        for m in sorted(baseline_models, key=lambda x: x.display_name):
-            selectbox_options.append(m.display_name)
-            model_options[m.display_name] = m.name
-
-    with col_m1:
-        selected_display = st.selectbox("Select Algorithm", selectbox_options, index=1 if len(selectbox_options) > 1 else 0)
-        if selected_display.startswith("──"):
-            # Header selected; fallback to first valid model
-            first_valid_display = list(model_options.keys())[0] if model_options else "random_forest"
-            selected_name = model_options.get(first_valid_display, "random_forest")
-        else:
-            selected_name = model_options[selected_display]
-
-        model_type = selected_name
-        metadata = registry.get_metadata(selected_name)
-
-        config = MODEL_REGISTRY.get(selected_name, {})
-        outputs_list = config.get("outputs", metadata.output_features if metadata else [])
-
-        # Show metadata and features
-        st.caption(f"**Description:** {metadata.description}")
-        st.caption(f"**Inputs:** {', '.join(metadata.input_features)}")
-        st.caption(f"**Outputs:** {', '.join(outputs_list)}")
-
-        if config and "reference_r2" in config:
-            st.markdown("**Reference R² (from BIUST paper):**")
-            for col_name, r2_val in config["reference_r2"].items():
-                st.caption(f"  • `{col_name}`: {r2_val:.3f}")
-
-        # Show capability badges
-        if metadata.supports_uncertainty:
-            st.success("✅ Uncertainty quantification supported")
-        if metadata.supports_explainability:
-            st.success("✅ Explainability supported")
-        if metadata.requires_gpu:
-            st.warning("⚠️ Requires GPU for training")
-        cv_folds = st.slider("Cross Validation Folds", 3, 10, 5)
-
-        if st.button("Train Models", type="primary"):
-            with st.spinner("Training models across all target metrics..."):
-                try:
-                    pipeline = BlastMLPipeline(model_type=model_type, seed=42)
-                    metrics = pipeline.train_and_evaluate(df, cv_folds=cv_folds)
-                    pipeline.save_models()
-                    st.session_state["pipeline"] = pipeline
-                    st.session_state["training_error"] = None
-                    st.success(f"Successfully trained {model_type.upper()} models!")
-                except Exception as exc:
-                    st.session_state["pipeline"] = None
-                    st.session_state["training_error"] = str(exc)
-                    st.error(f"⚠️ Training failed: {exc}")
-
-    with col_m2:
-        if st.session_state.get("training_error"):
-            st.warning("⚠️ Model is not trained. Training required before evaluation.")
-            st.info(f"**Training Log / Reason:** {st.session_state['training_error']}")
-        elif st.session_state["pipeline"] is not None:
-            pipeline = st.session_state["pipeline"]
-            st.subheader("Model Evaluation Metrics (Cross Validation)")
-
-            metrics_df = pd.DataFrame(pipeline.metrics).T
-            st.dataframe(metrics_df.style.highlight_max(axis=0, color="#C8E6C9"), use_container_width=True)
-
-            # Feature Importances
-            st.subheader("Feature Importances")
-            importances = pipeline.get_feature_importances()
-            available_targets = list(pipeline.metrics.keys()) if (pipeline and pipeline.metrics) else outputs_list
-            target_to_plot = st.selectbox(
-                "Select Target for Importance Plot",
-                available_targets,
+        # ---------- OPTION 1: SYNTHETIC FROM DATA INGESTION ----------
+        if data_source == "Use synthetic data from Data Ingestion page":
+            if not st.session_state.get("data_ready", False):
+                st.error(
+                    "⚠️ No data found. Go to **Data Ingestion & Generator** and "
+                    "generate synthetic data, or select a different option above."
+                )
+                st.stop()
+            training_df = st.session_state["df"]
+            st.info(
+                f"📊 Using {training_df.shape[0]} rows × {training_df.shape[1]} columns "
+                f"from Data Ingestion page."
             )
-            fig_imp = plot_feature_importance(importances, target=target_to_plot)
-            st.plotly_chart(fig_imp, use_container_width=True)
+
+        # ---------- OPTION 2: UPLOAD REAL DATA ----------
+        elif data_source == "Upload real data (CSV)":
+            uploaded = st.file_uploader("Choose a CSV file", type=["csv"])
+            if uploaded is None:
+                st.info("⬆️ Upload a CSV to proceed.")
+                st.stop()
+            try:
+                raw_uploaded_df = pd.read_csv(uploaded)
+                training_df = engineer_features(clean_and_preprocess(raw_uploaded_df))
+                st.success(
+                    f"✅ Loaded {training_df.shape[0]} rows × {training_df.shape[1]} columns "
+                    f"from {uploaded.name}."
+                )
+            except Exception as e:
+                st.error(f"❌ Failed to load CSV: {e}")
+                st.stop()
+
+        # ---------- OPTION 3: REGENERATE SYNTHETIC ----------
         else:
-            st.info("Train a model using the options on the left to view evaluation metrics.")
+            st.warning(
+                "⚠️ This will generate a NEW synthetic dataset independent of the "
+                "Data Ingestion page."
+            )
+            n_samples = st.slider("Number of records", 100, 5000, 1000, step=100)
+            seed = st.number_input("Random seed", value=42, step=1)
+            if st.button("Generate Fresh Dataset"):
+                with st.spinner(f"Generating {n_samples} records..."):
+                    raw_fresh = generate_synthetic_blast_data(
+                        num_samples=n_samples, seed=int(seed)
+                    )
+                    training_df = engineer_features(clean_and_preprocess(raw_fresh))
+                    st.session_state["regenerated_df"] = training_df
+                    st.session_state["regenerated_at"] = datetime.now().isoformat()
+            if "regenerated_df" in st.session_state:
+                training_df = st.session_state["regenerated_df"]
+                st.success(f"✅ Generated {training_df.shape[0]} new records.")
+            else:
+                st.info("Click 'Generate Fresh Dataset' to proceed.")
+                st.stop()
+
+        # ---------- SHARED: DATA PREVIEW ----------
+        st.divider()
+        st.subheader("Data Preview")
+        st.caption(
+            f"{training_df.shape[0]} rows × {training_df.shape[1]} columns. "
+            f"Preview shows first 10 rows."
+        )
+        st.dataframe(training_df.head(10), use_container_width=True)
+
+        st.divider()
+        st.subheader("2. Select Algorithm")
+
+        biust_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "biust"}
+        blasteropt_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "baseline" or v.get("type") == "blasteropt"}
+
+        group = st.radio(
+            "Model family",
+            ["BIUST Research Models", "BlasterOPT Physics Models"],
+            horizontal=True,
+        )
+        model_options = biust_models if group == "BIUST Research Models" else blasteropt_models
+
+        selected_key = st.selectbox(
+            "Algorithm",
+            options=list(model_options.keys()),
+            format_func=lambda k: model_options[k],
+        )
+
+        config = MODEL_REGISTRY[selected_key]
+        st.caption(f"Outputs: {', '.join(config['outputs'])}")
+        st.caption(f"Source: {config.get('source', 'N/A')}")
+
+        st.divider()
+        st.subheader("3. Train Model")
+
+        required_features = FEATURE_COLS
+        required_outputs = config["outputs"]
+
+        missing_features = [c for c in required_features if c not in training_df.columns]
+        missing_outputs = [c for c in required_outputs if c not in training_df.columns]
+
+        if missing_features or missing_outputs:
+            st.error("❌ Cannot train on this dataset. Missing required columns.")
+            if missing_features:
+                st.write(f"**Missing features:** `{missing_features}`")
+            if missing_outputs:
+                st.write(f"**Missing outputs for {selected_key}:** `{missing_outputs}`")
+            st.write(f"**Available columns:** `{list(training_df.columns)}`")
+            st.stop()
+
+        st.success(
+            f"✅ Dataset is compatible with {config['display_name']}. "
+            f"Ready to train on {training_df.shape[0]} rows."
+        )
+
+        if "trained_models" in st.session_state and selected_key in st.session_state["trained_models"]:
+            pass
+
+        if st.button("Train Model", type="primary"):
+
+            # Pre-flight check
+            st.write("### 🔬 Training Pre-flight Check")
+            st.write(f"**Data source selected:** {data_source}")
+            st.write(f"**DataFrame object ID:** `{id(training_df)}`")
+            st.write(f"**Rows:** {training_df.shape[0]}")
+            st.write(f"**Columns:** {training_df.shape[1]}")
+
+            fingerprint = dataframe_fingerprint(training_df)
+            st.write(f"**Data fingerprint (SHA-256, first 16 chars):** `{fingerprint}`")
+
+            # Define X and y from THIS DataFrame only
+            X = training_df[required_features]
+            y = training_df[required_outputs]
+
+            st.write(f"**X shape:** {X.shape}")
+            st.write(f"**y shape:** {y.shape}")
+            st.write(f"**y columns:** {list(y.columns)}")
+
+            # Instantiate a FRESH model
+            from src.models import (
+                GAANNModel, ANN_RF_Ensemble, PSOANNModel,
+                AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
+            )
+            from sklearn.ensemble import RandomForestRegressor as SklearnRF
+            from sklearn.linear_model import Ridge as SklearnRidge
+            from xgboost import XGBRegressor as SklearnXGB
+
+            model_classes = {
+                "ga_ann_jwaneng": GAANNModel,
+                "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
+                "pso_ann_orapa": PSOANNModel,
+                "airblast_minimizer": AirblastMinimizerModel,
+                "flyrock_predictor": FlyrockPredictor,
+                "cost_predictor": CostPredictor,
+                "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
+                "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
+                "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+            }
+            factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
+            model = factory()
+
+            # TRAIN
+            with st.spinner(f"Training {config['display_name']} on {len(training_df)} rows..."):
+                model.fit(X, y)
+
+            # Post-training verification
+            st.write("### ✅ Training Complete")
+            st.write(f"**Trained on {len(training_df)} rows**")
+            st.write(f"**Data fingerprint:** `{fingerprint}`")
+            st.write(f"**Model instance:** `{type(model).__name__}`")
+
+            if hasattr(model, "is_trained") and not model.is_trained():
+                st.error(
+                    "❌ Model training did not complete. `is_trained()` returned False."
+                )
+                st.stop()
+
+            # Save to session state
+            if "trained_models" not in st.session_state:
+                st.session_state["trained_models"] = {}
+            st.session_state["trained_models"][selected_key] = model
+            st.session_state[f"trained_{selected_key}_fingerprint"] = fingerprint
+            st.session_state[f"trained_{selected_key}_rows"] = training_df.shape[0]
+            st.session_state[f"trained_{selected_key}_source"] = data_source
+            st.session_state[f"trained_{selected_key}_at"] = datetime.now().isoformat()
+
+            # Save to disk
+            import os, joblib
+            os.makedirs("models", exist_ok=True)
+            joblib.dump({
+                "model": model,
+                "fingerprint": fingerprint,
+                "rows": training_df.shape[0],
+                "source": data_source,
+                "trained_at": st.session_state[f"trained_{selected_key}_at"],
+                "output_columns": required_outputs,
+                "feature_columns": required_features,
+            }, f"models/{selected_key}.pkl")
+
+            st.success(
+                f"✅ Trained {config['display_name']} on {training_df.shape[0]} rows. "
+                f"Data fingerprint: `{fingerprint}`"
+            )
+
+            # Verify the model learned something
+            sample = X.head(5)
+            preds = model.predict(sample)
+
+            st.write("### 🎯 Verification: Predictions on Training Data")
+
+            preds_mat = preds.values if isinstance(preds, pd.DataFrame) else np.asarray(preds)
+            pred_std = float(preds_mat.std())
+            if pred_std < 1e-6:
+                st.error(
+                    f"❌ All predictions are identical (std = {pred_std:.2e}). "
+                    f"The model did not learn."
+                )
+                st.stop()
+            else:
+                st.success(f"✅ Predictions have variance (std = {pred_std:.4f}). Model learned.")
+
+        st.divider()
+        st.subheader("4. Model Evaluation Metrics")
+
+        trained = st.session_state.get("trained_models", {})
+        if selected_key not in trained:
+            st.info("Train the model to see evaluation metrics.")
+            st.stop()
+
+        model = trained[selected_key]
+
+        # Guard: evaluation must use the SAME training_df
+        fp_now = dataframe_fingerprint(training_df)
+        fp_trained = st.session_state.get(f"trained_{selected_key}_fingerprint")
+
+        if fp_now != fp_trained:
+            st.error(
+                f"⚠️ Data fingerprint mismatch. Trained on `{fp_trained}`, "
+                f"evaluating on `{fp_now}`. Retrain before evaluating."
+            )
+            st.stop()
+
+        st.caption(f"✅ Evaluating on the same data used for training (fingerprint: `{fp_trained}`)")
+
+        # Training summary
+        st.info(
+            f"**Training summary:**  \n"
+            f"• Model: {config['display_name']}  \n"
+            f"• Data source: {st.session_state.get(f'trained_{selected_key}_source')}  \n"
+            f"• Rows: {st.session_state.get(f'trained_{selected_key}_rows')}  \n"
+            f"• Fingerprint: `{fp_trained}`  \n"
+            f"• Trained at: {st.session_state.get(f'trained_{selected_key}_at')}"
+        )
+
+        # Cross-validation
+        from sklearn.model_selection import cross_val_score, KFold
+        import numpy as np
+
+        X = training_df[required_features]
+        cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
+        eval_rows = []
+        for output in required_outputs:
+            y = training_df[output]
+            scores = cross_val_score(model, X, y, cv=cv, scoring="r2")
+            r2_mean = float(np.mean(scores))
+            r2_std = float(np.std(scores))
+
+            if r2_mean < -1.0:
+                st.error(f"⚠️ R² for `{output}` is {r2_mean:.2f}. Impossible for a trained model.")
+                continue
+
+            eval_rows.append({
+                "Output": output,
+                "R2_mean": round(r2_mean, 4),
+                "R2_std": round(r2_std, 4),
+            })
+
+        if eval_rows:
+            st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
+            st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
+        else:
+            st.warning("No valid metrics computed.")
 
 
 # --- MODULE: MODEL COMPARISON ---
