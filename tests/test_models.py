@@ -17,3 +17,16 @@ def test_baselines_present():
     from src.models import MODEL_REGISTRY
     baseline = [k for k, c in MODEL_REGISTRY.items() if c.get("type") == "baseline"]
     assert len(baseline) >= 3, f"Expected at least 3 baselines, got {len(baseline)}"
+
+def test_all_model_outputs_exist_in_dataset():
+    """Every model's declared outputs must exist as columns in the dataset."""
+    from src.models import MODEL_REGISTRY
+    from src.synthetic_data import generate_synthetic_data
+
+    df = generate_synthetic_data(n_samples=100)
+    for key, config in MODEL_REGISTRY.items():
+        for col in config["outputs"]:
+            assert col in df.columns, (
+                f"{key} declares output '{col}' but it is not in the dataset. "
+                f"Available: {list(df.columns)}"
+            )

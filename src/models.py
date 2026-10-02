@@ -1548,7 +1548,7 @@ MODEL_REGISTRY = {
         "display_name": "ANN-RF Ensemble Jwaneng Predictor",
         "type": "biust",
         "architecture": "ensemble",
-        "outputs": ["fragmentation", "vibration"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms"],
         "source": "Jwaneng Mine, 120 production blasts",
         "performance": {
             "fragmentation_r2": 0.956, "fragmentation_rmse": 0.315, "fragmentation_mae": 0.250,
@@ -1570,7 +1570,7 @@ MODEL_REGISTRY = {
         "type": "biust",
         "architecture": "7-65-30-1",
         "optimizer": "particle_swarm",
-        "outputs": ["fragmentation"],
+        "outputs": ["fragmentation_d80_cm"],
         "source": "Orapa Mine, 120 blasting events",
         "performance": {"fragmentation_optimal_pct": 86},
         "key_drivers": {
@@ -1585,7 +1585,7 @@ MODEL_REGISTRY = {
         "display_name": "Debswana Open-Pit Airblast Minimizer",
         "type": "biust",
         "architecture": "ANN",
-        "outputs": ["airblast"],
+        "outputs": ["airblast_db"],
         "source": "Debswana open-pit, 94 blasts",
         "performance": {"min_airblast_db": 40},
         "key_sensitivity": {"stemming": "high", "spacing": "low"},
@@ -1599,7 +1599,7 @@ MODEL_REGISTRY = {
         "display_name": "Random Forest Baseline",
         "type": "baseline",
         "architecture": "RandomForestRegressor",
-        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
         "source": "Scikit-Learn Baseline",
         "performance": {"r2_mean": 0.85},
         "reference": "Scikit-Learn Standard Ensemble Baseline"
@@ -1608,7 +1608,7 @@ MODEL_REGISTRY = {
         "display_name": "XGBoost Baseline",
         "type": "baseline",
         "architecture": "XGBRegressor",
-        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
         "source": "XGBoost Baseline",
         "performance": {"r2_mean": 0.88},
         "reference": "XGBoost Gradient Boosting Baseline"
@@ -1617,7 +1617,7 @@ MODEL_REGISTRY = {
         "display_name": "Ridge Regression Baseline",
         "type": "baseline",
         "architecture": "Ridge",
-        "outputs": ["fragmentation", "vibration", "flyrock", "cost"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "flyrock_m", "cost_per_tonne_usd"],
         "source": "Scikit-Learn Baseline",
         "performance": {"r2_mean": 0.75},
         "reference": "Linear Ridge Regression Baseline"
