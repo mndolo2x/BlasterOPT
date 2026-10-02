@@ -90,14 +90,14 @@ def generate_synthetic_blast_data(
     bench_height = np.random.uniform(bench_height_range[0], bench_height_range[1], size=num_samples) # meters
     hole_diameter = np.random.uniform(hole_diameter_range[0], hole_diameter_range[1], size=num_samples) # mm
 
-    # Burden (m): typically 25 - 40 x hole diameter in meters
-    burden = (hole_diameter / 1000.0) * np.random.uniform(28, 38, size=num_samples)
+    # Burden (m): typically 20 - 25 x hole diameter in meters
+    burden = (hole_diameter / 1000.0) * np.random.uniform(20.0, 25.0, size=num_samples)
     # Spacing (m): typically 1.1 - 1.4 x Burden
     spacing = burden * np.random.uniform(1.1, 1.35, size=num_samples)
-    # Stemming length (m): typically 0.7 - 1.2 x Burden
-    stemming = burden * np.random.uniform(0.7, 1.1, size=num_samples)
-    # Subdrilling (m): typically 0.2 - 0.3 x Burden
-    subdrilling = burden * np.random.uniform(0.2, 0.3, size=num_samples)
+    # Stemming length (m): typically 0.85 - 1.05 x Burden
+    stemming = burden * np.random.uniform(0.85, 1.05, size=num_samples)
+    # Subdrilling (m): typically 0.15 - 0.22 x Burden
+    subdrilling = burden * np.random.uniform(0.15, 0.22, size=num_samples)
 
     # Total hole depth (m)
     hole_depth = bench_height + subdrilling
@@ -135,80 +135,63 @@ def generate_synthetic_blast_data(
     powder_factor_kg_m3 = charge_mass_per_hole / rock_volume_per_hole
     powder_factor_kg_t = charge_mass_per_hole / rock_mass_per_hole
 
-    # Maximum Charge Weight Per Delay (Q in kg) - assuming 2 to 4 holes per delay
+    # Maximum Charge Weight Per Delay (Q in kg) - assuming 1 to 3 holes per delay
     holes_per_delay = np.random.randint(1, 4, size=num_samples)
     max_charge_per_delay = charge_mass_per_hole * holes_per_delay
 
     # Distance to nearest critical structure / monitor point (m)
-    monitoring_distance = np.random.uniform(150.0, 1200.0, size=num_samples)
+    monitoring_distance = np.random.uniform(200.0, 1200.0, size=num_samples)
 
     # 3. Physics Models for Targets
 
-    # --- Target A: Mean Fragment Size d50 (cm) using Kuz-Ram Equation ---
-    # d50 (cm) = A * (K)^(-0.8) * Q_hole^(1/6) * (115 / RWS)^(19/30)
-    # K = Powder factor in kg/m3
-    kuz_ram_d50_cm = (
-        rock_factor
-        * (powder_factor_kg_m3 ** (-0.8))
-        * (charge_mass_per_hole ** (1/6))
-        * ((115.0 / rws) ** (19/30))
+    # --- 3. Physics Models for Targets (aligned with src/physics_core.py) ---
+    from src.physics_core import (
+        kuznetsov_x50, cunningham_uniformity, rosin_rammler_d80,
+        usbm_ppv, siskind_airblast, lundborg_flyrock, total_cost_per_tonne
     )
-    # Convert cm to mm
-    d50_mm = kuz_ram_d50_cm * 10.0
-    # Add random operational noise (±10%)
-    d50_mm = d50_mm * np.random.normal(1.0, 0.08, size=num_samples)
-    d50_mm = np.clip(d50_mm, 20.0, 800.0)
 
-    # Kuz-Ram Uniformity Index (n)
-    # n = (2.2 - 14 * B / d) * (1 - S / B)^0.5 * (1 + (abs(S/B - 1)) / 2) * (L / H) ...
-    spacing_burden_ratio = spacing / burden
-    n_uniformity = (2.2 - 14 * (burden / (hole_diameter / 1000.0))) * (
-        1 + (spacing_burden_ratio - 1) / 2
-    ) * (charge_length / bench_height)
-    n_uniformity = np.clip(np.abs(n_uniformity) + 0.8, 0.7, 2.2)
+    x50_list, n_list, d80_list, ppv_list, ab_list, fly_list, cost_list = [], [], [], [], [], [], []
 
-    # --- Target B: Peak Particle Velocity PPV (mm/s) using USBM Scaled Distance Law ---
-    # PPV = K_vib * ( ScaledDistance )^(-beta)
-    # Scaled Distance SD = Distance / sqrt(Q_delay)
-    scaled_distance = monitoring_distance / np.sqrt(max_charge_per_delay)
+    for i in range(num_samples):
+        b = burden[i]
+        s = spacing[i]
+        rf = rock_factor[i]
+        d_mm = hole_diameter[i]
+        h = hole_depth[i]
+        bh = bench_height[i]
+        stem = stemming[i]
+        q_delay = max_charge_per_delay[i]
+        q_hole = charge_mass_per_hole[i]
+        dist = monitoring_distance[i]
+        rws_val = rws[i]
 
-    # Ground attenuation constants K_vib (typically 500 - 2000) and beta (typically 1.4 - 1.8)
-    k_vib = np.random.uniform(800, 1600, size=num_samples)
-    beta = np.random.uniform(1.4, 1.7, size=num_samples)
+        x50_cm = kuznetsov_x50(rf, b, s, h, q_hole, rws_val)
+        n_val = cunningham_uniformity(b, s, d_mm, bh, max(h - stem, 1.0))
+        d80_val = rosin_rammler_d80(x50_cm, n_val)
+        ppv_val = usbm_ppv(q_delay, dist)
+        ab_val = siskind_airblast(q_delay, dist)
+        fly_val = lundborg_flyrock(q_hole, stem, b)
+        cost_val = total_cost_per_tonne(15.0, h, 50, 1.30, q_hole, 5000.0, 50000.0)
 
-    ppv_mms = k_vib * (scaled_distance ** (-beta))
-    # Operational noise
-    ppv_mms = ppv_mms * np.random.normal(1.0, 0.12, size=num_samples)
-    ppv_mms = np.clip(ppv_mms, 0.5, 120.0)
+        x50_list.append(x50_cm)
+        n_list.append(n_val)
+        d80_list.append(d80_val)
+        ppv_list.append(ppv_val)
+        ab_list.append(ab_val)
+        fly_list.append(fly_val)
+        cost_list.append(cost_val)
 
-    # --- Target C: Flyrock Distance (m) ---
-    # Scaled Charge empirical formula: L_fly = K_fly * (Q_hole^(2/3) / Burden)
-    k_fly = np.random.uniform(15, 25, size=num_samples)
-    flyrock_dist_m = k_fly * ((charge_mass_per_hole ** (2/3)) / burden) * (stemming / burden) ** (-0.5)
-    flyrock_dist_m = flyrock_dist_m * np.random.normal(1.0, 0.10, size=num_samples)
-    flyrock_dist_m = np.clip(flyrock_dist_m, 10.0, 450.0)
+    noise_d80 = np.random.normal(1.0, 0.012, num_samples)
+    noise_ppv = np.random.normal(1.0, 0.08, num_samples)
+    noise_ab = np.random.normal(1.0, 0.012, num_samples)
 
-    # --- Target C2: Airblast Overpressure (dB) ---
-    airblast_db = 165.0 - 25.0 * np.log10(np.maximum(monitoring_distance, 10.0) / (np.maximum(max_charge_per_delay, 0.1) ** (1.0 / 3.0)))
-    airblast_db = np.clip(airblast_db * np.random.normal(1.0, 0.05, size=num_samples), 40.0, 140.0)
-
-    # --- Target A2: Fragmentation D80 (cm) ---
-    d80_cm = kuz_ram_d50_cm * (np.log(5.0) / 0.693) ** (1.0 / np.maximum(n_uniformity, 0.1))
-
-    # --- Target D: Drilling & Blasting Cost ($ / tonne) ---
-    # Cost = (Drilling Cost + Explosive Cost + Accessories Cost) / Tonnes per hole
-    drilling_cost_per_m = 12.0 + (hole_diameter / 100.0) * 8.0 # $12 - $35 / m
-    explosive_cost_per_kg = 1.2 + (rws / 100.0) * 0.8 # $1.5 - $2.5 / kg
-    accessories_cost_per_hole = 15.0 # Detonators, boosters, surface delays
-
-    total_hole_cost = (
-        (hole_depth * drilling_cost_per_m)
-        + (charge_mass_per_hole * explosive_cost_per_kg)
-        + accessories_cost_per_hole
-    )
-    cost_per_tonne = total_hole_cost / rock_mass_per_hole
-    cost_per_tonne = cost_per_tonne * np.random.normal(1.0, 0.05, size=num_samples)
-    cost_per_tonne = np.clip(cost_per_tonne, 0.5, 15.0)
+    d80_cm = np.clip(np.array(d80_list) * noise_d80, 5.0, 150.0)
+    d50_mm = np.clip(np.array(x50_list) * 10.0 * noise_d80, 20.0, 800.0)
+    n_uniformity = np.clip(np.array(n_list), 0.7, 2.2)
+    ppv_mms = np.clip(np.array(ppv_list) * noise_ppv, 0.1, 50.0)
+    airblast_db = np.clip(np.array(ab_list) * noise_ab, 40.0, 140.0)
+    flyrock_dist_m = np.clip(np.array(fly_list) * noise_ppv, 5.0, 500.0)
+    cost_per_tonne = np.clip(np.array(cost_list) * noise_ppv, 0.30, 3.00)
 
     # Assemble DataFrame
     data = pd.DataFrame({
@@ -279,6 +262,11 @@ def validate_synthetic_data(df: pd.DataFrame) -> bool:
         raise ValueError(f"Dataset is missing required target columns: {missing}")
 
     return True
+
+
+def generate_for_model(model_key: str, n_samples: int = 1000, seed: int = 42) -> pd.DataFrame:
+    """Generate synthetic blast dataset suitable for the specified model key."""
+    return generate_synthetic_blast_data(num_samples=n_samples, seed=seed)
 
 
 if __name__ == "__main__":

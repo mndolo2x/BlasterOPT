@@ -400,7 +400,8 @@ class ANN_RF_Ensemble:
     INPUT_COLUMNS = [
         "burden_m", "spacing_m", "powder_factor_kg_m3", "stemming_m",
         "rock_factor_A", "hole_depth_m", "hole_diameter_mm",
-        "max_charge_per_delay_kg", "explosive_rws", "bench_height_m"
+        "max_charge_per_delay_kg", "explosive_rws", "bench_height_m",
+        "monitoring_distance_m"
     ]
 
     def __init__(self, ann_weight: float = 0.5, random_state: int = 42):
@@ -414,7 +415,7 @@ class ANN_RF_Ensemble:
 
         if HAS_TORCH:
             self.ann_net = torch.nn.Sequential(
-                torch.nn.Linear(10, 50),
+                torch.nn.Linear(len(self.INPUT_COLUMNS), 50),
                 torch.nn.ReLU(),
                 torch.nn.Linear(50, 25),
                 torch.nn.ReLU(),
@@ -510,11 +511,11 @@ class ANN_RF_Ensemble:
         else:
             X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
 
-        if X_mat.shape[1] < 10:
-            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+        if X_mat.shape[1] < len(self.INPUT_COLUMNS):
+            padding = np.zeros((X_mat.shape[0], len(self.INPUT_COLUMNS) - X_mat.shape[1]))
             X_mat = np.hstack([X_mat, padding])
-        elif X_mat.shape[1] > 10:
-            X_mat = X_mat[:, :10]
+        elif X_mat.shape[1] > len(self.INPUT_COLUMNS):
+            X_mat = X_mat[:, :len(self.INPUT_COLUMNS)]
 
         X_scaled = self.scaler_x.fit_transform(X_mat)
         res_scaled = self.scaler_y.fit_transform(residuals[self.OUTPUT_COLUMNS].values)
@@ -556,11 +557,11 @@ class ANN_RF_Ensemble:
         else:
             X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
 
-        if X_mat.shape[1] < 10:
-            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+        if X_mat.shape[1] < len(self.INPUT_COLUMNS):
+            padding = np.zeros((X_mat.shape[0], len(self.INPUT_COLUMNS) - X_mat.shape[1]))
             X_mat = np.hstack([X_mat, padding])
-        elif X_mat.shape[1] > 10:
-            X_mat = X_mat[:, :10]
+        elif X_mat.shape[1] > len(self.INPUT_COLUMNS):
+            X_mat = X_mat[:, :len(self.INPUT_COLUMNS)]
 
         X_scaled = self.scaler_x.transform(X_mat)
 
@@ -663,11 +664,12 @@ if HAS_TORCH:
         INPUT_COLUMNS = [
             "burden_m", "spacing_m", "powder_factor_kg_m3", "stemming_m",
             "rock_factor_A", "hole_depth_m", "hole_diameter_mm",
-            "max_charge_per_delay_kg", "explosive_rws", "bench_height_m"
+            "max_charge_per_delay_kg", "explosive_rws", "bench_height_m",
+            "monitoring_distance_m"
         ]
         OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
-        def __init__(self, input_size: int = 10):
+        def __init__(self, input_size: int = 11):
             super().__init__()
             self.input_size = input_size
             self.hidden1 = nn.Linear(input_size, 70)
@@ -709,15 +711,25 @@ if HAS_TORCH:
             elif X_mat.shape[1] > self.input_size:
                 X_mat = X_mat[:, :self.input_size]
 
-            X_tensor = torch.tensor(X_mat, dtype=torch.float32)
+            if hasattr(self, "scaler_x"):
+                X_scaled = self.scaler_x.transform(X_mat)
+            else:
+                X_scaled = X_mat
+
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
             self.eval()
             with torch.no_grad():
-                residual = self.forward(X_tensor).numpy()
+                res_pred_s = self.forward(X_tensor).numpy()
+
+            if hasattr(self, "scaler_y"):
+                residual = self.scaler_y.inverse_transform(res_pred_s)
+            else:
+                residual = res_pred_s
 
             result = baseline.copy()
-            result["fragmentation_d80_cm"] += residual[:, 0]
-            result["vibration_ppv_mms"] += residual[:, 1]
-            result["airblast_db"] += residual[:, 2]
+            result["fragmentation_d80_cm"] = np.clip(result["fragmentation_d80_cm"] + residual[:, 0], 5.0, 150.0)
+            result["vibration_ppv_mms"] = np.clip(result["vibration_ppv_mms"] + residual[:, 1], 0.1, 50.0)
+            result["airblast_db"] = np.clip(result["airblast_db"] + residual[:, 2], 40.0, 140.0)
 
             return result
 
@@ -778,6 +790,7 @@ if HAS_TORCH:
         def fit(self, X: Any, y: Any, **kwargs) -> Any:
             """Train the neural network on residuals from the physics baseline."""
             import torch.optim as optim
+            from sklearn.preprocessing import StandardScaler
 
             X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
             baseline = self._physics_baseline(X_df)
@@ -804,43 +817,41 @@ if HAS_TORCH:
             for col in self.OUTPUT_COLUMNS:
                 residuals[col] = y_df[col] - baseline[col]
 
-            X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+            if available_cols:
+                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+            else:
+                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
             if X_mat.shape[1] < self.input_size:
                 padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
                 X_mat = np.hstack([X_mat, padding])
             elif X_mat.shape[1] > self.input_size:
                 X_mat = X_mat[:, :self.input_size]
 
-            X_tensor = torch.tensor(X_mat, dtype=torch.float32)
-            y_tensor = torch.tensor(residuals[self.OUTPUT_COLUMNS].values, dtype=torch.float32)
+            self.scaler_x = StandardScaler()
+            self.scaler_y = StandardScaler()
 
-            optimizer = optim.Adam(self.parameters(), lr=1e-3)
+            X_scaled = self.scaler_x.fit_transform(X_mat)
+            res_scaled = self.scaler_y.fit_transform(residuals[self.OUTPUT_COLUMNS].values)
+
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            y_tensor = torch.tensor(res_scaled, dtype=torch.float32)
+
+            dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
+            loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+
+            optimizer = optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
             criterion = nn.MSELoss()
 
-            best_loss = float("inf")
-            patience_counter = 0
-            best_state = None
-
             self.train()
-            for epoch in range(500):
-                optimizer.zero_grad()
-                out = self.forward(X_tensor)
-                loss = criterion(out, y_tensor)
-                loss.backward()
-                optimizer.step()
-
-                loss_val = float(loss.item())
-                if loss_val < best_loss:
-                    best_loss = loss_val
-                    patience_counter = 0
-                    best_state = self.state_dict()
-                else:
-                    patience_counter += 1
-                    if patience_counter >= 50:
-                        break
-
-            if best_state is not None:
-                self.load_state_dict(best_state)
+            for epoch in range(250):
+                for xb, yb in loader:
+                    optimizer.zero_grad()
+                    out = self.forward(xb)
+                    loss = criterion(out, yb)
+                    loss.backward()
+                    optimizer.step()
 
             self.eval()
             self._is_trained = True
