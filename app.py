@@ -31,8 +31,16 @@ parent_dir = os.path.dirname(repo_root)
 
 # Ensure repo_root is at sys.path[0] and parent /mount/src is removed
 sys.path = [p for p in sys.path if os.path.abspath(p) != parent_dir and not (p.endswith("/mount/src") or p.endswith(r"\mount\src"))]
-if repo_root not in sys.path:
-    sys.path.insert(0, repo_root)
+if repo_root in sys.path:
+    sys.path.remove(repo_root)
+sys.path.insert(0, repo_root)
+
+# Purge any stale 'src' module in sys.modules pointing outside repo_root (e.g., Streamlit Cloud /mount/src)
+if "src" in sys.modules:
+    src_mod = sys.modules["src"]
+    src_file = getattr(src_mod, "__file__", "") or ""
+    if not src_file or not os.path.abspath(src_file).startswith(repo_root):
+        del sys.modules["src"]
 
 from src.synthetic_data import generate_synthetic_blast_data, validate_synthetic_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint
