@@ -14,8 +14,22 @@ import streamlit as st
 
 # Ensure repository root directory is on Python path for Streamlit Cloud deployments
 repo_root = os.path.dirname(os.path.abspath(__file__))
+
+# Remove parent '/mount/src' directory from sys.path to prevent Streamlit Cloud 'src' package collisions
+sys.path = [p for p in sys.path if not (p.endswith("/mount/src") or p.endswith(r"\mount\src"))]
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
+
+# Resolve Streamlit Cloud '/mount/src' module namespace collision
+if "src" in sys.modules:
+    _src_mod = sys.modules["src"]
+    _paths = getattr(_src_mod, "__path__", [])
+    _target_src = os.path.join(repo_root, "src")
+    if not any(os.path.abspath(p) == _target_src for p in _paths):
+        del sys.modules["src"]
+        for _mod_k in list(sys.modules.keys()):
+            if _mod_k.startswith("src."):
+                del sys.modules[_mod_k]
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint
