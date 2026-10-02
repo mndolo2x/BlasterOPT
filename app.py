@@ -1,6 +1,19 @@
 """
 Streamlit Web Application for BlastOpt Botswana.
 Main Dashboard and Interactive Mining Analytics Suite.
+
+# Previous session state dataset key matches (consolidated to single key st.session_state["df"]):
+# app.py:202:if "dataset" not in st.session_state:
+# app.py:206:    st.session_state["dataset"] = init_df
+# app.py:207:    st.session_state["df"] = init_df
+# app.py:418:    df = st.session_state["dataset"]
+# app.py:464:    st.session_state["dataset"] = processed_df
+# app.py:465:    st.session_state["df"] = processed_df
+# app.py:507:    st.session_state["dataset"] = real_processed_df
+# app.py:508:    st.session_state["df"] = real_processed_df
+# app.py:635:    st.session_state["regenerated_df"] = training_df
+# app.py:1447:   hist_df = st.session_state["dataset"]
+# app.py:2453:   df_curr = st.session_state["dataset"]
 """
 
 import os
@@ -199,16 +212,17 @@ if DEMO_MODE:
     st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
 
 # Initialize Session State
-if "dataset" not in st.session_state:
+if "df" not in st.session_state:
     # Default initial dataset
     synth_df = generate_synthetic_blast_data(num_samples=300, seed=42)
     init_df = engineer_features(synth_df)
-    st.session_state["dataset"] = init_df
     st.session_state["df"] = init_df
     st.session_state["data_ready"] = True
     st.session_state["data_source"] = "synthetic"
     st.session_state["data_rows"] = init_df.shape[0]
     st.session_state["data_cols"] = init_df.shape[1]
+    st.session_state["data_fingerprint"] = dataframe_fingerprint(init_df)
+    st.session_state["data_generated_at"] = datetime.now().isoformat()
     st.session_state["data_loaded_at"] = datetime.now().isoformat()
     st.session_state["data_details"] = "Initial synthetic 300 rows, seed=42"
 
@@ -279,9 +293,10 @@ st.sidebar.markdown("### System Status")
 
 if st.session_state.get("data_ready", False):
     sys_df = st.session_state["df"]
+    sys_fp = st.session_state.get("data_fingerprint", dataframe_fingerprint(sys_df))
     st.sidebar.success(
         f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols  \n"
-        f"{st.session_state.get('data_source', 'unknown').title()}"
+        f"Fingerprint: `{sys_fp}`"
     )
 else:
     st.sidebar.warning("📊 No data loaded")
@@ -415,7 +430,7 @@ active_module = page_keys.get(page, "dashboard")
 if active_module == "dashboard":
     st.header("📊 Mining & Blasting Data Dashboard")
 
-    df = st.session_state["dataset"]
+    df = st.session_state["df"]
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -461,16 +476,31 @@ elif active_module == "ingestion":
                 rock_factor_range=(rock_factor_min, rock_factor_max),
             )
             processed_df = engineer_features(clean_and_preprocess(new_df))
-            st.session_state["dataset"] = processed_df
+            validate_synthetic_data(processed_df)
+
+            keys_to_clear = [
+                "df", "dataset", "df_clean", "synthetic_df", "uploaded_df",
+                "regenerated_df", "data_ready", "data_fingerprint",
+            ]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+
             st.session_state["df"] = processed_df
             st.session_state["data_ready"] = True
             st.session_state["data_source"] = "synthetic"
             st.session_state["data_rows"] = processed_df.shape[0]
             st.session_state["data_cols"] = processed_df.shape[1]
+            st.session_state["data_fingerprint"] = dataframe_fingerprint(processed_df)
+            st.session_state["data_generated_at"] = datetime.now().isoformat()
             st.session_state["data_loaded_at"] = datetime.now().isoformat()
             st.session_state["data_details"] = f"Synthetic {processed_df.shape[0]} rows, seed={seed_val}"
-            st.success(f"Generated and loaded {len(processed_df)} synthetic blast records!")
-            st.dataframe(processed_df.head(10), use_container_width=True)
+
+            st.success(
+                f"✅ Generated {processed_df.shape[0]} rows, {processed_df.shape[1]} columns. "
+                f"Fingerprint: `{st.session_state['data_fingerprint']}`"
+            )
+            st.rerun()
 
     with tab2:
         st.subheader("Upload Real Mine Production Data vs Synthetic Data")
@@ -504,22 +534,46 @@ elif active_module == "ingestion":
                             filepath=temp_path,
                             anomaly_log_path="data/processed/data_anomalies.log"
                         )
-                        st.session_state["dataset"] = real_processed_df
+                        validate_synthetic_data(real_processed_df)
+
+                        keys_to_clear = [
+                            "df", "dataset", "df_clean", "synthetic_df", "uploaded_df",
+                            "regenerated_df", "data_ready", "data_fingerprint",
+                        ]
+                        for key in keys_to_clear:
+                            if key in st.session_state:
+                                del st.session_state[key]
+
                         st.session_state["df"] = real_processed_df
                         st.session_state["data_ready"] = True
                         st.session_state["data_source"] = "uploaded"
                         st.session_state["data_rows"] = real_processed_df.shape[0]
                         st.session_state["data_cols"] = real_processed_df.shape[1]
+                        st.session_state["data_fingerprint"] = dataframe_fingerprint(real_processed_df)
+                        st.session_state["data_generated_at"] = datetime.now().isoformat()
                         st.session_state["data_loaded_at"] = datetime.now().isoformat()
                         st.session_state["data_details"] = f"Uploaded CSV {real_processed_df.shape[0]} rows"
                         st.session_state["data_source_mode"] = "real"
-                        st.success("Successfully validated, cleaned, and loaded real mine production dataset!")
-                        st.info("💡 Anomaly report generated at `data/processed/data_anomalies.log`.")
-                        st.dataframe(real_processed_df.head(10), use_container_width=True)
+
+                        st.success(
+                            f"✅ Loaded {real_processed_df.shape[0]} rows from {uploaded_file.name}. "
+                            f"Fingerprint: `{st.session_state['data_fingerprint']}`"
+                        )
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Error processing real mine dataset: {e}")
         else:
             st.info("Active Pathway: Synthetic Physics Data Generator (Tab 1). Use Tab 1 controls to configure synthetic dataset parameters.")
+
+    st.markdown("---")
+    with st.expander("🔬 Debug: Session State", expanded=False):
+        st.write(f"Keys in session state: {list(st.session_state.keys())}")
+        if "df" in st.session_state:
+            st.write(f"Current df shape: {st.session_state['df'].shape}")
+            st.write(f"Current fingerprint: {st.session_state.get('data_fingerprint')}")
+            st.write(f"Generated at: {st.session_state.get('data_generated_at')}")
+        st.write(f"data_source: {st.session_state.get('data_source')}")
+        st.write(f"data_rows: {st.session_state.get('data_rows')}")
 
 
 # --- MODULE 3: ML MODEL MANAGER ---
@@ -621,8 +675,7 @@ elif active_module == "ml_manager":
         # ---------- OPTION 3: REGENERATE SYNTHETIC ----------
         else:
             st.warning(
-                "⚠️ This will generate a NEW synthetic dataset independent of the "
-                "Data Ingestion page."
+                "⚠️ This will generate a NEW synthetic dataset and update st.session_state['df']."
             )
             n_samples = st.slider("Number of records", 100, 5000, 1000, step=100)
             seed = st.number_input("Random seed", value=42, step=1)
@@ -631,12 +684,31 @@ elif active_module == "ml_manager":
                     raw_fresh = generate_synthetic_blast_data(
                         num_samples=n_samples, seed=int(seed)
                     )
-                    training_df = engineer_features(clean_and_preprocess(raw_fresh))
-                    st.session_state["regenerated_df"] = training_df
-                    st.session_state["regenerated_at"] = datetime.now().isoformat()
-            if "regenerated_df" in st.session_state:
-                training_df = st.session_state["regenerated_df"]
-                st.success(f"✅ Generated {training_df.shape[0]} new records.")
+                    fresh_df = engineer_features(clean_and_preprocess(raw_fresh))
+                    validate_synthetic_data(fresh_df)
+
+                    keys_to_clear = [
+                        "df", "dataset", "df_clean", "synthetic_df", "uploaded_df",
+                        "regenerated_df", "data_ready", "data_fingerprint",
+                    ]
+                    for key in keys_to_clear:
+                        if key in st.session_state:
+                            del st.session_state[key]
+
+                    st.session_state["df"] = fresh_df
+                    st.session_state["data_ready"] = True
+                    st.session_state["data_source"] = "synthetic"
+                    st.session_state["data_rows"] = fresh_df.shape[0]
+                    st.session_state["data_cols"] = fresh_df.shape[1]
+                    st.session_state["data_fingerprint"] = dataframe_fingerprint(fresh_df)
+                    st.session_state["data_generated_at"] = datetime.now().isoformat()
+                    st.session_state["data_loaded_at"] = datetime.now().isoformat()
+                    st.session_state["data_details"] = f"Fresh Synthetic {fresh_df.shape[0]} rows, seed={seed}"
+                    st.rerun()
+
+            if st.session_state.get("data_ready", False):
+                training_df = st.session_state["df"]
+                st.success(f"✅ Generated {training_df.shape[0]} new records. Fingerprint: `{st.session_state.get('data_fingerprint')}`")
             else:
                 st.info("Click 'Generate Fresh Dataset' to proceed.")
                 st.stop()
@@ -1444,7 +1516,7 @@ elif active_module == "recommender":
 
     with c_rec2:
         st.subheader("Top Matching Historical Blasts")
-        hist_df = st.session_state["dataset"]
+        hist_df = st.session_state["df"]
 
         similar_df = find_similar_blasts(query_payload, hist_df, top_k=top_k_val)
 
@@ -2450,7 +2522,7 @@ elif active_module == "ensemble_uq":
 
         if st.button("Retrain Ensemble 🔄", type="primary"):
             with st.spinner("Retraining multi-architecture bagging ensemble across bootstrap sub-samples..."):
-                df_curr = st.session_state["dataset"]
+                df_curr = st.session_state["df"]
                 feature_cols_present = [c for c in FEATURE_COLS if c in df_curr.columns]
                 X_mat = df_curr[feature_cols_present].values if feature_cols_present else np.random.randn(100, 12)
                 y_mat = df_curr[["d50_mm", "ppv_mms", "flyrock_m"]].values if "d50_mm" in df_curr.columns else np.random.randn(100, 3)
