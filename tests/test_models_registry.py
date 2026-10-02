@@ -70,7 +70,7 @@ def test_custom_models_metadata_predict_and_save_load(tmp_path):
     # 1. PINNModel
     pinn_meta = PINNModel.get_metadata()
     assert pinn_meta.name == "pinn"
-    assert pinn_meta.output_features == ["fragmentation_p80", "ppv", "airblast"]
+    assert pinn_meta.output_features == ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
     X_df = pd.DataFrame({
         "burden": [3.5, 4.0],
@@ -83,16 +83,16 @@ def test_custom_models_metadata_predict_and_save_load(tmp_path):
     }, index=[101, 102])
 
     y_df = pd.DataFrame({
-        "fragmentation_p80": [220.0, 180.0],
-        "ppv": [5.2, 8.1],
-        "airblast": [115.0, 122.0]
+        "fragmentation_d80_cm": [22.0, 18.0],
+        "vibration_ppv_mms": [5.2, 8.1],
+        "airblast_db": [115.0, 122.0]
     }, index=[101, 102])
 
     pinn = PINNModel()
     pinn.fit(X_df, y_df)
     preds = pinn.predict(X_df)
     assert isinstance(preds, pd.DataFrame)
-    assert list(preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
+    assert list(preds.columns) == ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
     assert list(preds.index) == [101, 102]
 
     pinn_path = str(tmp_path / "pinn.joblib")
@@ -109,7 +109,7 @@ def test_custom_models_metadata_predict_and_save_load(tmp_path):
     ens.fit(X_df, np.random.rand(2, 4))
     ens_preds = ens.predict(X_df)
     assert isinstance(ens_preds, pd.DataFrame)
-    assert list(ens_preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
+    assert list(ens_preds.columns) == ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
     unc_res = ens.predict_with_uncertainty(X_df)
     assert "mean" in unc_res
@@ -128,7 +128,7 @@ def test_custom_models_metadata_predict_and_save_load(tmp_path):
     cal.fit(X_df, y_df)
     cal_preds = cal.predict(X_df)
     assert isinstance(cal_preds, pd.DataFrame)
-    assert list(cal_preds.columns) == ["fragmentation_p80", "ppv", "airblast"]
+    assert list(cal_preds.columns) == ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
     cal_path = str(tmp_path / "cal.joblib")
     cal.save(cal_path)

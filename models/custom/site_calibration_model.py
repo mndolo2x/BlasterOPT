@@ -34,7 +34,7 @@ class SiteCalibrationModel(BaseBlastModel):
                 "burden", "spacing", "powder_factor", "stemming",
                 "rock_factor", "blastability_index", "charge_per_delay"
             ],
-            output_features=["fragmentation_p80", "ppv", "airblast"],
+            output_features=["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"],
             supports_training=True,
             supports_pipeline_training=True,
             supports_uncertainty=True,
