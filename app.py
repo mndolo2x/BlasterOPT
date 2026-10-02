@@ -14,22 +14,12 @@ import streamlit as st
 
 # Ensure repository root directory is on Python path for Streamlit Cloud deployments
 repo_root = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(repo_root)
 
-# Remove parent '/mount/src' directory from sys.path to prevent Streamlit Cloud 'src' package collisions
-sys.path = [p for p in sys.path if not (p.endswith("/mount/src") or p.endswith(r"\mount\src"))]
+# Ensure repo_root is at sys.path[0] and parent /mount/src is removed
+sys.path = [p for p in sys.path if os.path.abspath(p) != parent_dir and not (p.endswith("/mount/src") or p.endswith(r"\mount\src"))]
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
-
-# Resolve Streamlit Cloud '/mount/src' module namespace collision
-if "src" in sys.modules:
-    _src_mod = sys.modules["src"]
-    _paths = getattr(_src_mod, "__path__", [])
-    _target_src = os.path.join(repo_root, "src")
-    if not any(os.path.abspath(p) == _target_src for p in _paths):
-        del sys.modules["src"]
-        for _mod_k in list(sys.modules.keys()):
-            if _mod_k.startswith("src."):
-                del sys.modules[_mod_k]
 
 from src.synthetic_data import generate_synthetic_blast_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint
@@ -686,7 +676,21 @@ elif active_module == "ml_manager":
         st.divider()
         st.subheader("3. Train Model")
 
-        required_features = FEATURE_COLS
+        from src.models import (
+            GAANNModel, ANN_RF_Ensemble, PSOANNModel,
+            AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
+        )
+
+        model_input_cols = {
+            "ga_ann_jwaneng": getattr(GAANNModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "ann_rf_ensemble_jwaneng": getattr(ANN_RF_Ensemble, "INPUT_COLUMNS", FEATURE_COLS),
+            "pso_ann_orapa": getattr(PSOANNModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "airblast_minimizer": getattr(AirblastMinimizerModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "flyrock_predictor": getattr(FlyrockPredictor, "INPUT_COLUMNS", FEATURE_COLS),
+            "cost_predictor": getattr(CostPredictor, "INPUT_COLUMNS", FEATURE_COLS),
+        }
+
+        required_features = model_input_cols.get(selected_key, FEATURE_COLS)
         required_outputs = config["outputs"]
 
         missing_features = [c for c in required_features if c not in training_df.columns]
@@ -703,7 +707,7 @@ elif active_module == "ml_manager":
 
         st.success(
             f"✅ Dataset is compatible with {config['display_name']}. "
-            f"Ready to train on {training_df.shape[0]} rows."
+            f"Ready to train on {training_df.shape[0]} rows using {len(required_features)} input features."
         )
 
         if "trained_models" in st.session_state and selected_key in st.session_state["trained_models"]:
@@ -730,19 +734,15 @@ elif active_module == "ml_manager":
             st.write(f"**y columns:** {list(y.columns)}")
 
             # Instantiate a FRESH model
-            from src.models import (
-                GAANNModel, ANN_RF_Ensemble, PSOANNModel,
-                AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
-            )
             from sklearn.ensemble import RandomForestRegressor as SklearnRF
             from sklearn.linear_model import Ridge as SklearnRidge
             from xgboost import XGBRegressor as SklearnXGB
 
             model_classes = {
-                "ga_ann_jwaneng": GAANNModel,
+                "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
                 "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
-                "pso_ann_orapa": PSOANNModel,
-                "airblast_minimizer": AirblastMinimizerModel,
+                "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
+                "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
                 "flyrock_predictor": FlyrockPredictor,
                 "cost_predictor": CostPredictor,
                 "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
@@ -846,19 +846,13 @@ elif active_module == "ml_manager":
         )
 
         # Cross-validation using manual_cv_score for multi-output & PyTorch models
-        from src.models import (
-            manual_cv_score, GAANNModel, ANN_RF_Ensemble, PSOANNModel,
-            AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
-        )
-        from sklearn.ensemble import RandomForestRegressor as SklearnRF
-        from sklearn.linear_model import Ridge as SklearnRidge
-        from xgboost import XGBRegressor as SklearnXGB
+        from src.models import manual_cv_score
 
         model_classes = {
-            "ga_ann_jwaneng": GAANNModel,
+            "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
             "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
-            "pso_ann_orapa": PSOANNModel,
-            "airblast_minimizer": AirblastMinimizerModel,
+            "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
+            "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
             "flyrock_predictor": FlyrockPredictor,
             "cost_predictor": CostPredictor,
             "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
