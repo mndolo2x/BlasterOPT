@@ -34,7 +34,7 @@ sys.path = [p for p in sys.path if os.path.abspath(p) != parent_dir and not (p.e
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-from src.synthetic_data import generate_synthetic_blast_data
+from src.synthetic_data import generate_synthetic_blast_data, validate_synthetic_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint
 from src.models import BlastMLPipeline, MODEL_REGISTRY, FEATURE_COLS
 from src.predict import predict_single_blast, total_cost_per_tonne

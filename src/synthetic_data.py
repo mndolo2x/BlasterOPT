@@ -247,6 +247,40 @@ def generate_synthetic_blast_data(
     return data
 
 
+def validate_synthetic_data(df: pd.DataFrame) -> bool:
+    """
+    Validate that synthetic dataset DataFrame is non-empty and contains required columns.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame to validate.
+
+    Returns:
+    --------
+    bool
+        True if valid.
+
+    Raises:
+    -------
+    ValueError
+        If DataFrame is empty or missing expected target columns.
+    """
+    if df is None or df.empty:
+        raise ValueError("Dataset is empty or None.")
+
+    required_targets = [
+        "fragmentation_d80_cm",
+        "vibration_ppv_mms",
+        "airblast_db",
+    ]
+    missing = [col for col in required_targets if col not in df.columns]
+    if missing:
+        raise ValueError(f"Dataset is missing required target columns: {missing}")
+
+    return True
+
+
 if __name__ == "__main__":
     df = generate_synthetic_blast_data(num_samples=100)
     print("Generated synthetic dataset sample shape:", df.shape)
