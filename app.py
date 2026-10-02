@@ -510,6 +510,17 @@ elif active_module == "ingestion":
             )
             st.rerun()
 
+        if st.session_state.get("data_ready", False) and st.session_state.get("data_source") == "synthetic":
+            curr_synth_df = st.session_state["df"]
+            st.divider()
+            st.success(
+                f"✅ Active Synthetic Dataset: {curr_synth_df.shape[0]} rows × {curr_synth_df.shape[1]} columns  \n"
+                f"Fingerprint: `{st.session_state.get('data_fingerprint')}` | "
+                f"Generated at: {st.session_state.get('data_generated_at')}"
+            )
+            st.caption("First 15 records preview:")
+            st.dataframe(curr_synth_df.head(15), use_container_width=True)
+
     with tab2:
         st.subheader("Upload Real Mine Production Data vs Synthetic Data")
         st.markdown(
@@ -570,6 +581,17 @@ elif active_module == "ingestion":
                         st.rerun()
                 except Exception as e:
                     st.error(f"Error processing real mine dataset: {e}")
+
+            if st.session_state.get("data_ready", False) and st.session_state.get("data_source") == "uploaded":
+                curr_up_df = st.session_state["df"]
+                st.divider()
+                st.success(
+                    f"✅ Active Uploaded Mine Dataset: {curr_up_df.shape[0]} rows × {curr_up_df.shape[1]} columns  \n"
+                    f"Fingerprint: `{st.session_state.get('data_fingerprint')}` | "
+                    f"Loaded at: {st.session_state.get('data_loaded_at')}"
+                )
+                st.caption("First 15 records preview:")
+                st.dataframe(curr_up_df.head(15), use_container_width=True)
         else:
             st.info("Active Pathway: Synthetic Physics Data Generator (Tab 1). Use Tab 1 controls to configure synthetic dataset parameters.")
 
