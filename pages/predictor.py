@@ -45,6 +45,7 @@ with col_p1:
     charge_per_hole = st.number_input("Charge Mass per Hole (kg)", 10.0, 1500.0, float(last_in["charge_mass_per_hole_kg"]), step=10.0)
     max_charge_delay = st.number_input("Max Charge per Delay (kg)", 10.0, 3000.0, float(last_in["max_charge_per_delay_kg"]), step=20.0)
     dist = st.number_input("Distance to Structure (m)", 50.0, 3000.0, float(last_in["monitoring_distance_m"]), step=25.0)
+    max_ppv_limit = st.number_input("Max PPV Regulatory Limit (mm/s)", 1.0, 50.0, float(last_in.get("max_ppv", 5.0)), step=0.5)
 
     input_payload = {
         "rock_factor_A": rock_A,
@@ -57,6 +58,7 @@ with col_p1:
         "charge_mass_per_hole_kg": charge_per_hole,
         "max_charge_per_delay_kg": max_charge_delay,
         "monitoring_distance_m": dist,
+        "max_ppv": max_ppv_limit,
         "explosive_rws": 100.0,
     }
 
@@ -249,7 +251,12 @@ with col_p2:
         fig_kuz = plot_kuz_ram_curve(d50_mm, n_uniformity=1.2)
         st.plotly_chart(fig_kuz, use_container_width=True)
 
-        fig_ppv = plot_ppv_attenuation(saved_input.get("max_charge_per_delay_kg", 640.0))
+        fig_ppv = plot_ppv_attenuation(
+            max_charge_kg=saved_input.get("max_charge_per_delay_kg", 640.0),
+            max_ppv=saved_input.get("max_ppv", 5.0),
+            receptor_distance=saved_input.get("monitoring_distance_m", 450.0),
+            receptor_label="Village",
+        )
         st.plotly_chart(fig_ppv, use_container_width=True)
     else:
         st.info("👈 Adjust parameters and click 'Predict' to execute predictions and view outcomes.")

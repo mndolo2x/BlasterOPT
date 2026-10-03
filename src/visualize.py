@@ -123,12 +123,32 @@ def plot_kuz_ram_curve(
 
 
 def plot_ppv_attenuation(
-    max_charge_kg: float, k_vib: float = 1140.0, beta: float = 1.6
+    max_charge_kg: float,
+    k_vib: float = 1140.0,
+    beta: float = 1.6,
+    max_ppv: float = 5.0,
+    receptor_distance: Optional[float] = None,
+    receptor_label: str = "Village",
 ) -> go.Figure:
     """
     Plots USBM scale distance ground vibration attenuation curve (PPV vs Distance).
+
+    Parameters:
+    -----------
+    max_charge_kg : float
+        Maximum charge per delay (kg).
+    k_vib : float, default=1140.0
+        USBM site vibration constant K.
+    beta : float, default=1.6
+        USBM site attenuation exponent B.
+    max_ppv : float, default=5.0
+        Regulatory PPV limit in mm/s (Botswana regulatory standard: 5.0 mm/s).
+    receptor_distance : float, optional
+        Distance to receptor/structure (m) for vertical marker and intersection point.
+    receptor_label : str, default="Village"
+        Label for the receptor structure.
     """
-    distances = np.linspace(50, 1500, 200) # meters
+    distances = np.linspace(50, 1500, 300)  # meters
     scaled_distances = distances / np.sqrt(max_charge_kg)
     ppv = k_vib * (scaled_distances ** (-beta))
 
@@ -145,14 +165,50 @@ def plot_ppv_attenuation(
         )
     )
 
-    # Common compliance limits (e.g. 5 mm/s, 10 mm/s, 25 mm/s)
-    fig.add_hline(y=10.0, line_dash="dot", line_color="orange", annotation_text="10 mm/s Standard Limit")
-    fig.add_hline(y=5.0, line_dash="dot", line_color="green", annotation_text="5 mm/s Sensitive Limit")
+    # Regulatory limit line using user's max_ppv setting (default 5.0 mm/s)
+    fig.add_hline(
+        y=max_ppv,
+        line_dash="dash",
+        line_color="#D32F2F",
+        line_width=2,
+        annotation_text=f"Regulatory Limit ({max_ppv:.1f} mm/s)",
+        annotation_position="top right",
+    )
+
+    # Vertical line and intersection point at receptor distance if provided
+    if receptor_distance is not None and receptor_distance > 0:
+        rec_dist = float(receptor_distance)
+        scaled_rec_dist = rec_dist / np.sqrt(max_charge_kg)
+        ppv_at_receptor = k_vib * (scaled_rec_dist ** (-beta))
+
+        rec_annotation = f"{receptor_label} ({rec_dist:.0f} m)"
+        fig.add_vline(
+            x=rec_dist,
+            line_dash="dash",
+            line_color="#1976D2",
+            line_width=2,
+            annotation_text=rec_annotation,
+            annotation_position="top left",
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[rec_dist],
+                y=[ppv_at_receptor],
+                mode="markers+text",
+                name=rec_annotation,
+                marker=dict(color="#1976D2", size=12, symbol="diamond"),
+                text=[f"  {ppv_at_receptor:.2f} mm/s"],
+                textposition="top right",
+                hovertemplate=f"<b>{receptor_label}</b><br>Distance: {rec_dist:.0f} m<br>PPV: {ppv_at_receptor:.2f} mm/s<extra></extra>",
+            )
+        )
 
     fig.update_layout(
-        title=f"<b>Ground Vibration Attenuation (PPV vs Distance)</b>",
+        title="<b>Ground Vibration Attenuation (PPV vs Distance)</b>",
         xaxis_title="Distance to Target (m)",
         yaxis_title="Peak Particle Velocity (PPV) [mm/s]",
+        yaxis=dict(type="log", range=[np.log10(0.1), np.log10(20.0)]),
         template="plotly_white",
         height=450,
     )
