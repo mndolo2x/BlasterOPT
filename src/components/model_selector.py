@@ -7,7 +7,11 @@ compatible models from session state — no import step required.
 """
 from typing import Tuple, Any, Optional
 import streamlit as st
-from src.config.page_registry import PAGE_REGISTRY, get_compatible_models
+try:
+    from src.components.page_registry import PAGE_REGISTRY, get_compatible_models
+except ImportError:
+    from src.page_registry import PAGE_REGISTRY, get_compatible_models
+
 from src.models import MODEL_REGISTRY
 
 

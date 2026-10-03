@@ -6,7 +6,11 @@ import subprocess
 
 
 def test_page_registry_completeness():
-    from src.config.page_registry import PAGE_REGISTRY
+    try:
+        from src.components.page_registry import PAGE_REGISTRY
+    except ImportError:
+        from src.page_registry import PAGE_REGISTRY
+
     assert len(PAGE_REGISTRY) == 9
     for key, config in PAGE_REGISTRY.items():
         assert "display_name" in config
@@ -16,7 +20,11 @@ def test_page_registry_completeness():
 
 def test_get_compatible_models_filters_by_outputs():
     import streamlit as st
-    from src.config.page_registry import get_compatible_models
+    try:
+        from src.components.page_registry import get_compatible_models
+    except ImportError:
+        from src.page_registry import get_compatible_models
+
     from src.models import GAANNModel, AirblastMinimizerModel
 
     st.session_state["trained_models"] = {
@@ -37,7 +45,11 @@ def test_get_compatible_models_filters_by_outputs():
 
 def test_get_compatible_models_respects_specific_requirement():
     import streamlit as st
-    from src.config.page_registry import get_compatible_models
+    try:
+        from src.components.page_registry import get_compatible_models
+    except ImportError:
+        from src.page_registry import get_compatible_models
+
     from src.models import GAANNModel
 
     st.session_state["trained_models"] = {
