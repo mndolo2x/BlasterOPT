@@ -61,14 +61,11 @@ with col_p1:
     }
 
     st.session_state["last_predict_inputs"] = input_payload
-    predict_clicked = st.button("Predict", type="primary")
 
-if predict_clicked:
-    st.session_state["predictor_has_run"] = True
-
-with col_p2:
-    if st.session_state.get("predictor_has_run", False):
-        st.subheader("Predicted Blast Outcomes")
+    if st.button("Predict", type="primary", key="predict_btn"):
+        if spacing < burden:
+            st.error("Spacing must be greater than or equal to burden.")
+            st.stop()
 
         X = pd.DataFrame([input_payload])
         raw_preds = model.predict(X)
@@ -104,7 +101,25 @@ with col_p2:
         safety_dict = safety_rep.model_dump() if hasattr(safety_rep, "model_dump") else safety_rep.dict()
         predictions["safety_report"] = safety_dict
 
-        st.session_state["last_predict_results"] = predictions
+        st.session_state["last_predictions"] = predictions
+        st.session_state["last_input_dict"] = input_payload
+        st.session_state["last_model_key"] = model_key
+        st.session_state["predict_done"] = True
+
+with col_p2:
+    if st.session_state.get("predict_done", False):
+        predictions = st.session_state["last_predictions"]
+        saved_input = st.session_state["last_input_dict"]
+
+        d50_mm = predictions["d50_mm"]
+        d80_cm = predictions["fragmentation_d80_cm"]
+        ppv = predictions["vibration_ppv_mms"]
+        airblast = predictions["airblast_db"]
+        flyrock = predictions["flyrock_m"]
+        cost = predictions["cost_per_tonne_usd"]
+        safety_dict = predictions["safety_report"]
+
+        st.subheader("Predicted Blast Outcomes")
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("d50 Fragment Size", f"{d50_mm:.1f} mm")
@@ -142,10 +157,10 @@ with col_p2:
 
         submit_btn_disabled = (ov_status == "UNSAFE") or (ov_status == "REQUIRES_REVIEW" and not ack_review_checkbox)
 
-        if st.button("Submit for Approval 🚀", disabled=submit_btn_disabled, type="primary"):
+        if st.button("Submit for Approval 🚀", disabled=submit_btn_disabled, type="primary", key="approve_btn"):
             s_report = SafetyReport(**safety_dict)
             req = submit_for_approval(
-                design=input_payload,
+                design=saved_input,
                 safety_report=s_report,
                 user_id=sub_user_id,
                 design_id=pattern_req_id,
@@ -157,7 +172,7 @@ with col_p2:
         current_s_report = SafetyReport(**safety_dict)
         design_ver_1 = BlastDesignVersion.create(
             design_id=pattern_req_id,
-            design_data=input_payload,
+            design_data=saved_input,
             safety_report=current_s_report,
             created_by=sub_user_id,
             version=1,
@@ -194,7 +209,7 @@ with col_p2:
 
             exp_panel = create_explanation_panel(
                 model=model,
-                input_data=X,
+                input_data=pd.DataFrame([saved_input]),
                 prediction=predictions.get(target_explain, 10.0),
                 constraints=constraints_info,
             )
@@ -234,7 +249,7 @@ with col_p2:
         fig_kuz = plot_kuz_ram_curve(d50_mm, n_uniformity=1.2)
         st.plotly_chart(fig_kuz, use_container_width=True)
 
-        fig_ppv = plot_ppv_attenuation(max_charge_delay)
+        fig_ppv = plot_ppv_attenuation(saved_input.get("max_charge_per_delay_kg", 640.0))
         st.plotly_chart(fig_ppv, use_container_width=True)
     else:
         st.info("👈 Adjust parameters and click 'Predict' to execute predictions and view outcomes.")

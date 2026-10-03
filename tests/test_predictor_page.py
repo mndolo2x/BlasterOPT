@@ -32,10 +32,16 @@ def test_predictor_uses_selected_model():
     assert result.returncode == 0, "pages/predictor.py does not call model.predict(X)"
 
 
-def test_predictor_has_predict_button():
-    """pages/predictor.py must include a Predict button condition."""
-    result = subprocess.run(
-        ["grep", "-q", 'st.button("Predict"', "pages/predictor.py"],
+def test_predictor_has_predict_and_approve_buttons():
+    """pages/predictor.py must include predict_btn and approve_btn keys."""
+    res_predict = subprocess.run(
+        ["grep", "-q", 'key="predict_btn"', "pages/predictor.py"],
         capture_output=True,
     )
-    assert result.returncode == 0, "pages/predictor.py missing Predict button condition"
+    assert res_predict.returncode == 0, "pages/predictor.py missing key='predict_btn'"
+
+    res_approve = subprocess.run(
+        ["grep", "-q", 'key="approve_btn"', "pages/predictor.py"],
+        capture_output=True,
+    )
+    assert res_approve.returncode == 0, "pages/predictor.py missing key='approve_btn'"
