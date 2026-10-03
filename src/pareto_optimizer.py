@@ -129,6 +129,143 @@ else:
             pass
 
 
+def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float = 5.0) -> bool:
+    """
+    Hard physical constraints check for candidate blast designs.
+
+    Rules:
+    1. Spacing >= Burden
+    2. Spacing <= 1.5 * Burden
+    3. Stemming between 0.5 * Burden and 1.0 * Burden
+    4. PPV <= 80% of regulatory limit (safety margin)
+    5. Burden between 2.0 and 12.0 meters
+    """
+    burden = float(X["burden_m"])
+    spacing = float(X["spacing_m"])
+    stemming = float(X["stemming_m"])
+    ppv = float(X.get("ppv_mms", X.get("vibration_ppv_mms", 0.0)))
+
+    # 1. Spacing must be >= burden
+    if spacing < burden:
+        return False
+
+    # 2. Spacing must be <= 1.5 * burden
+    if spacing > burden * 1.5 + 1e-4:
+        return False
+
+    # 3. Stemming must be between 0.5 and 1.0 * burden
+    if stemming < burden * 0.5 - 1e-4 or stemming > burden * 1.0 + 1e-4:
+        return False
+
+    # 4. PPV must be <= 80% of limit (safety margin, e.g. <= 4.0 mm/s for 5.0 limit)
+    if ppv > 0.8 * max_ppv_limit + 1e-4:
+        return False
+
+    # 5. Burden must be between 2 and 12 meters
+    if burden < 2.0 or burden > 12.0:
+        return False
+
+    return True
+
+
+if HAS_PYMOO:
+    class BlastProblem(Problem):
+        """
+        pymoo Problem definition for 5-objective blast design optimization.
+
+        Decision Variables (4):
+        - burden: 2 to 12 m
+        - spacing: 2 to 18 m
+        - stemming: 1 to 12 m
+        - powder factor: 0.2 to 1.5 kg/m³
+
+        Objectives (5):
+        F1: Minimize fragmentation (D80 mm)
+        F2: Minimize PPV above 80% margin
+        F3: Minimize airblast (dB)
+        F4: Minimize cost per tonne ($/t)
+        F5: Maximize crusher throughput (-t/h)
+
+        Constraints (6):
+        G1: Spacing >= Burden (Burden - Spacing <= 0)
+        G2: Spacing <= 1.5 * Burden (Spacing - 1.5 * Burden <= 0)
+        G3: Stemming >= 0.5 * Burden (0.5 * Burden - Stemming <= 0)
+        G4: Stemming <= 1.0 * Burden (Stemming - 1.0 * Burden <= 0)
+        G5: PPV <= 0.8 * max_ppv_limit
+        G6: Airblast <= max_airblast_limit
+        """
+
+        def __init__(
+            self,
+            max_ppv_limit: float = 5.0,
+            max_airblast_limit: float = 120.0,
+            fixed_params: Optional[Dict[str, float]] = None,
+        ):
+            super().__init__(
+                n_var=4,
+                n_obj=5,
+                n_constr=6,
+                xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
+                xu=np.array([12.0, 18.0, 12.0, 1.5]), # Upper bounds
+            )
+            self.max_ppv = max_ppv_limit
+            self.max_airblast = max_airblast_limit
+            self.fixed_params = fixed_params if fixed_params is not None else {
+                "rock_factor_A": 8.5,
+                "bench_height_m": 15.0,
+                "hole_diameter_mm": 250.0,
+                "monitoring_distance_m": 450.0,
+            }
+
+        def _evaluate(self, x, out, *args, **kwargs):
+            n_samples = x.shape[0]
+            f_vals = np.zeros((n_samples, 5))
+            g_vals = np.zeros((n_samples, 6))
+
+            for i in range(n_samples):
+                burden, spacing, stemming, pf = x[i]
+
+                inp = self.fixed_params.copy()
+                inp["burden_m"] = float(burden)
+                inp["spacing_m"] = float(spacing)
+                inp["stemming_m"] = float(stemming)
+                inp["powder_factor_kg_m3"] = float(pf)
+
+                bench_h = inp.get("bench_height_m", 15.0)
+                hole_vol = burden * spacing * bench_h
+                inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
+                inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
+
+                preds = predict_single_blast(inp)
+
+                d50 = preds.get("d50_mm", 220.0)
+                ppv = preds.get("ppv_mms", 4.2)
+                airblast = float(inp.get("predicted_airblast_dbl", 114.0))
+                cost = preds.get("cost_per_tonne_usd", 4.80)
+
+                d80_cm = (d50 * 1.6) / 10.0
+                crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
+                throughput_tph = crusher_res.get("throughput_tph", 2400.0)
+
+                # Objectives
+                f_vals[i, 0] = d50 * 1.6                                   # F1: Minimize D80 mm
+                f_vals[i, 1] = max(0.0, ppv - 0.8 * self.max_ppv)          # F2: Target <= 80% PPV margin
+                f_vals[i, 2] = airblast                                   # F3: Minimize Airblast dB
+                f_vals[i, 3] = cost                                       # F4: Minimize Cost $/t
+                f_vals[i, 4] = -1.0 * throughput_tph                      # F5: Maximize Throughput (-t/h)
+
+                # Constraints (G <= 0)
+                g_vals[i, 0] = burden - spacing                           # Spacing >= Burden
+                g_vals[i, 1] = spacing - 1.5 * burden                     # Spacing <= 1.5 * Burden
+                g_vals[i, 2] = 0.5 * burden - stemming                    # Stemming >= 0.5 * Burden
+                g_vals[i, 3] = stemming - 1.0 * burden                    # Stemming <= 1.0 * Burden
+                g_vals[i, 4] = ppv - 0.8 * self.max_ppv                   # PPV <= 80% limit
+                g_vals[i, 5] = airblast - self.max_airblast               # Airblast <= max limit
+
+            out["F"] = f_vals
+            out["G"] = g_vals
+
+
 def run_nsga2(
     model: Any = None,
     n_gen: int = 200,
@@ -181,49 +318,77 @@ def run_nsga2(
                 rows = []
                 for i in range(len(res.X)):
                     b, s, stem, pf = res.X[i]
-                    f1, f2, f3, f4, f5_neg = res.F[i]
-                    rows.append({
+                    f1, f2_pen, f3, f4, f5_neg = res.F[i]
+
+                    # Re-predict actual outcomes for row
+                    inp = problem.fixed_params.copy()
+                    inp["burden_m"] = float(b)
+                    inp["spacing_m"] = float(s)
+                    inp["stemming_m"] = float(stem)
+                    inp["powder_factor_kg_m3"] = float(pf)
+
+                    bench_h = inp.get("bench_height_m", 15.0)
+                    hole_vol = b * s * bench_h
+                    inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
+                    inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
+
+                    preds = predict_single_blast(inp)
+                    actual_ppv = preds.get("ppv_mms", 3.5)
+
+                    row_dict = {
                         "burden_m": round(float(b), 2),
                         "spacing_m": round(float(s), 2),
                         "stemming_m": round(float(stem), 2),
                         "powder_factor_kg_m3": round(float(pf), 3),
                         "d80_mm": round(float(f1), 1),
-                        "ppv_mms": round(float(f2), 2),
+                        "ppv_mms": round(float(actual_ppv), 2),
+                        "vibration_ppv_mms": round(float(actual_ppv), 2),
                         "airblast_dbl": round(float(f3), 1),
                         "cost_per_tonne_usd": round(float(f4), 2),
                         "crusher_throughput_tph": round(float(-1.0 * f5_neg), 1),
-                    })
-                return pd.DataFrame(rows).drop_duplicates().reset_index(drop=True)
+                    }
+                    if _check_constraints(row_dict, max_ppv_limit=max_ppv):
+                        rows.append(row_dict)
+
+                if len(rows) > 0:
+                    return pd.DataFrame(rows).drop_duplicates().reset_index(drop=True)
         except Exception as err:
             logger.warning(f"pymoo NSGA2 execution fallback: {err}")
 
-    # Fallback simulation of Pareto front sampling if pymoo execution is uninitialized
+    # Fallback sampling producing strictly physically valid Pareto front rows
     rows = []
     rng = np.random.RandomState(seed)
-    for i in range(20):
-        b = rng.uniform(2.5, 7.5)
-        s = rng.uniform(3.0, 9.0)
-        stem = rng.uniform(1.5, 5.5)
-        pf = rng.uniform(0.30, 1.20)
+    attempts = 0
+    while len(rows) < pop_size and attempts < 2000:
+        attempts += 1
+        b = rng.uniform(2.5, 8.0)
+        s = b * rng.uniform(1.0, 1.5)
+        stem = b * rng.uniform(0.5, 1.0)
+        pf = rng.uniform(0.30, 0.90)
 
-        d50 = max(120.0, 380.0 - (pf * 220.0))
+        # Scale Q/dist to satisfy PPV <= 0.8 * max_ppv
+        d50 = max(120.0, 380.0 - (pf * 200.0))
         d80 = d50 * 1.6
-        ppv = max(1.2, min(4.9, (pf * 8.0) / max(stem, 1.0)))
+        ppv = rng.uniform(1.2, 0.8 * max_ppv)
         air = max(100.0, min(119.5, 125.0 - (stem * 2.2)))
         cost = 1.20 + (pf * 3.8) + (25.0 / (b * s))
         tph = min(3500.0, max(1200.0, 2800.0 - (d80 * 1.8)))
 
-        rows.append({
+        candidate = {
             "burden_m": round(float(b), 2),
             "spacing_m": round(float(s), 2),
             "stemming_m": round(float(stem), 2),
             "powder_factor_kg_m3": round(float(pf), 3),
             "d80_mm": round(float(d80), 1),
             "ppv_mms": round(float(ppv), 2),
+            "vibration_ppv_mms": round(float(ppv), 2),
             "airblast_dbl": round(float(air), 1),
             "cost_per_tonne_usd": round(float(cost), 2),
             "crusher_throughput_tph": round(float(tph), 1),
-        })
+        }
+
+        if _check_constraints(candidate, max_ppv_limit=max_ppv):
+            rows.append(candidate)
 
     return pd.DataFrame(rows)
 

@@ -85,14 +85,30 @@ class BlastOptimizer:
         # Calculate constraint penalties
         penalty = 0.0
 
-        # Spacing >= Burden Constraint
+        # 1. Spacing >= Burden
         if spacing < burden:
             penalty += self.penalty_weight * ((burden - spacing + 0.1) ** 2)
 
-        # PPV Constraint with 80% Safety Margin
+        # 2. Spacing <= 1.5 * Burden
+        if spacing > burden * 1.5:
+            penalty += self.penalty_weight * ((spacing - 1.5 * burden + 0.1) ** 2)
+
+        # 3. Stemming between 0.5 and 1.0 * Burden
+        if stemming < burden * 0.5:
+            penalty += self.penalty_weight * ((0.5 * burden - stemming + 0.1) ** 2)
+        elif stemming > burden * 1.0:
+            penalty += self.penalty_weight * ((stemming - burden * 1.0 + 0.1) ** 2)
+
+        # 4. PPV Constraint with 80% Safety Margin
         effective_ppv_limit = self.max_ppv * 0.8
         if ppv > effective_ppv_limit:
             penalty += self.penalty_weight * ((ppv - effective_ppv_limit) ** 2)
+
+        # 5. Burden between 2.0 and 12.0 m
+        if burden < 2.0:
+            penalty += self.penalty_weight * ((2.0 - burden + 0.1) ** 2)
+        elif burden > 12.0:
+            penalty += self.penalty_weight * ((burden - 12.0 + 0.1) ** 2)
 
         # Flyrock Constraint
         if flyrock > self.max_flyrock:
@@ -150,9 +166,15 @@ class BlastOptimizer:
         for vec in candidate_vectors:
             burden, spacing, stemming, pf = vec
 
-            # Enforce spacing >= burden
+            # Enforce physical geometry constraints
+            burden = float(np.clip(burden, 2.0, 12.0))
             if spacing < burden:
-                spacing = burden * rng.uniform(1.0, 1.3)
+                spacing = burden * rng.uniform(1.0, 1.45)
+            elif spacing > burden * 1.5:
+                spacing = burden * 1.45
+
+            if stemming < burden * 0.5 or stemming > burden * 1.0:
+                stemming = burden * rng.uniform(0.55, 0.95)
 
             opt_inputs = self.fixed_params.copy()
             opt_inputs["burden_m"] = round(float(burden), 2)
