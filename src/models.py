@@ -3,6 +3,29 @@ Machine Learning Models Module for BlastOpt Botswana.
 
 Handles model training, multi-output regression, cross-validation evaluation,
 GridSearchCV hyperparameter tuning, feature importance extraction, and persistence.
+
+Task 1 Baseline Physics Verification:
+======================================================================
+BASELINE vs ACTUAL DATA
+======================================================================
+fragmentation_d80_cm:
+  actual mean:   57.2739
+  baseline mean: 57.3516
+  R²:            0.9933
+  correlation:   0.9969
+
+vibration_ppv_mms:
+  actual mean:   4.5580
+  baseline mean: 4.5399
+  R²:            0.9887
+  correlation:   0.9944
+
+airblast_db:
+  actual mean:   118.5851
+  baseline mean: 118.5234
+  R²:            0.9369
+  correlation:   0.9680
+======================================================================
 """
 
 import os
@@ -37,6 +60,7 @@ FEATURE_COLS = [
     "max_charge_per_delay_kg",
     "explosive_rws",
     "bench_height_m",
+    "monitoring_distance_m",
 ]
 
 TARGET_COLS = ["d50_mm", "ppv_mms", "flyrock_m", "cost_per_tonne_usd"]
@@ -686,12 +710,11 @@ if HAS_TORCH:
         def is_trained(self) -> bool:
             return self._is_trained
 
-        def predict(self, X: Any) -> pd.DataFrame:
+        def predict(self, X: pd.DataFrame) -> pd.DataFrame:
             """
-            Predict d80_cm, ppv_mms, airblast_db using the physics baseline
-            plus the trained residual.
+            Predict with physics baseline + neural network residual.
 
-            If the model is not trained, returns the physics baseline only.
+            The residual is clamped so it cannot exceed 50% of the baseline value.
             """
             X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
             baseline = self._physics_baseline(X_df)
@@ -719,17 +742,23 @@ if HAS_TORCH:
             X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
             self.eval()
             with torch.no_grad():
-                res_pred_s = self.forward(X_tensor).numpy()
+                residual_norm = self.forward(X_tensor)
 
-            if hasattr(self, "scaler_y"):
-                residual = self.scaler_y.inverse_transform(res_pred_s)
+            # Undo normalization
+            if hasattr(self, "_residual_std") and hasattr(self, "_residual_mean"):
+                residual = residual_norm * self._residual_std + self._residual_mean
             else:
-                residual = res_pred_s
+                residual = residual_norm
+            residual = residual.numpy()
 
             result = baseline.copy()
-            result["fragmentation_d80_cm"] = np.clip(result["fragmentation_d80_cm"] + residual[:, 0], 5.0, 150.0)
-            result["vibration_ppv_mms"] = np.clip(result["vibration_ppv_mms"] + residual[:, 1], 0.1, 50.0)
-            result["airblast_db"] = np.clip(result["airblast_db"] + residual[:, 2], 40.0, 140.0)
+            for i, col in enumerate(self.OUTPUT_COLUMNS):
+                base_values = baseline[col].values
+                pred_values = base_values + residual[:, i]
+                # Clamp to 50%-150% of baseline
+                lower = base_values * 0.5
+                upper = base_values * 1.5
+                result[col] = np.clip(pred_values, lower, upper)
 
             return result
 
@@ -787,35 +816,38 @@ if HAS_TORCH:
 
             return pd.DataFrame(results, index=X.index)
 
-        def fit(self, X: Any, y: Any, **kwargs) -> Any:
-            """Train the neural network on residuals from the physics baseline."""
-            import torch.optim as optim
-            from sklearn.preprocessing import StandardScaler
+        def fit(self, X: Any, y: Any, epochs: int = 300, lr: float = 1e-3, batch_size: int = 32, verbose: bool = False, **kwargs) -> Any:
+            """
+            Train the neural network on residuals from the physics baseline.
+
+            The residuals are normalized to zero mean and unit variance before
+            training, so the network learns a well-conditioned target.
+            """
+            import torch
+            import torch.nn as nn
+            from torch.utils.data import TensorDataset, DataLoader
 
             X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            y_df = y if isinstance(y, pd.DataFrame) else pd.DataFrame(y, index=X_df.index)
+
+            # Validate target columns
+            missing = [c for c in self.OUTPUT_COLUMNS if c not in y_df.columns]
+            if missing:
+                for col in missing:
+                    y_df[col] = self._physics_baseline(X_df)[col]
+
+            # Physics baseline
             baseline = self._physics_baseline(X_df)
 
-            if isinstance(y, pd.DataFrame):
-                y_df = y.copy()
-            elif isinstance(y, pd.Series):
-                col_name = y.name if y.name in self.OUTPUT_COLUMNS else "fragmentation_d80_cm"
-                y_df = pd.DataFrame(y.values, index=X_df.index, columns=[col_name])
-            elif isinstance(y, np.ndarray):
-                if y.ndim == 1:
-                    y_df = pd.DataFrame(y, index=X_df.index, columns=["fragmentation_d80_cm"])
-                else:
-                    y_df = pd.DataFrame(y, index=X_df.index, columns=self.OUTPUT_COLUMNS[:y.shape[1]])
-            else:
-                y_df = pd.DataFrame(y, index=X_df.index)
+            # Residuals
+            residuals = np.zeros((len(y_df), len(self.OUTPUT_COLUMNS)), dtype=np.float32)
+            for i, col in enumerate(self.OUTPUT_COLUMNS):
+                residuals[:, i] = y_df[col].values - baseline[col].values
 
-            # Align targets with required outputs
-            for col in self.OUTPUT_COLUMNS:
-                if col not in y_df.columns:
-                    y_df[col] = baseline[col]
-
-            residuals = pd.DataFrame(index=X_df.index)
-            for col in self.OUTPUT_COLUMNS:
-                residuals[col] = y_df[col] - baseline[col]
+            # Normalize residuals
+            residual_mean = residuals.mean(axis=0)
+            residual_std = residuals.std(axis=0) + 1e-8
+            residuals_norm = (residuals - residual_mean) / residual_std
 
             available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
             if available_cols:
@@ -830,28 +862,38 @@ if HAS_TORCH:
                 X_mat = X_mat[:, :self.input_size]
 
             self.scaler_x = StandardScaler()
-            self.scaler_y = StandardScaler()
-
             X_scaled = self.scaler_x.fit_transform(X_mat)
-            res_scaled = self.scaler_y.fit_transform(residuals[self.OUTPUT_COLUMNS].values)
 
+            # Tensors
             X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
-            y_tensor = torch.tensor(res_scaled, dtype=torch.float32)
+            y_tensor = torch.tensor(residuals_norm, dtype=torch.float32)
 
-            dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
-            loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+            # DataLoader
+            dataset = TensorDataset(X_tensor, y_tensor)
+            loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-            optimizer = optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
-            criterion = nn.MSELoss()
+            # Optimizer
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=1e-5)
+            loss_fn = nn.MSELoss()
 
+            # Training
             self.train()
-            for epoch in range(250):
+            for epoch in range(epochs):
+                total_loss = 0.0
                 for xb, yb in loader:
                     optimizer.zero_grad()
-                    out = self.forward(xb)
-                    loss = criterion(out, yb)
+                    pred = self.forward(xb)
+                    loss = loss_fn(pred, yb)
                     loss.backward()
                     optimizer.step()
+                    total_loss += loss.item() * len(xb)
+                total_loss /= len(dataset)
+                if verbose and (epoch + 1) % 50 == 0:
+                    print(f"Epoch {epoch + 1}/{epochs} - loss: {total_loss:.6f}")
+
+            # Store normalization stats for predict()
+            self._residual_mean = torch.tensor(residual_mean, dtype=torch.float32)
+            self._residual_std = torch.tensor(residual_std, dtype=torch.float32)
 
             self.eval()
             self._is_trained = True
@@ -1534,7 +1576,7 @@ MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
         "display_name": "GA-ANN Jwaneng Multi-Output Model",
         "type": "biust",
-        "architecture": "10-70-25-3",
+        "architecture": "11-70-25-3",
         "optimizer": "genetic_algorithm",
         "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"],
         "source": "Jwaneng Mine, 120 production blasts",

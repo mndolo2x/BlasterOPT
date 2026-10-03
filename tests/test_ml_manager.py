@@ -34,9 +34,9 @@ def test_cv_loop_uses_registry_outputs():
 
 def test_feature_cols_matches_model_input_size():
     """Verify FEATURE_COLS length matches GAANNModel input layer and architecture."""
-    assert len(FEATURE_COLS) == 10
+    assert len(FEATURE_COLS) == 11
     model = GAANNModel(input_size=len(FEATURE_COLS))
-    assert model.hidden1.in_features == 10
+    assert model.hidden1.in_features == 11
     assert model.output.out_features == 3
     expected_arch = f"{len(FEATURE_COLS)}-70-25-3"
     assert MODEL_REGISTRY["ga_ann_jwaneng"]["architecture"] == expected_arch
