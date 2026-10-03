@@ -15,6 +15,8 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.subheader("Optimization Settings")
+    st.write(f"**Active model:** `{model_key}`")
+    st.write(f"**Model type:** `{type(model).__name__}`")
     n_gen = st.slider("Generations", 10, 300, 40, step=10)
     pop_size = st.slider("Population Size", 20, 200, 100, step=10)
     max_ppv_limit = st.number_input("Max PPV Regulatory Limit (mm/s)", 1.0, 50.0, 5.0, step=0.5)

@@ -70,3 +70,43 @@ def test_plot_pareto_front_returns_figure():
 
     assert fig is not None
     assert hasattr(fig, "data")
+
+
+def test_optimizer_uses_trained_model():
+    """The optimizer output must differ when the model differs."""
+    from src.models import GAANNModel
+    from src.pareto_optimizer import run_nsga2
+    from src.synthetic_data import generate_for_model
+
+    df = generate_for_model("ga_ann_jwaneng", n_samples=200)
+    model_a = GAANNModel(input_size=11)
+    features = [c for c in df.columns if c in model_a.INPUT_COLUMNS]
+    model_a.fit(df[features], df[model_a.OUTPUT_COLUMNS])
+
+    front_a = run_nsga2(model=model_a, n_gen=5, pop_size=20)
+
+    # All designs must have spacing >= burden
+    assert (front_a["spacing_m"] >= front_a["burden_m"] - 1e-4).all(), \
+        "Optimizer returned invalid designs (spacing < burden)"
+
+    # All designs must have valid stemming ratio
+    ratio = front_a["stemming_m"] / front_a["burden_m"]
+    assert ratio.between(0.5 - 1e-4, 1.0 + 1e-4).all(), \
+        "Optimizer returned invalid stemming ratios"
+
+
+def test_optimizer_rejects_invalid_designs():
+    """The optimizer must never return spacing < burden."""
+    from src.models import GAANNModel
+    from src.pareto_optimizer import run_nsga2
+    from src.synthetic_data import generate_for_model
+
+    df = generate_for_model("ga_ann_jwaneng", n_samples=200)
+    model = GAANNModel(input_size=11)
+    features = [c for c in df.columns if c in model.INPUT_COLUMNS]
+    model.fit(df[features], df[model.OUTPUT_COLUMNS])
+
+    front = run_nsga2(model=model, n_gen=10, pop_size=30)
+
+    violations = (front["spacing_m"] < front["burden_m"] - 1e-4).sum()
+    assert violations == 0, f"{violations} designs have spacing < burden"

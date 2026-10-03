@@ -1,6 +1,11 @@
 """
 Multi-Objective Pareto Optimizer (Model 3) Module for BlastOpt Botswana.
 
+BUG FIX NOTE:
+Passed the trained ML model instance into BlastProblem.__init__(model=model) and run_nsga2(model=model).
+Previously, run_nsga2 received model but did not pass it to BlastProblem, causing BlastProblem._evaluate
+to fall back to predict_physics_fallback() rather than using the trained ML model predictions.
+
 Implements Model 3 (Multi-Objective Pareto Optimizer) using NSGA-II to find the non-dominated Pareto frontier
 across 5 competing objectives:
 1. Minimize d80 fragmentation size (mm)
@@ -57,19 +62,19 @@ if HAS_PYMOO:
 
         def __init__(
             self,
+            model: Optional[Any] = None,
             max_ppv_limit: float = 5.0,
             max_airblast_limit: float = 120.0,
             fixed_params: Optional[Dict[str, float]] = None,
         ):
-            # Decision variables: [burden_m, spacing_m, stemming_m, powder_factor_kg_m3]
-            # Bounds: Burden (2-8m), Spacing (2-10m), Stemming (1-6m), Powder Factor (0.2-1.5 kg/m³)
             super().__init__(
                 n_var=4,
                 n_obj=5,
-                n_constr=2,
+                n_constr=6,
                 xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
-                xu=np.array([8.0, 10.0, 6.0, 1.5]),  # Upper bounds
+                xu=np.array([12.0, 18.0, 12.0, 1.5]), # Upper bounds
             )
+            self.model = model
             self.max_ppv = max_ppv_limit
             self.max_airblast = max_airblast_limit
             self.fixed_params = fixed_params if fixed_params is not None else {
@@ -232,6 +237,7 @@ if HAS_PYMOO:
 
         def __init__(
             self,
+            model: Optional[Any] = None,
             max_ppv_limit: float = 5.0,
             max_airblast_limit: float = 120.0,
             fixed_params: Optional[Dict[str, float]] = None,
@@ -243,6 +249,7 @@ if HAS_PYMOO:
                 xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
                 xu=np.array([12.0, 18.0, 12.0, 1.5]), # Upper bounds
             )
+            self.model = model
             self.max_ppv = max_ppv_limit
             self.max_airblast = max_airblast_limit
             self.fixed_params = fixed_params if fixed_params is not None else {
@@ -276,19 +283,30 @@ if HAS_PYMOO:
                 inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
                 inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
 
-                preds = predict_single_blast(inp)
+                if self.model is not None and hasattr(self.model, "predict"):
+                    X = pd.DataFrame([inp])
+                    raw_preds = self.model.predict(X)
+                    if isinstance(raw_preds, pd.DataFrame):
+                        preds = raw_preds.iloc[0].to_dict()
+                    elif isinstance(raw_preds, np.ndarray):
+                        preds = {"ppv_mms": float(raw_preds[0][0]) if raw_preds.ndim == 2 else float(raw_preds[0])}
+                    else:
+                        preds = {"ppv_mms": float(raw_preds)}
+                else:
+                    preds = predict_single_blast(inp, model_pipeline=None)
 
-                d50 = preds.get("d50_mm", 220.0)
-                ppv = preds.get("ppv_mms", 4.2)
-                airblast = float(inp.get("predicted_airblast_dbl", 114.0))
+                d80_mm = float(preds.get("d80_mm", preds.get("fragmentation_d80_cm", 22.0) * 10.0 if "fragmentation_d80_cm" in preds else preds.get("d50_mm", 220.0) * 1.6))
+                d50 = preds.get("d50_mm", d80_mm / 1.6)
+                ppv = preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5))
+                airblast = float(preds.get("airblast_db", inp.get("predicted_airblast_dbl", 114.0)))
                 cost = preds.get("cost_per_tonne_usd", 4.80)
 
-                d80_cm = (d50 * 1.6) / 10.0
+                d80_cm = d80_mm / 10.0
                 crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
                 throughput_tph = crusher_res.get("throughput_tph", 2400.0)
 
                 # Objectives
-                f_vals[i, 0] = d50 * 1.6                                   # F1: Minimize D80 mm
+                f_vals[i, 0] = d80_mm                                      # F1: Minimize D80 mm
                 f_vals[i, 1] = max(0.0, ppv - 0.8 * self.max_ppv)          # F2: Target <= 80% PPV margin
                 f_vals[i, 2] = airblast                                   # F3: Minimize Airblast dB
                 f_vals[i, 3] = cost                                       # F4: Minimize Cost $/t
@@ -343,7 +361,7 @@ def run_nsga2(
 
     if HAS_PYMOO:
         try:
-            problem = BlastProblem(max_ppv_limit=max_ppv, max_airblast_limit=max_air)
+            problem = BlastProblem(model=model, max_ppv_limit=max_ppv, max_airblast_limit=max_air)
             algorithm = NSGA2(pop_size=pop_size)
 
             res = minimize(
