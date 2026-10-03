@@ -192,6 +192,7 @@ from src.explainability import (
     create_explanation_panel,
     get_shap_explanation,
 )
+from src.components.model_selector import render_page_model_selector
 
 # Page configuration
 st.set_page_config(
@@ -1066,6 +1067,7 @@ elif active_module == "comparison":
 # --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
 elif active_module == "predictor":
     st.header("🎯 Single Blast Design Predictor & Fragmentation Curve")
+    selected_model, _ = render_page_model_selector("predictor")
 
     col_p1, col_p2 = st.columns([1, 2])
 
@@ -1258,6 +1260,7 @@ elif active_module == "predictor":
 # --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
 elif active_module == "optimizer":
     st.header("⚡ Genetic Algorithm Parameter Optimizer")
+    selected_model, _ = render_page_model_selector("ga_optimizer")
 
     st.markdown("Find optimal **Burden**, **Spacing**, **Stemming**, and **Powder Factor** to minimize cost subject to vibration & flyrock safety limits.")
 
@@ -1420,6 +1423,7 @@ elif active_module == "optimizer":
 # --- MODULE: ECONOMIC DASHBOARD ---
 elif active_module == "economic":
     st.header("💰 Economic & Mine-to-Mill Cost Breakdown Dashboard")
+    selected_model, _ = render_page_model_selector("economic_dashboard")
     st.markdown(
         "Real-time Mine-to-Mill total cost analysis per tonne ($/t) across drilling, explosives, loading/digging, hauling, crushing, and milling."
     )
@@ -1732,6 +1736,7 @@ elif active_module == "mwd":
 # --- MODULE: DIGITAL TWIN OF THE BENCH ---
 elif active_module == "digital_twin":
     st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
+    selected_model, _ = render_page_model_selector("digital_twin")
     st.markdown(
         "Interactive 3D spatial digital twin connecting geological block models, as-drilled geometry, "
         "and structural jointing to downstream digger productivity, truck payload, primary crusher throughput, and ore tracking."
@@ -2132,6 +2137,7 @@ elif active_module == "sync":
 # --- MODULE: REGULATORY COMPLIANCE ---
 elif active_module == "regulatory":
     st.header("📜 Botswana Mining Regulatory Compliance & Audit Module")
+    selected_model, _ = render_page_model_selector("regulatory_compliance")
     st.markdown(
         "Automated compliance evaluation under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)** "
         "and **Data Protection Act of Botswana**. Evaluates ground vibration (PPV), airblast noise overpressure (dBL), "
@@ -2246,6 +2252,7 @@ elif active_module == "integrations":
 # --- MODULE: PINN PREDICTION & UNCERTAINTY ---
 elif active_module == "pinn":
     st.header("🧠 Physics-Informed Neural Network (PINN) & Uncertainty Quantification")
+    selected_model, _ = render_page_model_selector("pinn")
     st.markdown(
         "Model 2 (Physics-Informed Neural Network) embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations "
         "as soft loss terms ($L_{\\text{total}} = L_{\\text{data}} + \\lambda_1 L_{\\text{kuzram}} + \\lambda_2 L_{\\text{usbm}}$). "
@@ -2341,6 +2348,7 @@ elif active_module == "pinn":
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
 elif active_module == "pareto":
     st.header("⚡ Model 3: Multi-Objective NSGA-II Pareto Optimizer")
+    selected_model, _ = render_page_model_selector("pareto_optimizer")
     st.markdown(
         "Discovers the non-dominated **Pareto Frontier** across 5 competing blast design objectives: "
         "minimizing fragmentation ($D_{80}$), minimizing ground vibration ($PPV$), minimizing airblast ($dB$), "
@@ -2543,6 +2551,7 @@ elif active_module == "model_cards":
 # --- MODULE: ENSEMBLE UNCERTAINTY QUANTIFICATION ---
 elif active_module == "ensemble_uq":
     st.header("🛡️ Model 5: Ensemble Uncertainty Quantification (UQ)")
+    selected_model, _ = render_page_model_selector("uncertainty_quantification")
     st.markdown(
         "Combines four base model architectures (**ANN**, **XGBoost**, **Random Forest**, **PINN**) "
         "trained on 80% bootstrap sub-samples. Explicitly decomposes uncertainty into **aleatoric** (data noise) "
@@ -2634,6 +2643,7 @@ elif active_module == "ensemble_uq":
 # --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
 elif active_module == "agent":
     st.header("🤖 BlasterOPT Conversational Agent Assistant")
+    selected_model, _ = render_page_model_selector("conversational_agent")
     st.markdown(
         "Interactive AI decision support agent for open-pit diamond mining operations. "
         "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "

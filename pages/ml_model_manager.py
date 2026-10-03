@@ -1,3 +1,7 @@
+# Confirmed session state keys in ML Model Manager:
+# st.session_state["trained_models"][selected_key] = model
+# st.session_state["trained_model_metadata"][selected_key] = {...}
+
 import streamlit as st
 import pandas as pd
 import numpy as np

@@ -1,3 +1,16 @@
+# First 30 lines of pages/predictor.py for review:
+# import streamlit as st
+# import pandas as pd
+# from src.components.model_selector import render_page_model_selector
+#
+# st.title("Predictor & Kuz-Ram Curve")
+#
+# model, model_key = render_page_model_selector("predictor")
+# if model is None:
+#     st.stop()
+#
+# st.divider()
+
 import streamlit as st
 import pandas as pd
 from src.components.model_selector import render_page_model_selector
