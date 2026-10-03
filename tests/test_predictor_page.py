@@ -1,5 +1,5 @@
 """
-Unit tests for pages/predictor.py and inline predictor removal.
+Unit tests for pages/predictor.py and Predict button condition.
 """
 import subprocess
 
@@ -30,3 +30,12 @@ def test_predictor_uses_selected_model():
         capture_output=True,
     )
     assert result.returncode == 0, "pages/predictor.py does not call model.predict(X)"
+
+
+def test_predictor_has_predict_button():
+    """pages/predictor.py must include a Predict button condition."""
+    result = subprocess.run(
+        ["grep", "-q", 'st.button("Predict"', "pages/predictor.py"],
+        capture_output=True,
+    )
+    assert result.returncode == 0, "pages/predictor.py missing Predict button condition"
