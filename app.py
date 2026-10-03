@@ -309,14 +309,15 @@ if st.session_state.get("data_ready", False):
 else:
     st.sidebar.warning("📊 No data loaded")
 
-trained_sys = st.session_state.get("trained_models", {})
-if trained_sys:
-    st.sidebar.success(f"🧠 {len(trained_sys)} model(s) trained")
-    for sys_key in trained_sys.keys():
-        disp_name = MODEL_REGISTRY.get(sys_key, {}).get("display_name", sys_key)
-        st.sidebar.caption(f"  • {disp_name}")
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Trained Models")
+trained = st.session_state.get("trained_models", {})
+if trained:
+    for key in trained.keys():
+        disp = MODEL_REGISTRY.get(key, {}).get("display_name", key)
+        st.sidebar.caption(f"✅ {disp}")
 else:
-    st.sidebar.warning("🧠 No models trained")
+    st.sidebar.caption("⚠️ None trained yet")
 
 st.sidebar.markdown("---")
 if llm_client.is_available():
@@ -493,6 +494,10 @@ elif active_module == "ingestion":
             for key in keys_to_clear:
                 if key in st.session_state:
                     del st.session_state[key]
+
+            st.session_state["trained_models"] = {}
+            st.session_state["trained_model_metadata"] = {}
+            st.info("Old trained models cleared. Retrain on the new dataset.")
 
             st.session_state["df"] = processed_df
             st.session_state["data_ready"] = True
@@ -873,7 +878,18 @@ elif active_module == "ml_manager":
             # Save to session state
             if "trained_models" not in st.session_state:
                 st.session_state["trained_models"] = {}
+            if "trained_model_metadata" not in st.session_state:
+                st.session_state["trained_model_metadata"] = {}
+
             st.session_state["trained_models"][selected_key] = model
+            st.session_state["trained_model_metadata"][selected_key] = {
+                "display_name": config["display_name"],
+                "trained_at": datetime.now().isoformat(),
+                "rows": training_df.shape[0],
+                "fingerprint": fingerprint,
+                "outputs": config["outputs"],
+            }
+
             st.session_state[f"trained_{selected_key}_fingerprint"] = fingerprint
             st.session_state[f"trained_{selected_key}_rows"] = training_df.shape[0]
             st.session_state[f"trained_{selected_key}_source"] = data_source
