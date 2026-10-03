@@ -3,8 +3,8 @@ Multi-Objective Pareto Optimizer (Model 3) Module for BlastOpt Botswana.
 
 BUG FIX NOTE:
 Passed the trained ML model instance into BlastProblem.__init__(model=model) and run_nsga2(model=model).
-Previously, run_nsga2 received model but did not pass it to BlastProblem, causing BlastProblem._evaluate
-to fall back to predict_physics_fallback() rather than using the trained ML model predictions.
+Previously, run_nsga2 received model but did not pass it to BlastProblem or use it in post-optimization
+outcome evaluation, causing BlastProblem._evaluate and run_nsga2 to fall back to predict_physics_fallback().
 
 Implements Model 3 (Multi-Objective Pareto Optimizer) using NSGA-II to find the non-dominated Pareto frontier
 across 5 competing objectives:
@@ -35,103 +35,6 @@ from src.predict import predict_single_blast, total_cost_per_tonne, predict_crus
 from src.regulatory import load_regulatory_limits
 
 logger = logging.getLogger(__name__)
-
-
-if HAS_PYMOO:
-    class BlastProblem(Problem):
-        """
-        pymoo Problem definition for 5-objective blast design optimization.
-
-        Decision Variables (4):
-        - burden: 2 to 8 m
-        - spacing: 2 to 10 m
-        - stemming: 1 to 6 m
-        - powder factor: 0.2 to 1.5 kg/m³
-
-        Objectives (5):
-        F1: Minimize fragmentation (D80 mm)
-        F2: Minimize PPV (mm/s)
-        F3: Minimize airblast (dB)
-        F4: Minimize cost per tonne ($/t)
-        F5: Maximize crusher throughput (-t/h)
-
-        Constraints (2):
-        G1: PPV < regulatory limit (5 mm/s)
-        G2: Airblast < regulatory limit (120 dB)
-        """
-
-        def __init__(
-            self,
-            model: Optional[Any] = None,
-            max_ppv_limit: float = 5.0,
-            max_airblast_limit: float = 120.0,
-            fixed_params: Optional[Dict[str, float]] = None,
-        ):
-            super().__init__(
-                n_var=4,
-                n_obj=5,
-                n_constr=6,
-                xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
-                xu=np.array([12.0, 18.0, 12.0, 1.5]), # Upper bounds
-            )
-            self.model = model
-            self.max_ppv = max_ppv_limit
-            self.max_airblast = max_airblast_limit
-            self.fixed_params = fixed_params if fixed_params is not None else {
-                "rock_factor_A": 8.5,
-                "bench_height_m": 15.0,
-                "hole_diameter_mm": 250.0,
-                "monitoring_distance_m": 450.0,
-            }
-
-        def _evaluate(self, x, out, *args, **kwargs):
-            n_samples = x.shape[0]
-            f_vals = np.zeros((n_samples, 5))
-            g_vals = np.zeros((n_samples, 2))
-
-            for i in range(n_samples):
-                burden, spacing, stemming, pf = x[i]
-
-                inp = self.fixed_params.copy()
-                inp["burden_m"] = float(burden)
-                inp["spacing_m"] = float(spacing)
-                inp["stemming_m"] = float(stemming)
-                inp["powder_factor_kg_m3"] = float(pf)
-
-                bench_h = inp.get("bench_height_m", 15.0)
-                hole_vol = burden * spacing * bench_h
-                inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
-                inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
-
-                preds = predict_single_blast(inp)
-
-                d50 = preds.get("d50_mm", 220.0)
-                ppv = preds.get("ppv_mms", 4.2)
-                airblast = float(inp.get("predicted_airblast_dbl", 114.0))
-                cost = preds.get("cost_per_tonne_usd", 4.80)
-
-                d80_cm = (d50 * 1.6) / 10.0
-                crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
-                throughput_tph = crusher_res.get("throughput_tph", 2400.0)
-
-                # Objectives (all minimized)
-                f_vals[i, 0] = d50 * 1.6          # F1: Minimize D80 mm
-                f_vals[i, 1] = ppv               # F2: Minimize PPV mm/s
-                f_vals[i, 2] = airblast          # F3: Minimize Airblast dB
-                f_vals[i, 3] = cost              # F4: Minimize Cost $/t
-                f_vals[i, 4] = -1.0 * throughput_tph # F5: Maximize Throughput (-t/h)
-
-                # Constraints (G <= 0)
-                g_vals[i, 0] = ppv - self.max_ppv
-                g_vals[i, 1] = airblast - self.max_airblast
-
-            out["F"] = f_vals
-            out["G"] = g_vals
-else:
-    class BlastProblem:
-        """Fallback placeholder when pymoo is not installed."""
-        def __init__(self, *args, **kwargs):
-            pass
 
 
 def is_physically_valid(burden_m: float, spacing_m: float, stemming_m: float) -> bool:
@@ -317,11 +220,16 @@ if HAS_PYMOO:
                 g_vals[i, 1] = spacing - 1.5 * burden                     # Spacing <= 1.5 * Burden
                 g_vals[i, 2] = 0.5 * burden - stemming                    # Stemming >= 0.5 * Burden
                 g_vals[i, 3] = stemming - 1.0 * burden                    # Stemming <= 1.0 * Burden
-                g_vals[i, 4] = ppv - 0.8 * self.max_ppv                   # PPV <= 80% limit
-                g_vals[i, 5] = airblast - self.max_airblast               # Airblast <= max limit
+                g_vals[i, 4] = ppv - 0.8 * self.max_ppv                   # PPV <= 0.8 * max_ppv
+                g_vals[i, 5] = airblast - self.max_airblast               # Airblast <= max_airblast
 
             out["F"] = f_vals
             out["G"] = g_vals
+else:
+    class BlastProblem:
+        """Fallback placeholder when pymoo is not installed."""
+        def __init__(self, *args, **kwargs):
+            pass
 
 
 def run_nsga2(
@@ -332,7 +240,7 @@ def run_nsga2(
     seed: int = 42,
 ) -> pd.DataFrame:
     """
-    Executes NSGA-II multi-objective genetic algorithm optimization to discover the non-dominated Pareto front.
+    Executes NSGA-II multi-objective genetic algorithm optimization to discover the non-dominated Pareto frontier.
 
     Parameters:
     -----------
@@ -378,7 +286,7 @@ def run_nsga2(
                     b, s, stem, pf = res.X[i]
                     f1, f2_pen, f3, f4, f5_neg = res.F[i]
 
-                    # Re-predict actual outcomes for row
+                    # Re-predict actual outcomes for row using model if available
                     inp = problem.fixed_params.copy()
                     inp["burden_m"] = float(b)
                     inp["spacing_m"] = float(s)
@@ -390,8 +298,19 @@ def run_nsga2(
                     inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
                     inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
 
-                    preds = predict_single_blast(inp)
-                    actual_ppv = preds.get("ppv_mms", 3.5)
+                    if model is not None and hasattr(model, "predict"):
+                        X = pd.DataFrame([inp])
+                        raw_preds = model.predict(X)
+                        if isinstance(raw_preds, pd.DataFrame):
+                            preds = raw_preds.iloc[0].to_dict()
+                        elif isinstance(raw_preds, np.ndarray):
+                            preds = {"ppv_mms": float(raw_preds[0][0]) if raw_preds.ndim == 2 else float(raw_preds[0])}
+                        else:
+                            preds = {"ppv_mms": float(raw_preds)}
+                    else:
+                        preds = predict_single_blast(inp, model_pipeline=None)
+
+                    actual_ppv = preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5))
 
                     row_dict = {
                         "burden_m": round(float(b), 2),
