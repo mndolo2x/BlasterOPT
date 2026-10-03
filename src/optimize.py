@@ -15,6 +15,7 @@ from scipy.optimize import differential_evolution
 
 from src.models import BlastMLPipeline, HAS_TORCH
 from src.predict import predict_single_blast
+from src.pareto_optimizer import is_physically_valid
 
 if HAS_TORCH:
     import torch
@@ -55,6 +56,9 @@ class BlastOptimizer:
 
     def _objective_function(self, vector: np.ndarray) -> float:
         burden, spacing, stemming, pf = vector
+
+        if not is_physically_valid(burden, spacing, stemming):
+            return 1e6
 
         # Construct full input payload
         inputs = self.fixed_params.copy()

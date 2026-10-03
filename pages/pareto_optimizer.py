@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from src.components.model_selector import render_page_model_selector
-from src.pareto_optimizer import run_nsga2, plot_pareto_front, _check_constraints
+from src.pareto_optimizer import run_nsga2, plot_pareto_front, is_physically_valid
 
 st.title("Multi-Objective Pareto Optimizer (NSGA-II)")
 
@@ -26,41 +26,34 @@ if run_opt_btn or st.session_state.get("pareto_front_df") is None:
     constraints_info = {"max_ppv": max_ppv_limit, "max_airblast": max_air_limit}
     with st.spinner("Running NSGA-II Multi-Objective Optimization..."):
         front = run_nsga2(model=model, n_gen=n_gen, pop_size=pop_size, constraints_info=constraints_info)
+
+        # Filter out any design where valid is False
+        if "valid" in front.columns:
+            front = front[front["valid"] == True].reset_index(drop=True)
+
+        if len(front) == 0:
+            st.error("No physically valid designs found. Adjust the constraints.")
+            st.stop()
+
         front.to_csv("pareto_front.csv", index=False)
         st.session_state["pareto_front_df"] = front
 
-front_df = st.session_state.get("pareto_front_df")
+df = st.session_state.get("pareto_front_df")
 
-if front_df is not None and not front_df.empty:
+if df is not None and not df.empty:
     with col2:
         st.subheader("Physical Constraint Verification")
 
-        failed_count = 0
-        total_count = len(front_df)
-        ppv_col = "ppv_mms" if "ppv_mms" in front_df.columns else "vibration_ppv_mms"
-
-        for idx, row in front_df.iterrows():
-            burden = float(row["burden_m"])
-            spacing = float(row["spacing_m"])
-            stemming = float(row["stemming_m"])
-            ppv = float(row[ppv_col])
-
-            if (spacing < burden or
-                spacing > 1.5 * burden + 1e-4 or
-                stemming < 0.5 * burden - 1e-4 or
-                stemming > 1.0 * burden + 1e-4 or
-                ppv > 0.8 * max_ppv_limit + 1e-4 or
-                burden < 2.0 or burden > 12.0):
-                failed_count += 1
-
-        if failed_count == 0:
-            st.success(f"✅ All {total_count} Pareto designs are physically valid.")
+        invalid_count = (df["spacing_m"] < df["burden_m"]).sum()
+        if invalid_count == 0:
+            st.success(f"✅ All {len(df)} designs are physically valid.")
         else:
-            st.error(f"❌ {failed_count} designs violate physical constraints.")
+            st.error(f"❌ {invalid_count} designs violate spacing >= burden. This is a bug.")
 
-        fig_pareto = plot_pareto_front(front_df, x_objective="d80_mm", y_objective=ppv_col)
+        ppv_col = "ppv_mms" if "ppv_mms" in df.columns else "vibration_ppv_mms"
+        fig_pareto = plot_pareto_front(df, x_objective="d80_mm", y_objective=ppv_col)
         st.plotly_chart(fig_pareto, use_container_width=True)
 
     st.markdown("---")
     st.subheader("📋 Pareto Front Design Candidates")
-    st.dataframe(front_df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)

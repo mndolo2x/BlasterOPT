@@ -129,43 +129,78 @@ else:
             pass
 
 
+def is_physically_valid(burden_m: float, spacing_m: float, stemming_m: float) -> bool:
+    """
+    Return True if the design obeys drilling physics.
+
+    Rules:
+    - spacing >= burden  (rock cannot be broken if spacing < burden)
+    - spacing <= 1.5 * burden  (too wide leaves unbroken pillars)
+    - stemming between 0.5 and 1.0 * burden
+    - burden between 2 and 12 meters
+    """
+    if burden_m < 2.0 or burden_m > 12.0:
+        return False
+    if spacing_m < burden_m - 1e-4:
+        return False
+    if spacing_m > 1.5 * burden_m + 1e-4:
+        return False
+    stem_ratio = stemming_m / burden_m
+    if stem_ratio < 0.5 - 1e-4 or stem_ratio > 1.0 + 1e-4:
+        return False
+    return True
+
+
 def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float = 5.0) -> bool:
     """
     Hard physical constraints check for candidate blast designs.
-
-    Rules:
-    1. Spacing >= Burden
-    2. Spacing <= 1.5 * Burden
-    3. Stemming between 0.5 * Burden and 1.0 * Burden
-    4. PPV <= 80% of regulatory limit (safety margin)
-    5. Burden between 2.0 and 12.0 meters
     """
     burden = float(X["burden_m"])
     spacing = float(X["spacing_m"])
     stemming = float(X["stemming_m"])
     ppv = float(X.get("ppv_mms", X.get("vibration_ppv_mms", 0.0)))
 
-    # 1. Spacing must be >= burden
-    if spacing < burden:
+    if not is_physically_valid(burden, spacing, stemming):
         return False
 
-    # 2. Spacing must be <= 1.5 * burden
-    if spacing > burden * 1.5 + 1e-4:
-        return False
-
-    # 3. Stemming must be between 0.5 and 1.0 * burden
-    if stemming < burden * 0.5 - 1e-4 or stemming > burden * 1.0 + 1e-4:
-        return False
-
-    # 4. PPV must be <= 80% of limit (safety margin, e.g. <= 4.0 mm/s for 5.0 limit)
     if ppv > 0.8 * max_ppv_limit + 1e-4:
         return False
 
-    # 5. Burden must be between 2 and 12 meters
-    if burden < 2.0 or burden > 12.0:
-        return False
-
     return True
+
+
+def evaluate_design(design: Dict[str, Any], model: Any = None) -> Dict[str, Any]:
+    """
+    Evaluates a candidate blast design after checking physical validity.
+    """
+    burden = float(design["burden_m"])
+    spacing = float(design["spacing_m"])
+    stemming = float(design["stemming_m"])
+
+    # Reject invalid designs before they ever reach the model
+    if not is_physically_valid(burden, spacing, stemming):
+        return {
+            "fragmentation_d80_cm": float("inf"),
+            "vibration_ppv_mms": float("inf"),
+            "airblast_db": float("inf"),
+            "cost_per_tonne_usd": float("inf"),
+            "valid": False,
+        }
+
+    X = pd.DataFrame([design])
+    if model is not None and hasattr(model, "predict"):
+        raw_preds = model.predict(X)
+        if isinstance(raw_preds, pd.DataFrame):
+            predictions = raw_preds.iloc[0].to_dict()
+        elif isinstance(raw_preds, np.ndarray):
+            predictions = {"ppv_mms": float(raw_preds[0][0]) if raw_preds.ndim == 2 else float(raw_preds[0])}
+        else:
+            predictions = {"ppv_mms": float(raw_preds)}
+    else:
+        predictions = predict_single_blast(design)
+
+    predictions["valid"] = True
+    return predictions
 
 
 if HAS_PYMOO:
@@ -224,6 +259,11 @@ if HAS_PYMOO:
 
             for i in range(n_samples):
                 burden, spacing, stemming, pf = x[i]
+
+                if not is_physically_valid(float(burden), float(spacing), float(stemming)):
+                    f_vals[i, :] = 1e6
+                    g_vals[i, :] = 1e3
+                    continue
 
                 inp = self.fixed_params.copy()
                 inp["burden_m"] = float(burden)
@@ -346,6 +386,7 @@ def run_nsga2(
                         "airblast_dbl": round(float(f3), 1),
                         "cost_per_tonne_usd": round(float(f4), 2),
                         "crusher_throughput_tph": round(float(-1.0 * f5_neg), 1),
+                        "valid": True,
                     }
                     if _check_constraints(row_dict, max_ppv_limit=max_ppv):
                         rows.append(row_dict)
@@ -385,6 +426,7 @@ def run_nsga2(
             "airblast_dbl": round(float(air), 1),
             "cost_per_tonne_usd": round(float(cost), 2),
             "crusher_throughput_tph": round(float(tph), 1),
+            "valid": True,
         }
 
         if _check_constraints(candidate, max_ppv_limit=max_ppv):
