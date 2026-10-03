@@ -59,7 +59,7 @@ class BlastOptimizer:
     def _objective_function(self, vector: np.ndarray) -> float:
         burden, spacing, stemming, pf = vector
 
-        if not is_physically_valid(burden, spacing, stemming):
+        if not is_physically_valid(burden, spacing, stemming, pf):
             return 1e6
 
         # Construct full input payload
@@ -93,13 +93,22 @@ class BlastOptimizer:
         else:
             preds = predict_single_blast(inputs, model_pipeline=self.ml_pipeline)
 
-        cost = preds.get("cost_per_tonne_usd", 4.80)
-        d50 = preds.get("d50_mm", 220.0)
+        d80_mm = float(preds.get("d80_mm", preds.get("fragmentation_d80_cm", 22.0) * 10.0 if "fragmentation_d80_cm" in preds else preds.get("d50_mm", 220.0) * 1.6))
+        d50 = preds.get("d50_mm", d80_mm / 1.6)
+        inputs["d50_mm"] = float(d50)
         ppv = preds.get("ppv_mms", preds.get("vibration_ppv_mms", 4.2))
         flyrock = preds.get("flyrock_m", 120.0)
 
+        # Compute full mine-to-mill cost
+        from src.predict import total_cost_per_tonne
+        cost_dict = total_cost_per_tonne(inputs)
+        cost = cost_dict.get("total_cost_usd_t", 4.80)
+
         # Calculate constraint penalties
         penalty = 0.0
+
+        if d80_mm > 300.0:
+            penalty += (d80_mm - 300.0) * 10.0
 
         # 1. Spacing >= Burden
         if spacing < burden:

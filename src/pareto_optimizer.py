@@ -37,7 +37,12 @@ from src.regulatory import load_regulatory_limits
 logger = logging.getLogger(__name__)
 
 
-def is_physically_valid(burden_m: float, spacing_m: float, stemming_m: float) -> bool:
+def is_physically_valid(
+    burden_m: float,
+    spacing_m: float,
+    stemming_m: float,
+    powder_factor_kg_m3: float = 0.65,
+) -> bool:
     """
     Return True if the design obeys drilling physics.
 
@@ -46,6 +51,7 @@ def is_physically_valid(burden_m: float, spacing_m: float, stemming_m: float) ->
     - spacing <= 1.5 * burden  (too wide leaves unbroken pillars)
     - stemming between 0.5 and 1.0 * burden
     - burden between 2 and 12 meters
+    - powder factor >= 0.50 kg/m³ (minimum powder factor for fragmentation)
     """
     if burden_m < 2.0 or burden_m > 12.0:
         return False
@@ -55,6 +61,8 @@ def is_physically_valid(burden_m: float, spacing_m: float, stemming_m: float) ->
         return False
     stem_ratio = stemming_m / burden_m
     if stem_ratio < 0.5 - 1e-4 or stem_ratio > 1.0 + 1e-4:
+        return False
+    if powder_factor_kg_m3 < 0.50 - 1e-4 or powder_factor_kg_m3 > 1.50 + 1e-4:
         return False
     return True
 
@@ -66,12 +74,17 @@ def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float
     burden = float(X["burden_m"])
     spacing = float(X["spacing_m"])
     stemming = float(X["stemming_m"])
+    pf = float(X.get("powder_factor_kg_m3", 0.65))
     ppv = float(X.get("ppv_mms", X.get("vibration_ppv_mms", 0.0)))
+    d80 = float(X.get("d80_mm", 220.0))
 
-    if not is_physically_valid(burden, spacing, stemming):
+    if not is_physically_valid(burden, spacing, stemming, pf):
         return False
 
     if ppv > 0.8 * max_ppv_limit + 1e-4:
+        return False
+
+    if d80 < 100.0 - 1e-4 or d80 > 400.0 + 1e-4:
         return False
 
     return True
@@ -170,7 +183,7 @@ if HAS_PYMOO:
             for i in range(n_samples):
                 burden, spacing, stemming, pf = x[i]
 
-                if not is_physically_valid(float(burden), float(spacing), float(stemming)):
+                if not is_physically_valid(float(burden), float(spacing), float(stemming), float(pf)):
                     f_vals[i, :] = 1e6
                     g_vals[i, :] = 1e3
                     continue
@@ -192,7 +205,11 @@ if HAS_PYMOO:
                     if isinstance(raw_preds, pd.DataFrame):
                         preds = raw_preds.iloc[0].to_dict()
                     elif isinstance(raw_preds, np.ndarray):
-                        preds = {"ppv_mms": float(raw_preds[0][0]) if raw_preds.ndim == 2 else float(raw_preds[0])}
+                        preds = {
+                            "fragmentation_d80_cm": float(raw_preds[0][0]),
+                            "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
+                            "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                        }
                     else:
                         preds = {"ppv_mms": float(raw_preds)}
                 else:
@@ -200,19 +217,27 @@ if HAS_PYMOO:
 
                 d80_mm = float(preds.get("d80_mm", preds.get("fragmentation_d80_cm", 22.0) * 10.0 if "fragmentation_d80_cm" in preds else preds.get("d50_mm", 220.0) * 1.6))
                 d50 = preds.get("d50_mm", d80_mm / 1.6)
-                ppv = preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5))
-                airblast = float(preds.get("airblast_db", inp.get("predicted_airblast_dbl", 114.0)))
-                cost = preds.get("cost_per_tonne_usd", 4.80)
+                inp["d50_mm"] = float(d50)
+                ppv = float(preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5)))
+                airblast = float(preds.get("airblast_db", preds.get("airblast_dbl", preds.get("vibration_airblast_db", 115.0))))
 
                 d80_cm = d80_mm / 10.0
                 crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
                 throughput_tph = crusher_res.get("throughput_tph", 2400.0)
 
+                # Compute full mine-to-mill cost (drilling + explosives + digging + hauling + crushing + milling)
+                cost_dict = total_cost_per_tonne(inp)
+                cost_m2m = cost_dict.get("total_cost_usd_t", cost_dict.get("cost_per_tonne_usd", 4.80))
+
+                # D80 upper bound linear penalty above 300 mm
+                d80_penalty = max(0.0, d80_mm - 300.0) * 10.0
+                total_cost_score = cost_m2m + d80_penalty
+
                 # Objectives
                 f_vals[i, 0] = d80_mm                                      # F1: Minimize D80 mm
                 f_vals[i, 1] = max(0.0, ppv - 0.8 * self.max_ppv)          # F2: Target <= 80% PPV margin
                 f_vals[i, 2] = airblast                                   # F3: Minimize Airblast dB
-                f_vals[i, 3] = cost                                       # F4: Minimize Cost $/t
+                f_vals[i, 3] = total_cost_score                            # F4: Minimize Mine-to-Mill Cost $/t + penalty
                 f_vals[i, 4] = -1.0 * throughput_tph                      # F5: Maximize Throughput (-t/h)
 
                 # Constraints (G <= 0)
