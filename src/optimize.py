@@ -85,9 +85,14 @@ class BlastOptimizer:
         # Calculate constraint penalties
         penalty = 0.0
 
-        # PPV Constraint
-        if ppv > self.max_ppv:
-            penalty += self.penalty_weight * ((ppv - self.max_ppv) ** 2)
+        # Spacing >= Burden Constraint
+        if spacing < burden:
+            penalty += self.penalty_weight * ((burden - spacing + 0.1) ** 2)
+
+        # PPV Constraint with 80% Safety Margin
+        effective_ppv_limit = self.max_ppv * 0.8
+        if ppv > effective_ppv_limit:
+            penalty += self.penalty_weight * ((ppv - effective_ppv_limit) ** 2)
 
         # Flyrock Constraint
         if flyrock > self.max_flyrock:
@@ -144,6 +149,11 @@ class BlastOptimizer:
 
         for vec in candidate_vectors:
             burden, spacing, stemming, pf = vec
+
+            # Enforce spacing >= burden
+            if spacing < burden:
+                spacing = burden * rng.uniform(1.0, 1.3)
+
             opt_inputs = self.fixed_params.copy()
             opt_inputs["burden_m"] = round(float(burden), 2)
             opt_inputs["spacing_m"] = round(float(spacing), 2)

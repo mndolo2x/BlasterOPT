@@ -1378,7 +1378,10 @@ elif active_module == "optimizer":
 
                     constraints_info = {
                         "metric": exp_outcome,
-                        "limit": max_ppv if exp_outcome == "ppv_mms" else (max_flyrock if exp_outcome == "flyrock_m" else 250.0),
+                        "limit": max_ppv if exp_outcome == "ppv_mms" else (max_flyrock if exp_outcome == "flyrock_m" else d50_max),
+                        "d50_min_mm": d50_min,
+                        "d50_max_mm": d50_max,
+                        "ppv_max_mm_s": max_ppv,
                         "unit": "mm/s" if exp_outcome == "ppv_mms" else ("m" if exp_outcome == "flyrock_m" else "mm"),
                     }
 

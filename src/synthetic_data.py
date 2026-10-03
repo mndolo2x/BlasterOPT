@@ -92,8 +92,8 @@ def generate_synthetic_blast_data(
 
     # Burden (m): typically 20 - 25 x hole diameter in meters
     burden = (hole_diameter / 1000.0) * np.random.uniform(20.0, 25.0, size=num_samples)
-    # Spacing (m): typically 1.1 - 1.4 x Burden
-    spacing = burden * np.random.uniform(1.1, 1.35, size=num_samples)
+    # Spacing (m): typically 1.0 - 1.5 x Burden (spacing >= burden)
+    spacing = burden * np.random.uniform(1.0, 1.5, size=num_samples)
     # Stemming length (m): typically 0.85 - 1.05 x Burden
     stemming = burden * np.random.uniform(0.85, 1.05, size=num_samples)
     # Subdrilling (m): typically 0.15 - 0.22 x Burden

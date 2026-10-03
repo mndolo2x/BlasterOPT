@@ -535,7 +535,7 @@ def generate_natural_language_explanation(
     neg_contribs = sorted([p for p in pairs if p[1] < 0], key=lambda x: x[1])[:2]
 
     target_name = str(constraints.get("metric", "outcome")).lower()
-    limit_val = constraints.get("limit", None)
+    limit_val = constraints.get("d50_max_mm", constraints.get("limit", None))
     unit = constraints.get("unit", "")
 
     # Header sentence based on limit evaluation
