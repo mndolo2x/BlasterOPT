@@ -50,10 +50,10 @@ def is_physically_valid(
     - spacing >= burden  (rock cannot be broken if spacing < burden)
     - spacing <= 1.5 * burden  (too wide leaves unbroken pillars)
     - stemming between 0.5 and 1.0 * burden
-    - burden between 2 and 12 meters
-    - powder factor >= 0.50 kg/m³ (minimum powder factor for fragmentation)
+    - burden between 3.0 and 6.0 meters
+    - powder factor between 0.40 and 0.90 kg/m³
     """
-    if burden_m < 2.0 or burden_m > 12.0:
+    if burden_m < 3.0 - 1e-4 or burden_m > 6.0 + 1e-4:
         return False
     if spacing_m < burden_m - 1e-4:
         return False
@@ -62,7 +62,7 @@ def is_physically_valid(
     stem_ratio = stemming_m / burden_m
     if stem_ratio < 0.5 - 1e-4 or stem_ratio > 1.0 + 1e-4:
         return False
-    if powder_factor_kg_m3 < 0.50 - 1e-4 or powder_factor_kg_m3 > 1.50 + 1e-4:
+    if powder_factor_kg_m3 < 0.40 - 1e-4 or powder_factor_kg_m3 > 0.90 + 1e-4:
         return False
     return True
 
@@ -162,8 +162,8 @@ if HAS_PYMOO:
                 n_var=4,
                 n_obj=5,
                 n_constr=6,
-                xl=np.array([2.0, 2.0, 1.0, 0.2]),   # Lower bounds
-                xu=np.array([12.0, 18.0, 12.0, 1.5]), # Upper bounds
+                xl=np.array([3.0, 3.5, 2.0, 0.40]), # Lower bounds: Burden (3-6m), Spacing (3.5-8m), Stemming (2-5m), PF (0.4-0.9)
+                xu=np.array([6.0, 8.0, 5.0, 0.90]),  # Upper bounds
             )
             self.model = model
             self.max_ppv = max_ppv_limit
@@ -366,34 +366,71 @@ def run_nsga2(
             logger.warning(f"pymoo NSGA2 execution fallback: {err}")
 
     # Fallback sampling producing strictly physically valid Pareto front rows
+    from src.physics_core import siskind_airblast
     rows = []
     rng = np.random.RandomState(seed)
     attempts = 0
     while len(rows) < pop_size and attempts < 2000:
         attempts += 1
-        b = rng.uniform(2.5, 8.0)
-        s = b * rng.uniform(1.0, 1.5)
-        stem = b * rng.uniform(0.5, 1.0)
-        pf = rng.uniform(0.30, 0.90)
+        b = rng.uniform(3.0, 6.0)
+        s = b * rng.uniform(1.0, 1.45)
+        stem = b * rng.uniform(0.5, 0.95)
+        pf = rng.uniform(0.40, 0.85)
 
-        # Scale Q/dist to satisfy PPV <= 0.8 * max_ppv
-        d50 = max(120.0, 380.0 - (pf * 200.0))
-        d80 = d50 * 1.6
-        ppv = rng.uniform(1.2, 0.8 * max_ppv)
-        air = max(100.0, min(119.5, 125.0 - (stem * 2.2)))
-        cost = 1.20 + (pf * 3.8) + (25.0 / (b * s))
-        tph = min(3500.0, max(1200.0, 2800.0 - (d80 * 1.8)))
+        q_hole = pf * b * s * 15.0
+        q_delay = q_hole * 2.0
+        dist = 450.0
+
+        inp = {
+            "burden_m": float(b),
+            "spacing_m": float(s),
+            "stemming_m": float(stem),
+            "powder_factor_kg_m3": float(pf),
+            "bench_height_m": 15.0,
+            "hole_diameter_mm": 250.0,
+            "charge_mass_per_hole_kg": float(q_hole),
+            "max_charge_per_delay_kg": float(q_delay),
+            "monitoring_distance_m": float(dist),
+        }
+
+        if model is not None and hasattr(model, "predict"):
+            X = pd.DataFrame([inp])
+            raw_preds = model.predict(X)
+            if isinstance(raw_preds, pd.DataFrame):
+                preds = raw_preds.iloc[0].to_dict()
+            elif isinstance(raw_preds, np.ndarray):
+                if raw_preds.ndim == 2:
+                    preds = {
+                        "fragmentation_d80_cm": float(raw_preds[0][0]),
+                        "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
+                        "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                    }
+                else:
+                    preds = {"ppv_mms": float(raw_preds[0])}
+            else:
+                preds = {"ppv_mms": float(raw_preds)}
+        else:
+            preds = predict_single_blast(inp, model_pipeline=None)
+
+        d80_mm = float(preds.get("d80_mm", preds.get("fragmentation_d80_cm", 22.0) * 10.0 if "fragmentation_d80_cm" in preds else 220.0))
+        inp["d50_mm"] = d80_mm / 1.6
+        ppv_val = float(preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.2)))
+        air_val = float(preds.get("airblast_db", preds.get("airblast_dbl", siskind_airblast(q_delay, dist))))
+
+        cost_m2m = total_cost_per_tonne(inp).get("total_cost_usd_t", 4.80)
+        tph = predict_crusher_throughput(d80_cm=d80_mm/10.0, ore_hardness=12.0).get("throughput_tph", 2400.0)
 
         candidate = {
             "burden_m": round(float(b), 2),
             "spacing_m": round(float(s), 2),
             "stemming_m": round(float(stem), 2),
             "powder_factor_kg_m3": round(float(pf), 3),
-            "d80_mm": round(float(d80), 1),
-            "ppv_mms": round(float(ppv), 2),
-            "vibration_ppv_mms": round(float(ppv), 2),
-            "airblast_dbl": round(float(air), 1),
-            "cost_per_tonne_usd": round(float(cost), 2),
+            "d80_mm": round(float(d80_mm), 1),
+            "ppv_mms": round(float(ppv_val), 2),
+            "vibration_ppv_mms": round(float(ppv_val), 2),
+            "airblast_dbl": round(float(air_val), 1),
+            "airblast_db": round(float(air_val), 1),
+            "cost_per_tonne_usd": round(float(cost_m2m), 2),
             "crusher_throughput_tph": round(float(tph), 1),
             "valid": True,
         }
