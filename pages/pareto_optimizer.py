@@ -6,11 +6,11 @@ from src.pareto_optimizer import run_nsga2, plot_pareto_front, is_physically_val
 
 st.title("Multi-Objective Pareto Optimizer (NSGA-II)")
 
-PARETO_VERSION = 3  # increment every time the optimizer bounds or logic change
+PARETO_VERSION = 5  # increment every time the optimizer bounds or logic change
 
 if st.session_state.get("pareto_version") != PARETO_VERSION:
-    st.session_state.pop("pareto_front_df", None)
-    st.session_state.pop("pareto_front_timestamp", None)
+    for key in ["pareto_front_df", "pareto_front_timestamp", "pareto_front_hash"]:
+        st.session_state.pop(key, None)
     st.session_state["pareto_version"] = PARETO_VERSION
     st.info("Optimizer code updated. Cache cleared. Click Run to regenerate.")
 
@@ -36,8 +36,8 @@ with col1:
         run_opt_btn = st.button("Run Pareto Optimizer 🚀", type="primary")
     with col_btn2:
         if st.button("Clear cached results"):
-            st.session_state.pop("pareto_front_df", None)
-            st.session_state.pop("pareto_front_timestamp", None)
+            for key in ["pareto_front_df", "pareto_front_timestamp", "pareto_front_hash"]:
+                st.session_state.pop(key, None)
             st.rerun()
 
 # Run only when the button is clicked
@@ -64,9 +64,11 @@ if run_opt_btn:
             st.error("No designs meet regulatory limits. Check constraints.")
             st.stop()
 
+        front_hash = str(pd.util.hash_pandas_object(front).sum())
         front.to_csv("pareto_front.csv", index=False)
         st.session_state["pareto_front_df"] = front
         st.session_state["pareto_front_timestamp"] = datetime.now().isoformat()
+        st.session_state["pareto_front_hash"] = front_hash
 
 # Load from cache for display
 df = st.session_state.get("pareto_front_df", None)
@@ -77,9 +79,11 @@ if df is None:
 
 if df is not None and not df.empty:
     st.caption(
-        f"Model: `{model_key}` • "
-        f"Fingerprint: `{st.session_state.get('data_fingerprint', 'unknown')}` • "
-        f"Last run: {st.session_state.get('pareto_front_timestamp', 'never')}"
+        f"Burden: {df['burden_m'].min():.2f} – {df['burden_m'].max():.2f} m  |  "
+        f"Spacing: {df['spacing_m'].min():.2f} – {df['spacing_m'].max():.2f} m  |  "
+        f"PF: {df['powder_factor_kg_m3'].min():.2f} – {df['powder_factor_kg_m3'].max():.2f} kg/m³  |  "
+        f"Airblast max: {df['airblast_dbl'].max():.1f} dB  |  "
+        f"Run at: {st.session_state.get('pareto_front_timestamp', 'unknown')}"
     )
 
     with st.expander("Debug info"):

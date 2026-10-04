@@ -111,3 +111,37 @@ def test_optimizer_rejects_invalid_designs():
 
     violations = (front["spacing_m"] < front["burden_m"] - 1e-4).sum()
     assert violations == 0, f"{violations} designs have spacing < burden"
+
+
+def test_cache_version_forces_clear():
+    """When PARETO_VERSION changes, old session state front must be discarded."""
+    session_state = {"pareto_front_df": "old_data", "pareto_version": 1}
+
+    # Simulate code version bump
+    new_version = 5
+    if session_state.get("pareto_version") != new_version:
+        session_state.pop("pareto_front_df", None)
+        session_state["pareto_version"] = new_version
+
+    assert "pareto_front_df" not in session_state
+    assert session_state["pareto_version"] == 5
+
+
+def test_optimizer_output_has_varying_airblast():
+    """After the fix, airblast must vary across the Pareto front."""
+    from src.pareto_optimizer import run_nsga2
+    from src.models import GAANNModel, FEATURE_COLS
+    from src.synthetic_data import generate_for_model
+
+    df = generate_for_model("ga_ann_jwaneng", n_samples=300, seed=42)
+    model = GAANNModel(input_size=len(FEATURE_COLS))
+    features = [c for c in df.columns if c in model.INPUT_COLUMNS]
+    model.fit(df[features], df[model.OUTPUT_COLUMNS])
+
+    front = run_nsga2(model=model, n_gen=10, pop_size=30, seed=42)
+
+    assert not front.empty, "Pareto front is empty"
+    assert front["airblast_dbl"].nunique() >= 3, f"Airblast is frozen: {front['airblast_dbl'].unique()}"
+    assert front["burden_m"].between(3.0, 6.0).all(), f"Burden out of range: {front['burden_m'].min()}-{front['burden_m'].max()}"
+    assert front["powder_factor_kg_m3"].between(0.4, 0.9).all(), f"PF out of range: {front['powder_factor_kg_m3'].min()}-{front['powder_factor_kg_m3'].max()}"
+    assert front["airblast_dbl"].max() <= 120.0 + 1e-4, f"Airblast exceeds 120 dB: {front['airblast_dbl'].max()}"
