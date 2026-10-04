@@ -623,11 +623,11 @@ class ANN_RF_Ensemble:
         else:
             X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
 
-        if X_mat.shape[1] < 10:
-            padding = np.zeros((X_mat.shape[0], 10 - X_mat.shape[1]))
+        if X_mat.shape[1] < 11:
+            padding = np.zeros((X_mat.shape[0], 11 - X_mat.shape[1]))
             X_mat = np.hstack([X_mat, padding])
-        elif X_mat.shape[1] > 10:
-            X_mat = X_mat[:, :10]
+        elif X_mat.shape[1] > 11:
+            X_mat = X_mat[:, :11]
 
         X_scaled = self.scaler_x.transform(X_mat)
 

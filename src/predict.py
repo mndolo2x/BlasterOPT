@@ -300,15 +300,13 @@ def predict_crusher_throughput(d80_cm: float, ore_hardness: float, crusher_setti
     css = float(crusher_settings.get("css_mm", 150.0))
     power_kw = float(crusher_settings.get("power_rating_kw", 400.0))
 
-    # Bond Work Index equation for specific energy estimate: W = 10 * Wi * (1/sqrt(P80) - 1/sqrt(F80))
-    # F80 in microns = d80_cm * 10,000; P80 in microns = css_mm * 1000
-    f80_um = max(d80_cm * 10000.0, 1000.0)
-    p80_um = max(css * 1000.0, 1000.0)
+    d80_mm = max(d80_cm * 10.0, 50.0)
+    # Primary crusher throughput scales inversely with square root of feed size D80 (ref: 250 mm)
+    ref_d80_mm = 250.0
+    nominal_tph = float(power_kw * 5.0)  # Nominal throughput at reference D80 = 250 mm (2000 t/h for 400 kW)
+    throughput_tph = float(np.clip(nominal_tph * np.sqrt(ref_d80_mm / d80_mm), 100.0, 5000.0))
 
-    specific_energy = 10.0 * max(ore_hardness, 5.0) * (1.0 / np.sqrt(p80_um) - 1.0 / np.sqrt(f80_um))
-    specific_energy = float(np.clip(specific_energy, 0.2, 15.0))
-
-    throughput_tph = float(np.clip(power_kw / max(specific_energy, 0.1), 50.0, 5000.0))
+    specific_energy = float(np.clip(power_kw / max(throughput_tph, 1.0), 0.05, 15.0))
 
     return {
         "throughput_tph": round(throughput_tph, 2),
