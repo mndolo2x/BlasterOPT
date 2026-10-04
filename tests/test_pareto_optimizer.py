@@ -113,6 +113,54 @@ def test_optimizer_rejects_invalid_designs():
     assert violations == 0, f"{violations} designs have spacing < burden"
 
 
+def test_validator_rejects_burden_below_minimum():
+    from src.pareto_optimizer import validate_design
+    design = {
+        "burden_m": 2.0, "spacing_m": 2.5, "stemming_m": 1.5,
+        "powder_factor_kg_m3": 0.65, "d80_mm": 250,
+        "ppv_mms": 3.5, "airblast_dbl": 115,
+    }
+    is_valid, violations = validate_design(design)
+    assert is_valid is False
+    assert any("burden" in v for v in violations)
+
+
+def test_validator_rejects_pf_above_maximum():
+    from src.pareto_optimizer import validate_design
+    design = {
+        "burden_m": 4.0, "spacing_m": 5.0, "stemming_m": 3.0,
+        "powder_factor_kg_m3": 1.2, "d80_mm": 250,
+        "ppv_mms": 3.5, "airblast_dbl": 115,
+    }
+    is_valid, violations = validate_design(design)
+    assert is_valid is False
+    assert any("powder factor" in v for v in violations)
+
+
+def test_validator_rejects_airblast_over_120():
+    from src.pareto_optimizer import validate_design
+    design = {
+        "burden_m": 4.0, "spacing_m": 5.0, "stemming_m": 3.0,
+        "powder_factor_kg_m3": 0.65, "d80_mm": 250,
+        "ppv_mms": 3.5, "airblast_dbl": 130,
+    }
+    is_valid, violations = validate_design(design)
+    assert is_valid is False
+    assert any("airblast" in v for v in violations)
+
+
+def test_validator_accepts_a_correct_design():
+    from src.pareto_optimizer import validate_design
+    design = {
+        "burden_m": 4.2, "spacing_m": 5.1, "stemming_m": 3.0,
+        "powder_factor_kg_m3": 0.65, "d80_mm": 250,
+        "ppv_mms": 3.5, "airblast_dbl": 115,
+    }
+    is_valid, violations = validate_design(design)
+    assert is_valid is True
+    assert violations == []
+
+
 def test_cache_version_forces_clear():
     """When PARETO_VERSION changes, old session state front must be discarded."""
     session_state = {"pareto_front_df": "old_data", "pareto_version": 1}

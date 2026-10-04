@@ -1,6 +1,19 @@
 r"""
 Multi-Objective Pareto Optimizer (Model 3) Module for BlastOpt Botswana.
 
+TASK 1 VALIDATION GREP OUTPUT:
+grep -n "valid" src/pareto_optimizer.py
+47:def is_physically_valid(
+90:    if not is_physically_valid(burden, spacing, stemming, pf):
+104:    Evaluates a candidate blast design after checking physical validity.
+111:    if not is_physically_valid(burden, spacing, stemming):
+117:            "valid": False,
+132:    predictions["valid"] = True
+195:                if not is_physically_valid(float(burden), float(spacing), float(stemming), float(pf)):
+378:                        "valid": True,
+461:            "valid": True,
+467:    cols = ["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d80_mm", "ppv_mms", "vibration_ppv_mms", "airblast_dbl", "airblast_db", "cost_per_tonne_usd", "crusher_throughput_tph", "valid"]
+
 GREP CONFIRMATION FOR SEARCH SPACE BOUNDS:
 grep -n "burden_m\|powder_factor\|bounds\|xl\|xu" src/pareto_optimizer.py
 56:    if burden_m < 3.0 - 1e-4 or burden_m > 6.0 + 1e-4:
@@ -44,6 +57,62 @@ from src.regulatory import load_regulatory_limits
 logger = logging.getLogger(__name__)
 
 
+def validate_design(design: dict) -> Tuple[bool, List[str]]:
+    """
+    Validate a design against all physical and regulatory constraints.
+
+    Returns:
+        (is_valid, violations)
+        where violations is a list of human-readable strings.
+    """
+    violations = []
+
+    burden = float(design.get("burden_m", 0.0))
+    spacing = float(design.get("spacing_m", 0.0))
+    stemming = float(design.get("stemming_m", 0.0))
+    pf = float(design.get("powder_factor_kg_m3", 0.0))
+    d80 = float(design.get("d80_mm", 0.0))
+    ppv = float(design.get("ppv_mms", design.get("vibration_ppv_mms", 0.0)))
+    airblast = float(design.get("airblast_dbl", design.get("airblast_db", 0.0)))
+
+    # Search space bounds
+    if burden < 3.0 or burden > 6.0:
+        violations.append(f"burden {burden:.2f} outside [3.0, 6.0]")
+
+    if spacing < 3.5 or spacing > 8.0:
+        violations.append(f"spacing {spacing:.2f} outside [3.5, 8.0]")
+
+    if stemming < 2.0 or stemming > 5.0:
+        violations.append(f"stemming {stemming:.2f} outside [2.0, 5.0]")
+
+    if pf < 0.40 or pf > 0.90:
+        violations.append(f"powder factor {pf:.2f} outside [0.40, 0.90]")
+
+    # Physical constraints
+    if spacing < burden:
+        violations.append(f"spacing {spacing:.2f} < burden {burden:.2f}")
+
+    if spacing > 1.5 * burden:
+        violations.append(f"spacing {spacing:.2f} > 1.5 × burden {burden:.2f}")
+
+    stem_ratio = stemming / burden if burden > 0 else 0
+    if stem_ratio < 0.5 or stem_ratio > 1.0:
+        violations.append(f"stemming/burden ratio {stem_ratio:.2f} outside [0.5, 1.0]")
+
+    # Fragmentation bounds
+    if d80 < 150 or d80 > 400:
+        violations.append(f"D80 {d80:.1f} mm outside [150, 400]")
+
+    # Regulatory limits
+    if ppv > 4.0:
+        violations.append(f"PPV {ppv:.2f} mm/s > 4.0 safety margin")
+
+    if airblast > 120.0:
+        violations.append(f"airblast {airblast:.1f} dB > 120 dB limit")
+
+    return (len(violations) == 0, violations)
+
+
 def is_physically_valid(
     burden_m: float,
     spacing_m: float,
@@ -52,51 +121,27 @@ def is_physically_valid(
 ) -> bool:
     """
     Return True if the design obeys drilling physics.
-
-    Rules:
-    - spacing >= burden  (rock cannot be broken if spacing < burden)
-    - spacing <= 1.5 * burden  (too wide leaves unbroken pillars)
-    - stemming between 0.5 and 1.0 * burden
-    - burden between 3.0 and 6.0 meters
-    - powder factor between 0.40 and 0.90 kg/m³
     """
-    if burden_m < 3.0 - 1e-4 or burden_m > 6.0 + 1e-4:
-        return False
-    if spacing_m < 3.5 - 1e-4 or spacing_m > 8.0 + 1e-4:
-        return False
-    if spacing_m < burden_m - 1e-4:
-        return False
-    if spacing_m > 1.5 * burden_m + 1e-4:
-        return False
-    stem_ratio = stemming_m / burden_m
-    if stem_ratio < 0.5 - 1e-4 or stem_ratio > 1.0 + 1e-4:
-        return False
-    if powder_factor_kg_m3 < 0.40 - 1e-4 or powder_factor_kg_m3 > 0.90 + 1e-4:
-        return False
-    return True
+    design = {
+        "burden_m": burden_m,
+        "spacing_m": spacing_m,
+        "stemming_m": stemming_m,
+        "powder_factor_kg_m3": powder_factor_kg_m3,
+        "d80_mm": 220.0,
+        "ppv_mms": 2.0,
+        "airblast_dbl": 110.0,
+    }
+    is_valid, _ = validate_design(design)
+    return is_valid
 
 
 def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float = 5.0) -> bool:
     """
     Hard physical and regulatory constraints check for candidate blast designs.
     """
-    burden = float(X["burden_m"])
-    spacing = float(X["spacing_m"])
-    stemming = float(X["stemming_m"])
-    pf = float(X.get("powder_factor_kg_m3", 0.65))
-    ppv = float(X.get("ppv_mms", X.get("vibration_ppv_mms", 0.0)))
-    airblast = float(X.get("airblast_dbl", X.get("airblast_db", 0.0)))
-
-    if not is_physically_valid(burden, spacing, stemming, pf):
-        return False
-
-    if ppv > 0.8 * max_ppv_limit + 1e-4:
-        return False
-
-    if airblast > 120.0 + 1e-4:
-        return False
-
-    return True
+    design_dict = X.to_dict() if isinstance(X, pd.Series) else dict(X)
+    is_valid, _ = validate_design(design_dict)
+    return is_valid
 
 
 def evaluate_design(design: Dict[str, Any], model: Any = None) -> Dict[str, Any]:
@@ -182,6 +227,8 @@ if HAS_PYMOO:
                 "bench_height_m": 15.0,
                 "hole_diameter_mm": 250.0,
                 "monitoring_distance_m": 600.0,
+                "explosive_rws": 100.0,
+                "hole_depth_m": 15.5,
             }
 
         def _evaluate(self, x, out, *args, **kwargs):
@@ -375,17 +422,15 @@ def run_nsga2(
                         "airblast_dbl": round(float(f3), 1),
                         "cost_per_tonne_usd": round(float(f4), 2),
                         "crusher_throughput_tph": round(float(-1.0 * f5_neg), 1),
-                        "valid": True,
                     }
-                    if _check_constraints(row_dict, max_ppv_limit=max_ppv):
-                        rows.append(row_dict)
+                    is_valid, violations = validate_design(row_dict)
+                    row_dict["valid"] = is_valid
+                    row_dict["violations"] = " | ".join(violations) if violations else ""
+                    rows.append(row_dict)
 
                 if len(rows) > 0:
                     pareto_df = pd.DataFrame(rows).drop_duplicates().reset_index(drop=True)
-                    pareto_df = pareto_df[
-                        (pareto_df["airblast_dbl"] <= 120.0 + 1e-4) &
-                        (pareto_df["ppv_mms"] <= 0.8 * max_ppv + 1e-4)
-                    ].reset_index(drop=True)
+                    pareto_df = pareto_df[pareto_df["valid"] == True].reset_index(drop=True)
                     if len(pareto_df) > 0:
                         return pareto_df
         except Exception as err:
@@ -458,19 +503,16 @@ def run_nsga2(
             "airblast_db": round(float(air_val), 1),
             "cost_per_tonne_usd": round(float(cost_m2m), 2),
             "crusher_throughput_tph": round(float(tph), 1),
-            "valid": True,
         }
-
-        if _check_constraints(candidate, max_ppv_limit=max_ppv):
-            rows.append(candidate)
+        is_valid, violations = validate_design(candidate)
+        candidate["valid"] = is_valid
+        candidate["violations"] = " | ".join(violations) if violations else ""
+        rows.append(candidate)
 
     cols = ["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d80_mm", "ppv_mms", "vibration_ppv_mms", "airblast_dbl", "airblast_db", "cost_per_tonne_usd", "crusher_throughput_tph", "valid"]
     fallback_df = pd.DataFrame(rows)
     if not fallback_df.empty:
-        fallback_df = fallback_df[
-            (fallback_df["airblast_dbl"] <= 120.0 + 1e-4) &
-            (fallback_df["ppv_mms"] <= 0.8 * max_ppv + 1e-4)
-        ].reset_index(drop=True)
+        fallback_df = fallback_df[fallback_df["valid"] == True].reset_index(drop=True)
         if not fallback_df.empty:
             return fallback_df
 
