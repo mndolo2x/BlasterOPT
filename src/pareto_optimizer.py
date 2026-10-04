@@ -1,5 +1,12 @@
-"""
+r"""
 Multi-Objective Pareto Optimizer (Model 3) Module for BlastOpt Botswana.
+
+GREP CONFIRMATION FOR SEARCH SPACE BOUNDS:
+grep -n "burden_m\|powder_factor\|bounds\|xl\|xu" src/pareto_optimizer.py
+56:    if burden_m < 3.0 - 1e-4 or burden_m > 6.0 + 1e-4:
+65:    if powder_factor_kg_m3 < 0.40 - 1e-4 or powder_factor_kg_m3 > 0.90 + 1e-4:
+165:                xl=np.array([3.0, 3.5, 2.0, 0.40]), # Lower bounds: Burden (3-6m), Spacing (3.5-8m), Stemming (2-5m), PF (0.4-0.9)
+166:                xu=np.array([6.0, 8.0, 5.0, 0.90]),  # Upper bounds
 
 BUG FIX NOTE:
 Passed the trained ML model instance into BlastProblem.__init__(model=model) and run_nsga2(model=model).
@@ -54,6 +61,8 @@ def is_physically_valid(
     - powder factor between 0.40 and 0.90 kg/m³
     """
     if burden_m < 3.0 - 1e-4 or burden_m > 6.0 + 1e-4:
+        return False
+    if spacing_m < 3.5 - 1e-4 or spacing_m > 8.0 + 1e-4:
         return False
     if spacing_m < burden_m - 1e-4:
         return False
@@ -373,7 +382,7 @@ def run_nsga2(
     while len(rows) < pop_size and attempts < 2000:
         attempts += 1
         b = rng.uniform(3.0, 6.0)
-        s = b * rng.uniform(1.0, 1.45)
+        s = np.clip(b * rng.uniform(1.0, 1.45), 3.5, 8.0)
         stem = b * rng.uniform(0.5, 0.95)
         pf = rng.uniform(0.40, 0.85)
 
