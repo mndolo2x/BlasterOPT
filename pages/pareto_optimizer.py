@@ -33,8 +33,13 @@ if run_opt_btn or st.session_state.get("pareto_front_df") is None:
         if "valid" in front.columns:
             front = front[front["valid"] == True].reset_index(drop=True)
 
+        front = front[
+            (front["airblast_dbl"] <= 120.0 + 1e-4) &
+            (front["ppv_mms"] <= 0.8 * max_ppv_limit + 1e-4)
+        ].reset_index(drop=True)
+
         if len(front) == 0:
-            st.error("No physically valid designs found. Adjust the constraints.")
+            st.error("No designs meet regulatory limits. Check constraints.")
             st.stop()
 
         front.to_csv("pareto_front.csv", index=False)
@@ -44,13 +49,13 @@ df = st.session_state.get("pareto_front_df")
 
 if df is not None and not df.empty:
     with col2:
-        st.subheader("Physical Constraint Verification")
+        st.subheader("Physical & Regulatory Constraint Verification")
 
-        invalid_count = (df["spacing_m"] < df["burden_m"]).sum()
-        if invalid_count == 0:
-            st.success(f"✅ All {len(df)} designs are physically valid.")
+        violations = (df["airblast_dbl"] > 120.0).sum()
+        if violations == 0:
+            st.success(f"✅ All {len(df)} designs comply with Botswana limits.")
         else:
-            st.error(f"❌ {invalid_count} designs violate spacing >= burden. This is a bug.")
+            st.error(f"❌ {violations} designs exceed the 120 dB airblast limit.")
 
         ppv_col = "ppv_mms" if "ppv_mms" in df.columns else "vibration_ppv_mms"
         fig_pareto = plot_pareto_front(df, x_objective="d80_mm", y_objective=ppv_col)

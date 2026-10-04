@@ -78,14 +78,14 @@ def is_physically_valid(
 
 def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float = 5.0) -> bool:
     """
-    Hard physical constraints check for candidate blast designs.
+    Hard physical and regulatory constraints check for candidate blast designs.
     """
     burden = float(X["burden_m"])
     spacing = float(X["spacing_m"])
     stemming = float(X["stemming_m"])
     pf = float(X.get("powder_factor_kg_m3", 0.65))
     ppv = float(X.get("ppv_mms", X.get("vibration_ppv_mms", 0.0)))
-    d80 = float(X.get("d80_mm", 220.0))
+    airblast = float(X.get("airblast_dbl", X.get("airblast_db", 0.0)))
 
     if not is_physically_valid(burden, spacing, stemming, pf):
         return False
@@ -93,7 +93,7 @@ def _check_constraints(X: Union[pd.Series, Dict[str, Any]], max_ppv_limit: float
     if ppv > 0.8 * max_ppv_limit + 1e-4:
         return False
 
-    if d80 < 100.0 - 1e-4 or d80 > 400.0 + 1e-4:
+    if airblast > 120.0 + 1e-4:
         return False
 
     return True
@@ -181,7 +181,7 @@ if HAS_PYMOO:
                 "rock_factor_A": 8.5,
                 "bench_height_m": 15.0,
                 "hole_diameter_mm": 250.0,
-                "monitoring_distance_m": 450.0,
+                "monitoring_distance_m": 600.0,
             }
 
         def _evaluate(self, x, out, *args, **kwargs):
@@ -206,7 +206,7 @@ if HAS_PYMOO:
                 bench_h = inp.get("bench_height_m", 15.0)
                 hole_vol = burden * spacing * bench_h
                 inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
-                inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
+                inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"])
 
                 if self.model is not None and hasattr(self.model, "predict"):
                     X = pd.DataFrame([inp])
@@ -229,6 +229,17 @@ if HAS_PYMOO:
                 inp["d50_mm"] = float(d50)
                 ppv = float(preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5)))
                 airblast = float(preds.get("airblast_db", preds.get("airblast_dbl", preds.get("vibration_airblast_db", 115.0))))
+
+                # HARD REGULATORY CONSTRAINTS — reject any design that exceeds limits
+                if airblast > 120.0 + 1e-4:
+                    f_vals[i, :] = 1e6
+                    g_vals[i, :] = 1e3
+                    continue
+
+                if ppv > 0.8 * self.max_ppv + 1e-4:  # 80% of the 5.0 mm/s limit
+                    f_vals[i, :] = 1e6
+                    g_vals[i, :] = 1e3
+                    continue
 
                 d80_cm = d80_mm / 10.0
                 crusher_res = predict_crusher_throughput(d80_cm=d80_cm, ore_hardness=12.0)
@@ -330,7 +341,7 @@ def run_nsga2(
                     bench_h = inp.get("bench_height_m", 15.0)
                     hole_vol = b * s * bench_h
                     inp["charge_mass_per_hole_kg"] = float(pf * hole_vol)
-                    inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"] * 2.0)
+                    inp["max_charge_per_delay_kg"] = float(inp["charge_mass_per_hole_kg"])
 
                     if model is not None and hasattr(model, "predict"):
                         X = pd.DataFrame([inp])
@@ -370,7 +381,13 @@ def run_nsga2(
                         rows.append(row_dict)
 
                 if len(rows) > 0:
-                    return pd.DataFrame(rows).drop_duplicates().reset_index(drop=True)
+                    pareto_df = pd.DataFrame(rows).drop_duplicates().reset_index(drop=True)
+                    pareto_df = pareto_df[
+                        (pareto_df["airblast_dbl"] <= 120.0 + 1e-4) &
+                        (pareto_df["ppv_mms"] <= 0.8 * max_ppv + 1e-4)
+                    ].reset_index(drop=True)
+                    if len(pareto_df) > 0:
+                        return pareto_df
         except Exception as err:
             logger.warning(f"pymoo NSGA2 execution fallback: {err}")
 
@@ -382,13 +399,13 @@ def run_nsga2(
     while len(rows) < pop_size and attempts < 2000:
         attempts += 1
         b = rng.uniform(3.0, 6.0)
-        s = np.clip(b * rng.uniform(1.0, 1.45), 3.5, 8.0)
-        stem = b * rng.uniform(0.5, 0.95)
+        s = np.clip(b * rng.uniform(1.0, 1.45), max(3.5, b), 8.0)
+        stem = np.clip(b * rng.uniform(0.5, 0.95), 2.0, 5.0)
         pf = rng.uniform(0.40, 0.85)
 
         q_hole = pf * b * s * 15.0
-        q_delay = q_hole * 2.0
-        dist = 450.0
+        q_delay = q_hole
+        dist = 600.0
 
         inp = {
             "burden_m": float(b),
@@ -447,7 +464,17 @@ def run_nsga2(
         if _check_constraints(candidate, max_ppv_limit=max_ppv):
             rows.append(candidate)
 
-    return pd.DataFrame(rows)
+    cols = ["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d80_mm", "ppv_mms", "vibration_ppv_mms", "airblast_dbl", "airblast_db", "cost_per_tonne_usd", "crusher_throughput_tph", "valid"]
+    fallback_df = pd.DataFrame(rows)
+    if not fallback_df.empty:
+        fallback_df = fallback_df[
+            (fallback_df["airblast_dbl"] <= 120.0 + 1e-4) &
+            (fallback_df["ppv_mms"] <= 0.8 * max_ppv + 1e-4)
+        ].reset_index(drop=True)
+        if not fallback_df.empty:
+            return fallback_df
+
+    return pd.DataFrame(columns=cols)
 
 
 def select_best_design(

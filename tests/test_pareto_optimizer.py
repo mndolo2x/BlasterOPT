@@ -78,12 +78,13 @@ def test_optimizer_uses_trained_model():
     from src.pareto_optimizer import run_nsga2
     from src.synthetic_data import generate_for_model
 
-    df = generate_for_model("ga_ann_jwaneng", n_samples=200)
+    df = generate_for_model("ga_ann_jwaneng", n_samples=200, seed=42)
     model_a = GAANNModel(input_size=11)
     features = [c for c in df.columns if c in model_a.INPUT_COLUMNS]
     model_a.fit(df[features], df[model_a.OUTPUT_COLUMNS])
 
-    front_a = run_nsga2(model=model_a, n_gen=5, pop_size=20)
+    front_a = run_nsga2(model=model_a, n_gen=10, pop_size=30, seed=42)
+    assert not front_a.empty, "NSGA-II returned an empty Pareto front"
 
     # All designs must have spacing >= burden
     assert (front_a["spacing_m"] >= front_a["burden_m"] - 1e-4).all(), \
