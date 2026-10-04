@@ -329,7 +329,14 @@ def run_nsga2(
                         if isinstance(raw_preds, pd.DataFrame):
                             preds = raw_preds.iloc[0].to_dict()
                         elif isinstance(raw_preds, np.ndarray):
-                            preds = {"ppv_mms": float(raw_preds[0][0]) if raw_preds.ndim == 2 else float(raw_preds[0])}
+                            if raw_preds.ndim == 2:
+                                preds = {
+                                    "fragmentation_d80_cm": float(raw_preds[0][0]),
+                                    "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
+                                    "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                                }
+                            else:
+                                preds = {"ppv_mms": float(raw_preds[0])}
                         else:
                             preds = {"ppv_mms": float(raw_preds)}
                     else:
