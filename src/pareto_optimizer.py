@@ -52,6 +52,7 @@ except ImportError:
     Problem = object
 
 from src.predict import predict_single_blast, total_cost_per_tonne, predict_crusher_throughput
+from src.physics_core import siskind_airblast
 from src.regulatory import load_regulatory_limits
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,9 @@ def validate_design(design: dict) -> Tuple[bool, List[str]]:
     ppv = float(design.get("ppv_mms", design.get("vibration_ppv_mms", 0.0)))
     airblast = float(design.get("airblast_dbl", design.get("airblast_db", 0.0)))
 
-    # Search space bounds
-    if burden < 3.0 or burden > 6.0:
-        violations.append(f"burden {burden:.2f} outside [3.0, 6.0]")
+    # Search space bounds for Kimberlite open-pit blasting
+    if burden < 3.5 or burden > 5.5:
+        violations.append(f"burden {burden:.2f} outside [3.5, 5.5]")
 
     if spacing < 3.5 or spacing > 8.0:
         violations.append(f"spacing {spacing:.2f} outside [3.5, 8.0]")
@@ -85,8 +86,8 @@ def validate_design(design: dict) -> Tuple[bool, List[str]]:
     if stemming < 2.0 or stemming > 5.0:
         violations.append(f"stemming {stemming:.2f} outside [2.0, 5.0]")
 
-    if pf < 0.40 or pf > 0.90:
-        violations.append(f"powder factor {pf:.2f} outside [0.40, 0.90]")
+    if pf < 0.50 or pf > 0.80:
+        violations.append(f"powder factor {pf:.2f} outside [0.50, 0.80]")
 
     # Physical constraints
     if spacing < burden:
@@ -99,9 +100,9 @@ def validate_design(design: dict) -> Tuple[bool, List[str]]:
     if stem_ratio < 0.5 or stem_ratio > 1.0:
         violations.append(f"stemming/burden ratio {stem_ratio:.2f} outside [0.5, 1.0]")
 
-    # Fragmentation bounds
-    if d80 < 150 or d80 > 400:
-        violations.append(f"D80 {d80:.1f} mm outside [150, 400]")
+    # Fragmentation bounds (Kimberlite 100-550 mm)
+    if d80 < 100 or d80 > 550:
+        violations.append(f"D80 {d80:.1f} mm outside [100, 550]")
 
     # Regulatory limits
     if ppv > 4.0:
@@ -216,8 +217,8 @@ if HAS_PYMOO:
                 n_var=4,
                 n_obj=5,
                 n_constr=6,
-                xl=np.array([3.0, 3.5, 2.0, 0.40]), # Lower bounds: Burden (3-6m), Spacing (3.5-8m), Stemming (2-5m), PF (0.4-0.9)
-                xu=np.array([6.0, 8.0, 5.0, 0.90]),  # Upper bounds
+                xl=np.array([3.5, 3.5, 2.0, 0.50]), # Kimberlite bounds: Burden (3.5-5.5m), Spacing (3.5-8m), Stemming (2-5m), PF (0.5-0.8)
+                xu=np.array([5.5, 8.0, 5.0, 0.80]),  # Upper bounds
             )
             self.model = model
             self.max_ppv = max_ppv_limit
@@ -264,7 +265,7 @@ if HAS_PYMOO:
                         preds = {
                             "fragmentation_d80_cm": float(raw_preds[0][0]),
                             "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
-                            "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                            "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else siskind_airblast(inp["max_charge_per_delay_kg"], inp["monitoring_distance_m"]),
                         }
                     else:
                         preds = {"ppv_mms": float(raw_preds)}
@@ -275,7 +276,7 @@ if HAS_PYMOO:
                 d50 = preds.get("d50_mm", d80_mm / 1.6)
                 inp["d50_mm"] = float(d50)
                 ppv = float(preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5)))
-                airblast = float(preds.get("airblast_db", preds.get("airblast_dbl", preds.get("vibration_airblast_db", 115.0))))
+                airblast = float(preds.get("airblast_db", preds.get("airblast_dbl", preds.get("vibration_airblast_db", siskind_airblast(inp["max_charge_per_delay_kg"], inp["monitoring_distance_m"])))))
 
                 # HARD REGULATORY CONSTRAINTS — reject any design that exceeds limits
                 if airblast > 120.0 + 1e-4:
@@ -400,7 +401,7 @@ def run_nsga2(
                                 preds = {
                                     "fragmentation_d80_cm": float(raw_preds[0][0]),
                                     "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
-                                    "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                                    "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else siskind_airblast(inp["max_charge_per_delay_kg"], inp["monitoring_distance_m"]),
                                 }
                             else:
                                 preds = {"ppv_mms": float(raw_preds[0])}
@@ -474,7 +475,7 @@ def run_nsga2(
                     preds = {
                         "fragmentation_d80_cm": float(raw_preds[0][0]),
                         "vibration_ppv_mms": float(raw_preds[0][1]) if raw_preds.shape[1] > 1 else 3.5,
-                        "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else 115.0,
+                        "airblast_db": float(raw_preds[0][2]) if raw_preds.shape[1] > 2 else siskind_airblast(q_delay, dist),
                     }
                 else:
                     preds = {"ppv_mms": float(raw_preds[0])}

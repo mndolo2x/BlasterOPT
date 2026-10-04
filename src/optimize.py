@@ -50,10 +50,10 @@ class BlastOptimizer:
         # 3. Stemming (m)
         # 4. Powder factor (kg/m3)
         self.bounds = [
-            (2.5, 10.0),  # burden_m
-            (3.0, 12.0),  # spacing_m
-            (2.0, 8.0),   # stemming_m
-            (0.2, 1.8),   # powder_factor_kg_m3
+            (3.5, 5.5),  # burden_m
+            (3.5, 8.0),  # spacing_m
+            (2.0, 5.0),  # stemming_m
+            (0.5, 0.8),  # powder_factor_kg_m3
         ]
 
     def _objective_function(self, vector: np.ndarray) -> float:
