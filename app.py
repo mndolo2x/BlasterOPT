@@ -1066,12 +1066,12 @@ elif active_module == "comparison":
 
 # --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
 elif active_module == "predictor":
-    exec(open("pages/predictor.py").read())
+    exec(open(os.path.join(repo_root, "pages/predictor.py")).read())
 
 
 # --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
 elif active_module == "optimizer":
-    exec(open("pages/ga_optimizer.py").read())
+    exec(open(os.path.join(repo_root, "pages/ga_optimizer.py")).read())
 
 
 # --- MODULE: ECONOMIC DASHBOARD ---
@@ -2001,7 +2001,12 @@ elif active_module == "pinn":
 
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
 elif active_module == "pareto":
-    exec(open("pages/pareto_optimizer.py").read())
+    try:
+        from pages.pareto_optimizer import run_nsga2, plot_pareto_front
+        exec(open(os.path.join(repo_root, "pages/pareto_optimizer.py")).read())
+    except Exception as exc:
+        st.error("Error loading Pareto Optimizer module:")
+        st.exception(exc)
 
 
 # --- MODULE: MODEL CARDS & EXPLAINABILITY AUDIT ---
