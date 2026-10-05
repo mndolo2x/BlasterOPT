@@ -6,7 +6,7 @@ from src.pareto_optimizer import run_nsga2, plot_pareto_front, is_physically_val
 
 st.title("Multi-Objective Pareto Optimizer (NSGA-II)")
 
-PARETO_VERSION = 5  # increment every time the optimizer bounds or logic change
+PARETO_VERSION = 10  # force cache invalidation across Streamlit Cloud & local sessions
 
 if st.session_state.get("pareto_version") != PARETO_VERSION:
     for key in ["pareto_front_df", "pareto_raw_front_df", "pareto_front_timestamp", "pareto_front_hash"]:
