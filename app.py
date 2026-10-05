@@ -35,12 +35,13 @@ if repo_root in sys.path:
     sys.path.remove(repo_root)
 sys.path.insert(0, repo_root)
 
-# Purge any stale 'src' module in sys.modules pointing outside repo_root (e.g., Streamlit Cloud /mount/src)
-if "src" in sys.modules:
-    src_mod = sys.modules["src"]
-    src_file = getattr(src_mod, "__file__", "") or ""
-    if not src_file or not os.path.abspath(src_file).startswith(repo_root):
-        del sys.modules["src"]
+# Purge any stale 'src' module or submodules in sys.modules pointing outside repo_root (e.g., Streamlit Cloud /mount/src)
+for mod_name in list(sys.modules.keys()):
+    if mod_name == "src" or mod_name.startswith("src."):
+        mod_obj = sys.modules.get(mod_name)
+        mod_file = getattr(mod_obj, "__file__", "") or ""
+        if not mod_file or not os.path.abspath(mod_file).startswith(repo_root):
+            del sys.modules[mod_name]
 
 from src.synthetic_data import generate_synthetic_blast_data, validate_synthetic_data
 from src.data_ingestion import prepare_ingested_dataset, load_real_blast_data, clean_and_preprocess, engineer_features, dataframe_fingerprint

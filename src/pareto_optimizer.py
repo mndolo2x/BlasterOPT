@@ -678,3 +678,15 @@ def plot_pareto_front(
     fig.update_layout(template="plotly_white", height=450)
 
     return fig
+
+__all__ = [
+    "run_nsga2",
+    "select_best_design",
+    "generate_trade_off_explanation",
+    "plot_pareto_front",
+    "is_physically_valid",
+    "validate_design",
+    "evaluate_design",
+    "_check_constraints",
+    "BlastProblem",
+]
