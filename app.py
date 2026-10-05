@@ -2002,7 +2002,6 @@ elif active_module == "pinn":
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
 elif active_module == "pareto":
     try:
-        from pages.pareto_optimizer import run_nsga2, plot_pareto_front
         exec(open(os.path.join(repo_root, "pages/pareto_optimizer.py")).read())
     except Exception as exc:
         st.error("Error loading Pareto Optimizer module:")
