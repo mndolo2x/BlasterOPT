@@ -444,10 +444,10 @@ def run_nsga2(
     attempts = 0
     while len(rows) < pop_size and attempts < 2000:
         attempts += 1
-        b = rng.uniform(3.0, 6.0)
+        b = rng.uniform(3.5, 5.5)
         s = np.clip(b * rng.uniform(1.0, 1.45), max(3.5, b), 8.0)
         stem = np.clip(b * rng.uniform(0.5, 0.95), 2.0, 5.0)
-        pf = rng.uniform(0.40, 0.85)
+        pf = rng.uniform(0.50, 0.80)
 
         q_hole = pf * b * s * 15.0
         q_delay = q_hole
