@@ -1,0 +1,9 @@
+bench_id: "morupule_bench_3"
+site_id: "Morupule Coal Mine"
+tonnes: 500000.0
+grade: 1.0
+grade_unit: "tonnes_per_tonne"
+commodity_price: 65.0
+commodity_price_unit: "USD_per_tonne"
+discount_rate: 0.08
+bench_life_years: 0.8

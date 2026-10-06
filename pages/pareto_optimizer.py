@@ -40,6 +40,16 @@ with col1:
                 st.session_state.pop(key, None)
             st.rerun()
 
+    st.markdown("---")
+    if st.button("Send Pareto Front to Economic Dashboard 💰", type="secondary"):
+        df_to_send = st.session_state.get("pareto_front_df", None)
+        if df_to_send is not None and not df_to_send.empty:
+            df_to_send.to_csv("pareto_front.csv", index=False)
+            st.session_state["pareto_front_df"] = df_to_send
+            st.success("Pareto front saved and sent to Economic Dashboard! Navigate to 'Economic Dashboard' in the sidebar.")
+        else:
+            st.warning("No Pareto front results available. Run optimization first.")
+
 # Run only when the button is clicked
 if run_opt_btn:
     constraints_info = {"max_ppv": max_ppv_limit, "max_airblast": max_air_limit}

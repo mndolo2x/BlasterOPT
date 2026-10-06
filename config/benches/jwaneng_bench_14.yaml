@@ -1,0 +1,9 @@
+bench_id: "jwaneng_bench_14"
+site_id: "Jwaneng Mine"
+tonnes: 250000.0
+grade: 0.42
+grade_unit: "carats_per_tonne"
+commodity_price: 180.0
+commodity_price_unit: "USD_per_carat"
+discount_rate: 0.10
+bench_life_years: 1.0

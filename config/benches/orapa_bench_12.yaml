@@ -1,0 +1,9 @@
+bench_id: "orapa_bench_12"
+site_id: "Orapa Mine"
+tonnes: 320000.0
+grade: 0.28
+grade_unit: "carats_per_tonne"
+commodity_price: 140.0
+commodity_price_unit: "USD_per_carat"
+discount_rate: 0.10
+bench_life_years: 1.2
