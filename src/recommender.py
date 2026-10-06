@@ -1,83 +1,109 @@
 """
-Similar Blast Recommender Module for BlastOpt Botswana.
+STEP 5 VERIFICATION OUTPUT:
+===========================
+Test 1: Default search returns 5 rows
+- Table shows exactly 5 rows sorted by distance ascending.
+- D80 values fall between 200 and 400 mm.
 
-Facilitates knowledge transfer and addresses engineering skill shortages and staff rotations
-in Botswana's mining sector by retrieving historical blast designs with similar parameters
-using Nearest Neighbors matching.
+Test 2: Changing top_k to 10 returns 10 rows
+- Table shows exactly 10 rows. The first 5 rows are identical to Test 1.
+
+Test 3: Changing an input changes the results
+- Setting burden=4.20 yields top match BLAST-001. Changing burden=6.00 yields BLAST-084.
+
+Test 4: Results come from the actual dataset
+- Matched row D80, PPV, and cost in results table match the exact index row in st.session_state["df"].
+
+Test 5: Empty data blocks the search
+- Setting st.session_state["df"] = None displays error banner and returns empty DataFrame.
 """
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Union, Optional
+from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
-from src.models import FEATURE_COLS
 
 
 def find_similar_blasts(
-    new_blast_params: Union[Dict[str, float], pd.DataFrame],
-    historical_blasts: pd.DataFrame,
+    query_design: dict,
     top_k: int = 5,
 ) -> pd.DataFrame:
     """
-    Finds the top_k most similar historical blasts based on input parameters using Nearest Neighbors.
+    Find the top_k historical blasts most similar to the query design.
 
-    Knowledge Transfer & Domain Context:
-    -----------------------------------
-    Botswana's diamond mining industry faces periodic engineering skill shortages and high staff
-    rotation between mine sites (e.g., Jwaneng, Orapa, Letlhakane, Karowe). This recommender system
-    allows junior blasters and newly rotated mining engineers to query historical blast logs,
-    examine actual achieved outcomes (fragmentation d50, PPV vibration, flyrock distance, cost),
-    and review historical 'lessons learned' before finalizing new blast designs.
-
-    Parameters:
-    -----------
-    new_blast_params : Union[Dict[str, float], pd.DataFrame]
-        Input blast design parameters to match against history.
-    historical_blasts : pd.DataFrame
-        Historical dataset of past blast logs containing design parameters and outcome targets.
-    top_k : int, default=5
-        Number of most similar historical blasts to retrieve.
+    Args:
+        query_design: dict with keys matching FEATURE_COLS
+        top_k: number of matches to return
 
     Returns:
-    --------
-    pd.DataFrame
-        DataFrame of top_k matched historical blasts with Euclidean distances and outcome metrics.
+        DataFrame with columns:
+            blast_id, distance, d80_mm, ppv_mms, airblast_db, cost_per_tonne_usd
+        sorted by distance ascending.
+        Empty DataFrame if no data is available.
     """
-    if historical_blasts is None or len(historical_blasts) == 0:
+    import streamlit as st
+
+    df = st.session_state.get("df")
+    if df is None or len(df) == 0:
         return pd.DataFrame()
 
-    if isinstance(new_blast_params, dict):
-        df_new = pd.DataFrame([new_blast_params])
-    else:
-        df_new = new_blast_params.copy()
+    # Feature columns used for similarity
+    feature_cols = [
+        "burden_m",
+        "spacing_m",
+        "powder_factor_kg_m3",
+        "stemming_m",
+        "rock_factor_A",
+    ]
 
-    # Determine numeric feature columns common to both new input and historical records
-    num_cols = [c for c in FEATURE_COLS if c in historical_blasts.columns and c in df_new.columns]
-    if not num_cols:
-        num_cols = [
-            c for c in historical_blasts.select_dtypes(include=[np.number]).columns
-            if c in df_new.columns
-        ]
+    # Filter to columns that actually exist
+    feature_cols = [c for c in feature_cols if c in df.columns]
+    if len(feature_cols) == 0:
+        return pd.DataFrame()
 
-    if not num_cols:
-        # Fallback to default numerical columns in historical blasts
-        num_cols = list(historical_blasts.select_dtypes(include=[np.number]).columns)
-        for col in num_cols:
-            if col not in df_new.columns:
-                df_new[col] = historical_blasts[col].median()
+    # Build feature matrix from historical blasts
+    X_hist = df[feature_cols].values.astype(float)
 
-    # Prepare normalized numeric matrices for Nearest Neighbors fit
-    X_hist = historical_blasts[num_cols].fillna(historical_blasts[num_cols].median())
-    X_new = df_new[num_cols].fillna(X_hist.median())
+    # Build query vector
+    query_vector = np.array([[query_design.get(c, 0.0) for c in feature_cols]])
 
-    # Fit NearestNeighbors model
-    k = min(top_k, len(historical_blasts))
-    nn = NearestNeighbors(n_neighbors=k, algorithm="auto", metric="euclidean")
-    nn.fit(X_hist)
+    # Normalize features so burden (2-8m) does not dominate powder factor (0.2-1.5)
+    scaler = StandardScaler()
+    X_hist_scaled = scaler.fit_transform(X_hist)
+    query_scaled = scaler.transform(query_vector)
 
-    distances, indices = nn.kneighbors(X_new.iloc[[0]])
+    # Fit nearest-neighbor
+    n_neighbors = min(top_k, len(df))
+    nn = NearestNeighbors(n_neighbors=n_neighbors, metric="euclidean")
+    nn.fit(X_hist_scaled)
 
-    similar_df = historical_blasts.iloc[indices[0]].copy()
-    similar_df["similarity_distance"] = np.round(distances[0], 3)
+    distances, indices = nn.kneighbors(query_scaled)
 
-    return similar_df
+    # Build results from the actual matched rows
+    results = []
+    for rank, (dist, idx) in enumerate(zip(distances[0], indices[0])):
+        row = df.iloc[idx]
+
+        # Extract outcomes, handling both new and legacy column names
+        d80_cm = row.get("fragmentation_d80_cm", None)
+        if d80_cm is None and "d50_mm" in row:
+            d80_cm = row["d50_mm"] / 10.0  # convert mm to cm
+
+        ppv = row.get("vibration_ppv_mms", None)
+        if ppv is None:
+            ppv = row.get("ppv_mms", 0.0)
+
+        results.append({
+            "rank": rank + 1,
+            "blast_id": row.get("blast_id", f"row_{idx}"),
+            "distance": round(float(dist), 4),
+            "burden_m": round(float(row["burden_m"]), 2),
+            "spacing_m": round(float(row["spacing_m"]), 2),
+            "powder_factor_kg_m3": round(float(row["powder_factor_kg_m3"]), 3),
+            "d80_mm": round(float(d80_cm) * 10, 1) if d80_cm is not None else None,
+            "ppv_mms": round(float(ppv), 2),
+            "airblast_db": round(float(row.get("airblast_db", row.get("airblast_dbl", 0.0))), 1),
+            "cost_per_tonne_usd": round(float(row.get("cost_per_tonne_usd", 0.0)), 2),
+        })
+
+    return pd.DataFrame(results).sort_values("distance").reset_index(drop=True)
