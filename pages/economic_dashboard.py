@@ -61,6 +61,12 @@ if pareto_df is None or pareto_df.empty:
             "Please go to **Multi-Objective Pareto Optimizer**, run optimization, and click **Send Pareto Front to Economic Dashboard**.")
     st.stop()
 
+# Check for INVALID designs in Pareto front
+if "cost_status" in pareto_df.columns:
+    invalid_designs = pareto_df[pareto_df["cost_status"] == "INVALID"]
+    if not invalid_designs.empty:
+        st.error(f"🚨 **WARNING:** {len(invalid_designs)} designs in the Pareto front were marked as **INVALID** (costs outside $1.00–$10.00/t reasonable range). They are excluded from financial ranking.")
+
 st.subheader("🎯 Objective Selection & Financial Ranking")
 
 obj_sel = st.radio(

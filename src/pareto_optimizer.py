@@ -54,6 +54,7 @@ except ImportError:
 from src.predict import predict_single_blast, total_cost_per_tonne, predict_crusher_throughput
 from src.physics_core import siskind_airblast
 from src.regulatory import load_regulatory_limits
+from src.economics.cost_calculator import calculate_cost
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +413,7 @@ def run_nsga2(
 
                     actual_ppv = preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.5))
 
+                    cost_est = calculate_cost(inp)
                     row_dict = {
                         "burden_m": round(float(b), 2),
                         "spacing_m": round(float(s), 2),
@@ -419,11 +421,14 @@ def run_nsga2(
                         "powder_factor_kg_m3": round(float(pf), 3),
                         "d80_mm": round(float(f1), 1),
                         "ppv_mms": round(float(actual_ppv), 2),
-                        "vibration_ppv_mms": round(float(actual_ppv), 2),
                         "airblast_dbl": round(float(f3), 1),
                         "cost_per_tonne_usd": round(float(f4), 2),
+                        "cost_status": cost_est.status,
                         "crusher_throughput_tph": round(float(-1.0 * f5_neg), 1),
                     }
+                    if cost_est.status == "INVALID":
+                        row_dict["valid"] = False
+                        row_dict["violations"] = "Cost prediction out of reasonable range [1.00, 10.00] USD/t"
                     is_valid, violations = validate_design(row_dict)
                     row_dict["valid"] = is_valid
                     row_dict["violations"] = " | ".join(violations) if violations else ""
@@ -489,7 +494,8 @@ def run_nsga2(
         ppv_val = float(preds.get("vibration_ppv_mms", preds.get("ppv_mms", 3.2)))
         air_val = float(preds.get("airblast_db", preds.get("airblast_dbl", siskind_airblast(q_delay, dist))))
 
-        cost_m2m = total_cost_per_tonne(inp).get("total_cost_usd_t", 4.80)
+        cost_est = calculate_cost(inp)
+        cost_m2m = cost_est.cost_per_tonne_usd
         tph = predict_crusher_throughput(d80_cm=d80_mm/10.0, ore_hardness=12.0).get("throughput_tph", 2400.0)
 
         candidate = {
@@ -499,18 +505,20 @@ def run_nsga2(
             "powder_factor_kg_m3": round(float(pf), 3),
             "d80_mm": round(float(d80_mm), 1),
             "ppv_mms": round(float(ppv_val), 2),
-            "vibration_ppv_mms": round(float(ppv_val), 2),
             "airblast_dbl": round(float(air_val), 1),
-            "airblast_db": round(float(air_val), 1),
             "cost_per_tonne_usd": round(float(cost_m2m), 2),
+            "cost_status": cost_est.status,
             "crusher_throughput_tph": round(float(tph), 1),
         }
+        if cost_est.status == "INVALID":
+            candidate["valid"] = False
+            candidate["violations"] = "Cost prediction out of reasonable range [1.00, 10.00] USD/t"
         is_valid, violations = validate_design(candidate)
         candidate["valid"] = is_valid
         candidate["violations"] = " | ".join(violations) if violations else ""
         rows.append(candidate)
 
-    cols = ["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d80_mm", "ppv_mms", "vibration_ppv_mms", "airblast_dbl", "airblast_db", "cost_per_tonne_usd", "crusher_throughput_tph", "valid"]
+    cols = ["burden_m", "spacing_m", "stemming_m", "powder_factor_kg_m3", "d80_mm", "ppv_mms", "airblast_dbl", "cost_per_tonne_usd", "cost_status", "crusher_throughput_tph", "valid", "violations"]
     fallback_df = pd.DataFrame(rows)
     if not fallback_df.empty:
         fallback_df = fallback_df[fallback_df["valid"] == True].reset_index(drop=True)

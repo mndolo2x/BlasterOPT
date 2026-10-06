@@ -56,14 +56,22 @@ def evaluate_design(design: dict, bench: BenchContext, design_id: int = 0) -> Ec
     status = "SAFE"
     review_reasons = []
 
+    # Check cost_status
+    cost_status = design.get("cost_status", "OK")
+    if cost_status == "INVALID":
+        status = "INVALID"
+        review_reasons.append("Cost prediction marked as INVALID (outside reasonable range $1.00 - $10.00/t)")
+
     # Flag designs where cost prediction is outside reasonable range ($1.00 - $10.00 / t)
     d_b_cost = cost_bd.drill_and_blast_usd_per_t
     if d_b_cost < 1.00 or d_b_cost > 10.00:
-        status = "REQUIRES_REVIEW"
+        if status != "INVALID":
+            status = "REQUIRES_REVIEW"
         review_reasons.append(f"D&B cost (${d_b_cost:.2f}/t) outside expected reasonable range [$1.00, $10.00]/t")
 
     if not design.get("valid", True):
-        status = "REQUIRES_REVIEW"
+        if status != "INVALID":
+            status = "REQUIRES_REVIEW"
         review_reasons.append(f"Physical or regulatory violations: {design.get('violations', 'Invalid design')}")
 
     return EconomicResult(
@@ -101,6 +109,8 @@ def evaluate_pareto_front(pareto_df: pd.DataFrame, bench: BenchContext) -> List[
     results = []
     for idx, row in pareto_df.iterrows():
         design_dict = row.to_dict()
+        if design_dict.get("cost_status") == "INVALID":
+            continue
         res = evaluate_design(design_dict, bench, design_id=int(idx))
         results.append(res)
 
