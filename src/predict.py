@@ -240,27 +240,8 @@ def total_cost_per_tonne(
     crushing_base_usd_t = float(unit_costs.get("crushing_base_usd_t", 0.30))
     milling_base_usd_t = float(unit_costs.get("milling_base_usd_t", 2.50))
 
-    # 1. Drilling Cost
-    drilling_rate_per_m = drilling_rate_usd_m + (hole_d / 100.0) * 8.0
-    drilling_cost = float(((bench_h + 1.0) * drilling_rate_per_m) / rock_mass_t)
-
-    # 2. Explosive Cost
-    charge_mass = pf * rock_vol
-    explosive_cost = float((charge_mass * explosive_price_usd_kg + 15.0) / rock_mass_t)
-
-    # 3. Digging Cost (muckpile diggability dependent on fragmentation size d50)
-    digging_cost = float(np.clip(digging_base_usd_t + (d50 / 1000.0) * 0.60, 0.20, 5.00))
-
-    # 4. Hauling Cost (truck fill factor dependent on boulder/fine ratio)
-    hauling_cost = float(np.clip(hauling_base_usd_t + (d50 / 1000.0) * 0.40, 0.30, 6.00))
-
-    # 5. Crushing Cost (primary crushing energy requirement & quadratic penalty)
-    crushing_cost = float(np.clip(crushing_base_usd_t + (d50 / 500.0) * 0.50, 0.10, 5.00))
-
-    # 6. Milling Cost (SAG/ball mill specific energy consumption)
-    milling_cost = float(np.clip(milling_base_usd_t + (d50 / 300.0) * 2.00, 1.00, 20.00))
-
-    total = drilling_cost + explosive_cost + digging_cost + hauling_cost + crushing_cost + milling_cost
+    from src.mine_to_mill import total_cost_per_tonne as m2m_total_cost
+    return m2m_total_cost(blast_params, unit_costs=unit_costs)
 
     return {
         "drilling_cost_usd_t": round(drilling_cost, 2),

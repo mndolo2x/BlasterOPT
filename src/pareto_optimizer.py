@@ -298,9 +298,7 @@ if HAS_PYMOO:
                 cost_dict = total_cost_per_tonne(inp)
                 cost_m2m = cost_dict.get("total_cost_usd_t", cost_dict.get("cost_per_tonne_usd", 4.80))
 
-                # D80 upper bound linear penalty above 300 mm
-                d80_penalty = max(0.0, d80_mm - 300.0) * 10.0
-                total_cost_score = cost_m2m + d80_penalty
+                total_cost_score = cost_m2m
 
                 # Objectives
                 f_vals[i, 0] = d80_mm                                      # F1: Minimize D80 mm
