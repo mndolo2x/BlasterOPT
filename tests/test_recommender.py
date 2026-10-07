@@ -67,13 +67,18 @@ def test_empty_dataset_returns_empty_dataframe():
 
 
 def test_results_contain_expected_columns():
-    """Test that output DataFrame contains all expected display columns."""
+    """Test that output DataFrame contains all expected display columns including compliant."""
     query = {"burden_m": 4.5, "spacing_m": 5.5}
     res = find_similar_blasts(query, top_k=5)
 
     expected_cols = [
         "rank", "blast_id", "distance", "burden_m", "spacing_m",
-        "powder_factor_kg_m3", "d80_mm", "ppv_mms", "airblast_db", "cost_per_tonne_usd"
+        "powder_factor_kg_m3", "d80_mm", "ppv_mms", "airblast_db", "cost_per_tonne_usd", "compliant"
     ]
     for col in expected_cols:
         assert col in res.columns
+
+    # Verify compliant column logic: True if airblast <= 120 and ppv <= 5.0
+    for _, row in res.iterrows():
+        expected_compliant = (row["airblast_db"] <= 120.0) and (row["ppv_mms"] <= 5.0)
+        assert row["compliant"] == expected_compliant

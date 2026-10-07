@@ -37,7 +37,8 @@ def find_similar_blasts(
 
     Returns:
         DataFrame with columns:
-            blast_id, distance, d80_mm, ppv_mms, airblast_db, cost_per_tonne_usd
+            rank, blast_id, distance, burden_m, spacing_m, powder_factor_kg_m3,
+            d80_mm, ppv_mms, airblast_db, cost_per_tonne_usd, compliant
         sorted by distance ascending.
         Empty DataFrame if no data is available.
     """
@@ -106,4 +107,12 @@ def find_similar_blasts(
             "cost_per_tonne_usd": round(float(row.get("cost_per_tonne_usd", 0.0)), 2),
         })
 
-    return pd.DataFrame(results).sort_values("distance").reset_index(drop=True)
+    results_df = pd.DataFrame(results).sort_values("distance").reset_index(drop=True)
+
+    if not results_df.empty:
+        results_df["compliant"] = (
+            (results_df["airblast_db"] <= 120.0) &
+            (results_df["ppv_mms"] <= 5.0)
+        )
+
+    return results_df
