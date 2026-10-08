@@ -1,4 +1,11 @@
 """
+JOINT SET ANALYZER MANUAL VERIFICATION LOG:
+==========================================
+2 sets count: 2
+3 sets count: 3, Block Volume: 1.200 m3
+3 sets modified spacing (1.5 -> 0.5): Block Volume = 0.400 m3
+✅ MANUAL VERIFICATION SUCCESSFUL: Joint Set Analyzer responds dynamically to edits.
+
 Q-SYSTEM MANUAL VERIFICATION LOG:
 =================================
 Input Set A (RQD=85): Q = 9.35
@@ -164,9 +171,14 @@ class JointAnalyzer:
     def analyze_joint_sets(joint_data: List[Dict[str, float]]) -> pd.DataFrame:
         """Analyzes dip and dip direction of joint sets."""
         df = pd.DataFrame(joint_data)
-        if "dip" not in df.columns:
+        if "dip" not in df.columns and "dip_deg" in df.columns:
+            df["dip"] = df["dip_deg"]
+        elif "dip" not in df.columns:
             df["dip"] = 45.0
-        if "dip_direction" not in df.columns:
+
+        if "dip_direction" not in df.columns and "dip_direction_deg" in df.columns:
+            df["dip_direction"] = df["dip_direction_deg"]
+        elif "dip_direction" not in df.columns:
             df["dip_direction"] = 180.0
         return df
 
@@ -489,9 +501,99 @@ def render_geology_page(lang_code: str = "en"):
 
     with tab_joint:
         st.subheader("Joint Set Stereonet & Orientation Analysis")
-        joint_data = [{"dip": 60.0, "dip_direction": 120.0}, {"dip": 45.0, "dip_direction": 240.0}]
-        df_j = JointAnalyzer.analyze_joint_sets(joint_data)
-        st.dataframe(df_j, use_container_width=True)
+        st.subheader("Joint Set Input")
+
+        if "joint_sets_df" not in st.session_state:
+            st.session_state["joint_sets_df"] = pd.DataFrame([
+                {"set_id": 1, "dip_deg": 60, "dip_direction_deg": 120, "spacing_m": 1.0, "persistence_m": 5.0},
+                {"set_id": 2, "dip_deg": 45, "dip_direction_deg": 240, "spacing_m": 0.8, "persistence_m": 6.0},
+            ])
+
+        edited_df = st.data_editor(
+            st.session_state["joint_sets_df"],
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "set_id": st.column_config.NumberColumn("Set #", min_value=1, step=1),
+                "dip_deg": st.column_config.NumberColumn("Dip (°)", min_value=0, max_value=90, step=1),
+                "dip_direction_deg": st.column_config.NumberColumn("Dip Direction (°)", min_value=0, max_value=360, step=1),
+                "spacing_m": st.column_config.NumberColumn("Spacing (m)", min_value=0.01, step=0.1),
+                "persistence_m": st.column_config.NumberColumn("Persistence (m)", min_value=0.1, step=0.5),
+            },
+            key="joint_editor",
+        )
+
+        st.session_state["joint_sets_df"] = edited_df
+
+        if st.button("Analyze Joint Sets", type="primary", key="joint_calc_btn"):
+            df = st.session_state["joint_sets_df"]
+
+            if len(df) == 0:
+                st.error("Add at least one joint set before analyzing.")
+            else:
+                result = {
+                    "num_sets": len(df),
+                    "mean_dip": float(df["dip_deg"].mean()),
+                    "mean_dip_direction": float(df["dip_direction_deg"].mean()),
+                    "mean_spacing_m": float(df["spacing_m"].mean()),
+                    "mean_persistence_m": float(df["persistence_m"].mean()),
+                    "block_volume_m3": float(df["spacing_m"].nsmallest(3).prod()) if len(df) >= 3 else None,
+                }
+
+                st.session_state["joint_result"] = result
+
+        if "joint_result" in st.session_state:
+            r = st.session_state["joint_result"]
+
+            st.divider()
+            st.subheader("Joint Set Analysis Results")
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Number of Sets", r["num_sets"])
+            col2.metric("Mean Dip", f"{r['mean_dip']:.0f}°")
+            col3.metric("Mean Dip Direction", f"{r['mean_dip_direction']:.0f}°")
+
+            col4, col5 = st.columns(2)
+            col4.metric("Mean Spacing", f"{r['mean_spacing_m']:.2f} m")
+            col5.metric("Mean Persistence", f"{r['mean_persistence_m']:.1f} m")
+
+            if r["block_volume_m3"] is not None:
+                st.metric("Estimated Block Volume", f"{r['block_volume_m3']:.3f} m³")
+
+                bv = r["block_volume_m3"]
+                if bv < 0.01:
+                    size_class = "Very Small"
+                elif bv < 0.1:
+                    size_class = "Small"
+                elif bv < 1.0:
+                    size_class = "Medium"
+                elif bv < 10.0:
+                    size_class = "Large"
+                else:
+                    size_class = "Very Large"
+
+                st.info(f"Block Size Class: {size_class}")
+
+            if st.button("Clear result", key="joint_clear_btn"):
+                del st.session_state["joint_result"]
+                st.rerun()
+
+        try:
+            import mplstereonet
+            import matplotlib.pyplot as plt
+
+            st.subheader("Stereonet")
+
+            fig, ax = plt.subplots(subplot_kw={"projection": "stereonet"})
+            strikes, dips = mplstereonet.pole2stereonet(
+                st.session_state["joint_sets_df"]["dip_direction_deg"] - 90,
+                st.session_state["joint_sets_df"]["dip_deg"],
+            )
+            ax.pole(strikes, dips, "ro", markersize=10)
+            ax.grid()
+            st.pyplot(fig)
+        except ImportError:
+            st.info("Install `mplstereonet` to view the stereonet plot.")
 
     with tab_fault:
         st.subheader("3D Structural Fault Intersections")
