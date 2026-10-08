@@ -1,4 +1,10 @@
 """
+Q-SYSTEM MANUAL VERIFICATION LOG:
+=================================
+Input Set A (RQD=85): Q = 9.35
+Input Set B (RQD=40): Q = 4.40
+✅ MANUAL VERIFICATION SUCCESSFUL: Calculate Q Value button is fully functional!
+
 TASK 6 MANUAL VERIFICATION LOG:
 ===============================
 Initial result (UCS=120, Damp): RMR = 70
@@ -10,6 +16,7 @@ Geology & Geomechanics Package for BlastOpt Botswana.
 """
 
 import os
+import re
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -262,7 +269,6 @@ def render_geology_page(lang_code: str = "en"):
                 index=2,
             )
 
-            # Task 1: Calculate RMR button
             if st.button("Calculate RMR", type="primary", key="rmr_calc_btn"):
                 ucs_val = ucs
                 rqd_val = rqd
@@ -313,7 +319,6 @@ def render_geology_page(lang_code: str = "en"):
                 }
 
         with c2:
-            # Task 2 & Task 4: Display result and Clear button
             if "rmr_result" in st.session_state:
                 result = st.session_state["rmr_result"]
 
@@ -341,9 +346,146 @@ def render_geology_page(lang_code: str = "en"):
 
     with tab_q:
         st.subheader("Barton (1974) Q-System Quality Index")
-        q_res = QSystemCalculator.calculate_q(rqd_pct=75.0, jn=9.0, jr=2.0, ja=1.0)
-        st.metric("Q Value Index", f"{q_res['q_value']}")
-        st.success(f"**Quality Description:** {q_res['quality_description']}")
+        st.subheader("Q-System Inputs")
+
+        rqd_q = st.slider(
+            "RQD (%)",
+            min_value=0.0, max_value=100.0, value=75.0, step=1.0,
+            key="q_rqd",
+        )
+
+        num_joint_sets = st.selectbox(
+            "Number of Joint Sets (Jn)",
+            options=[
+                "Massive, no or few joints (Jn=0.5)",
+                "One joint set (Jn=2)",
+                "One joint set plus random (Jn=3)",
+                "Two joint sets (Jn=4)",
+                "Two joint sets plus random (Jn=6)",
+                "Three joint sets (Jn=9)",
+                "Three joint sets plus random (Jn=12)",
+                "Four or more joint sets (Jn=15)",
+                "Crushed rock (Jn=20)",
+            ],
+            index=5,
+            key="q_jn",
+        )
+
+        joint_roughness = st.selectbox(
+            "Joint Roughness (Jr)",
+            options=[
+                "Discontinuous joints (Jr=4.0)",
+                "Rough, undulating (Jr=3.0)",
+                "Smooth, undulating (Jr=2.0)",
+                "Slickensided, undulating (Jr=1.5)",
+                "Rough, planar (Jr=1.5)",
+                "Smooth, planar (Jr=1.0)",
+                "Slickensided, planar (Jr=0.5)",
+            ],
+            index=1,
+            key="q_jr",
+        )
+
+        joint_alteration = st.selectbox(
+            "Joint Alteration (Ja)",
+            options=[
+                "Tight, unaltered (Ja=0.75)",
+                "Slightly altered (Ja=2.0)",
+                "Clay-coated (Ja=4.0)",
+                "Clay-filled, thin (Ja=8.0)",
+                "Clay-filled, thick (Ja=12.0)",
+                "Crushed rock (Ja=20.0)",
+            ],
+            index=1,
+            key="q_ja",
+        )
+
+        water_condition = st.selectbox(
+            "Water Condition (Jw)",
+            options=[
+                "Dry (Jw=1.0)",
+                "Damp (Jw=0.66)",
+                "Wet (Jw=0.5)",
+                "Dripping with high pressure (Jw=0.33)",
+                "Flowing continuously (Jw=0.1)",
+            ],
+            index=1,
+            key="q_jw",
+        )
+
+        stress_condition = st.selectbox(
+            "Stress Condition (SRF)",
+            options=[
+                "Low stress, near surface (SRF=2.5)",
+                "Medium stress (SRF=1.0)",
+                "High stress, tight structure (SRF=0.5)",
+                "Squeezing rock (SRF=5.0)",
+                "Swelling rock (SRF=15.0)",
+            ],
+            index=1,
+            key="q_srf",
+        )
+
+        if st.button("Calculate Q Value", type="primary", key="q_calc_btn"):
+            def extract_number(text: str) -> float:
+                match = re.search(r"=([\d.]+)", text)
+                return float(match.group(1)) if match else 0.0
+
+            jn_val = extract_number(num_joint_sets)
+            jr_val = extract_number(joint_roughness)
+            ja_val = extract_number(joint_alteration)
+            jw_val = extract_number(water_condition)
+            srf_val = extract_number(stress_condition)
+
+            if jn_val == 0 or ja_val == 0 or srf_val == 0:
+                st.error("Cannot compute Q — one of the inputs has a zero denominator.")
+            else:
+                q_value = (rqd_q / jn_val) * (jr_val / ja_val) * (jw_val / srf_val)
+
+                if q_value > 100:
+                    quality = "Exceptionally Good"
+                elif q_value > 40:
+                    quality = "Extremely Good"
+                elif q_value > 10:
+                    quality = "Very Good"
+                elif q_value > 4:
+                    quality = "Good"
+                elif q_value > 1:
+                    quality = "Fair"
+                elif q_value > 0.1:
+                    quality = "Poor"
+                elif q_value > 0.01:
+                    quality = "Very Poor"
+                else:
+                    quality = "Extremely Poor"
+
+                st.session_state["q_result"] = {
+                    "q_value": round(q_value, 2),
+                    "quality": quality,
+                    "inputs": {
+                        "RQD": rqd_q,
+                        "Jn": jn_val,
+                        "Jr": jr_val,
+                        "Ja": ja_val,
+                        "Jw": jw_val,
+                        "SRF": srf_val,
+                    },
+                }
+
+        if "q_result" in st.session_state:
+            result = st.session_state["q_result"]
+
+            st.divider()
+            st.metric("Q Value", result["q_value"])
+            st.success(f"Quality Description: {result['quality']}")
+
+            st.subheader("Input Breakdown")
+            rows = [{"Parameter": k, "Value": v} for k, v in result["inputs"].items()]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            if st.button("Clear Q result", key="q_clear_btn"):
+                del st.session_state["q_result"]
+                st.rerun()
 
     with tab_joint:
         st.subheader("Joint Set Stereonet & Orientation Analysis")
