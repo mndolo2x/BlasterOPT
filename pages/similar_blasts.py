@@ -8,6 +8,19 @@ from src.recommender import find_similar_blasts
 st.title("👥 Similar Blast Recommender & Knowledge Transfer")
 st.markdown("Query historical blast logs to find nearest-neighbor designs and learn from past outcomes.")
 
+# DIAGNOSTIC BLOCK — remove after fixing
+st.write("### 🔬 Data Debug")
+df_debug = st.session_state.get("df")
+if df_debug is None:
+    st.error("No dataset loaded in session state.")
+else:
+    st.write(f"DataFrame shape: {df_debug.shape}")
+    st.write(f"Airblast range: {df_debug['airblast_db'].min():.1f} – {df_debug['airblast_db'].max():.1f} dB")
+    st.write(f"Values above 122 dB: {(df_debug['airblast_db'] > 122).sum()}")
+    st.write(f"Has 'compliant' column: {'compliant' in df_debug.columns}")
+    st.write(f"Fingerprint: {st.session_state.get('data_fingerprint', 'unknown')}")
+    st.write(f"Generated at: {st.session_state.get('data_generated_at', 'unknown')}")
+
 # Step 1: Verify data source
 df = st.session_state.get("df")
 if df is None or len(df) == 0:

@@ -264,6 +264,7 @@ def generate_synthetic_blast_data(
         "airblast_db": np.round(airblast_db_arr, 1),
         "flyrock_m": np.round(flyrock_dist_m, 2),
         "cost_per_tonne_usd": np.round(cost_per_tonne, 2),
+        "compliant": (np.round(airblast_db_arr, 1) <= 120.0) & (np.round(ppv_mms, 2) <= 5.0),
     })
 
     assert data.shape[0] == num_samples, f"Expected {num_samples} rows, got {data.shape[0]}"
