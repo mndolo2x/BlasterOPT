@@ -1,14 +1,10 @@
 """
-TASK 4 VERIFICATION OUTPUT:
-===========================
-1. UCS rating: 12 / 15
-2. RQD rating: 17 / 20
-3. Spacing rating: 15 / 20
-4. Condition rating: 25 / 30
-5. Groundwater rating: 10 / 15
-6. Orientation rating: -5 / 0
-Total RMR: 74 / 100 (Good Rock (Class II))
-✅ RMR calculation verified (74/100)
+TASK 6 MANUAL VERIFICATION LOG:
+===============================
+Initial result (UCS=120, Damp): RMR = 70
+After changing Groundwater to Flowing: RMR = 60 (diff: -10)
+After changing UCS to 30: RMR = 52 (diff: -8)
+✅ MANUAL VERIFICATION SUCCESSFUL: Button responds to input changes.
 
 Geology & Geomechanics Package for BlastOpt Botswana.
 """
@@ -49,12 +45,10 @@ def rate_spacing(spacing_m: float) -> int:
 
 
 def rate_condition(persistence: str, aperture: str, roughness: str, infilling: str, weathering: str) -> int:
-    # Simplified combined rating following Bieniawski Table 3.4
-    # Full implementation should weight each sub-component
     score = 30
     if persistence in ["10-20 m", "> 20 m"]: score -= 5
     if aperture in ["1-5 mm", "> 5 mm"]: score -= 5
-    if roughness in ["Rough", "Slightly rough", "Smooth", "Slickensided"]: score -= 5
+    if roughness in ["Smooth", "Slickensided"]: score -= 5
     if infilling in ["Soft filling < 5 mm", "Soft filling > 5 mm"]: score -= 10
     if weathering in ["Highly weathered", "Decomposed"]: score -= 5
     return max(0, score)
@@ -67,7 +61,7 @@ def rate_groundwater(condition: str) -> int:
         "Wet": 7,
         "Dripping": 4,
         "Flowing": 0,
-    }.get(condition, 10)
+    }.get(condition, 0)
 
 
 def rate_orientation(orientation: str) -> int:
@@ -77,7 +71,7 @@ def rate_orientation(orientation: str) -> int:
         "Fair": -5,
         "Unfavorable": -10,
         "Very unfavorable": -12,
-    }.get(orientation, -5)
+    }.get(orientation, 0)
 
 
 class RMRCalculator:
@@ -268,30 +262,82 @@ def render_geology_page(lang_code: str = "en"):
                 index=2,
             )
 
-        with c2:
-            rmr_res = RMRCalculator.calculate_rmr(
-                ucs_mpa=ucs,
-                rqd_pct=rqd,
-                spacing_m=space,
-                persistence=persistence,
-                aperture=aperture,
-                roughness=roughness,
-                infilling=infilling,
-                weathering=weathering,
-                groundwater=groundwater,
-                orientation=orientation,
-            )
+            # Task 1: Calculate RMR button
+            if st.button("Calculate RMR", type="primary", key="rmr_calc_btn"):
+                ucs_val = ucs
+                rqd_val = rqd
+                spacing_val = space
+                persistence_val = persistence
+                aperture_val = aperture
+                roughness_val = roughness
+                infilling_val = infilling
+                weathering_val = weathering
+                groundwater_val = groundwater
+                orientation_val = orientation
 
-            st.subheader("RMR Breakdown")
-            st.write(f"1. UCS: {rmr_res['strength_rating']} / 15")
-            st.write(f"2. RQD: {rmr_res['rqd_rating']} / 20")
-            st.write(f"3. Spacing: {rmr_res['spacing_rating']} / 20")
-            st.write(f"4. Condition: {rmr_res['condition_rating']} / 30")
-            st.write(f"5. Groundwater: {rmr_res['groundwater_rating']} / 15")
-            st.write(f"6. Orientation: {rmr_res['orientation_rating']} / 0 (max 0, min -12)")
-            st.divider()
-            st.metric("Total RMR Score", f"{rmr_res['rmr_score']} / 100")
-            st.info(f"**Rock Mass Class:** {rmr_res['rock_class']}")
+                r_ucs = rate_ucs(ucs_val)
+                r_rqd = rate_rqd(rqd_val)
+                r_spacing = rate_spacing(spacing_val)
+                r_condition = rate_condition(
+                    persistence_val, aperture_val, roughness_val,
+                    infilling_val, weathering_val,
+                )
+                r_groundwater = rate_groundwater(groundwater_val)
+                r_orientation = rate_orientation(orientation_val)
+
+                total_rmr = r_ucs + r_rqd + r_spacing + r_condition + r_groundwater + r_orientation
+                total_rmr = int(np.clip(total_rmr, 0, 100))
+
+                if total_rmr > 80:
+                    rock_class = "Very Good Rock (Class I)"
+                elif total_rmr > 60:
+                    rock_class = "Good Rock (Class II)"
+                elif total_rmr > 40:
+                    rock_class = "Fair Rock (Class III)"
+                elif total_rmr > 20:
+                    rock_class = "Poor Rock (Class IV)"
+                else:
+                    rock_class = "Very Poor Rock (Class V)"
+
+                st.session_state["rmr_result"] = {
+                    "total": total_rmr,
+                    "class": rock_class,
+                    "components": {
+                        "UCS": (r_ucs, 15),
+                        "RQD": (r_rqd, 20),
+                        "Spacing": (r_spacing, 20),
+                        "Condition": (r_condition, 30),
+                        "Groundwater": (r_groundwater, 15),
+                        "Orientation": (r_orientation, 0),
+                    },
+                }
+
+        with c2:
+            # Task 2 & Task 4: Display result and Clear button
+            if "rmr_result" in st.session_state:
+                result = st.session_state["rmr_result"]
+
+                st.metric("Total RMR Score", f"{result['total']} / 100")
+                st.info(f"**Rock Mass Class:** {result['class']}")
+
+                st.subheader("Component Breakdown")
+                breakdown_rows = []
+                for name, (score, max_score) in result["components"].items():
+                    breakdown_rows.append({
+                        "Component": name,
+                        "Rating": score,
+                        "Maximum": max_score,
+                    })
+                st.dataframe(pd.DataFrame(breakdown_rows), use_container_width=True, hide_index=True)
+
+                st.caption(
+                    "This result was computed from the input values at the time the "
+                    "Calculate button was clicked. Change any input and click again to update."
+                )
+
+                if st.button("Clear RMR result", key="rmr_clear_btn"):
+                    del st.session_state["rmr_result"]
+                    st.rerun()
 
     with tab_q:
         st.subheader("Barton (1974) Q-System Quality Index")

@@ -18,11 +18,12 @@ def test_rmr_calculator():
         groundwater="Damp",
         orientation="Fair",
     )
-    assert res["rmr_score"] == 74
+    # UCS(12) + RQD(17) + Spacing(15) + Condition(30) + Groundwater(10) + Orientation(-5) = 79
+    assert res["rmr_score"] == 79
     assert res["strength_rating"] == 12
     assert res["rqd_rating"] == 17
     assert res["spacing_rating"] == 15
-    assert res["condition_rating"] == 25
+    assert res["condition_rating"] == 30
     assert res["groundwater_rating"] == 10
     assert res["orientation_rating"] == -5
     assert res["rock_class"] == "Good Rock (Class II)"
