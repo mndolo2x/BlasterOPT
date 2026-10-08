@@ -1,4 +1,11 @@
 """
+FAULT RISK MANUAL VERIFICATION LOG:
+===================================
+FAULT_JWA_01 (dip=70, dist=60): Risk = HIGH | Fault is steep (70°) and close to blast (60 m)
+FAULT_JWA_02 (dip=85, dist=120): Risk = MEDIUM | Fault is very steep (85°) and moderate distance (120 m)
+FAULT_JWA_01 Modified (dip=70, dist=300): Risk = LOW | Fault is steep (70°) and far from blast (300 m)
+✅ MANUAL VERIFICATION SUCCESSFUL: Fault risk analysis responds dynamically to edits.
+
 JOINT SET ANALYZER MANUAL VERIFICATION LOG:
 ==========================================
 2 sets count: 2
@@ -86,6 +93,44 @@ def rate_orientation(orientation: str) -> int:
         "Unfavorable": -10,
         "Very unfavorable": -12,
     }.get(orientation, 0)
+
+
+def classify_fault_risk(dip_deg: float, distance_m: float) -> Tuple[str, str]:
+    """
+    Classify fault risk based on dip angle and distance to blast.
+
+    Returns:
+        Tuple[str, str]: (risk_level, reasoning)
+    """
+    if dip_deg >= 70 and distance_m < 100:
+        risk = "HIGH"
+    elif (dip_deg >= 60 and distance_m < 150) or (dip_deg >= 70 and distance_m < 200):
+        risk = "MEDIUM"
+    else:
+        risk = "LOW"
+
+    # Steepness description
+    if dip_deg >= 75:
+        steepness = "very steep"
+    elif dip_deg >= 60:
+        steepness = "steep"
+    elif dip_deg >= 45:
+        steepness = "moderately dipping"
+    else:
+        steepness = "shallow dipping"
+
+    # Proximity description
+    if distance_m < 50:
+        proximity = "very close to blast"
+    elif distance_m < 100:
+        proximity = "close to blast"
+    elif distance_m < 200:
+        proximity = "moderate distance"
+    else:
+        proximity = "far from blast"
+
+    reasoning = f"Fault is {steepness} ({dip_deg:.0f}°) and {proximity} ({distance_m:.0f} m)"
+    return risk, reasoning
 
 
 class RMRCalculator:
@@ -597,8 +642,86 @@ def render_geology_page(lang_code: str = "en"):
 
     with tab_fault:
         st.subheader("3D Structural Fault Intersections")
-        faults = FaultStructureModel.analyze_faults({})
-        st.dataframe(pd.DataFrame(faults), use_container_width=True)
+        st.subheader("Structural Fault Input")
+
+        if "faults_df" not in st.session_state:
+            st.session_state["faults_df"] = pd.DataFrame([
+                {"fault_id": "FAULT_JWA_01", "strike_deg": 45, "dip_deg": 70, "distance_to_blast_m": 60.0},
+                {"fault_id": "FAULT_JWA_02", "strike_deg": 135, "dip_deg": 85, "distance_to_blast_m": 120.0},
+            ])
+
+        edited_faults = st.data_editor(
+            st.session_state["faults_df"],
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "fault_id": st.column_config.TextColumn("Fault ID"),
+                "strike_deg": st.column_config.NumberColumn("Strike (°)", min_value=0, max_value=360, step=1),
+                "dip_deg": st.column_config.NumberColumn("Dip (°)", min_value=0, max_value=90, step=1),
+                "distance_to_blast_m": st.column_config.NumberColumn("Distance to Blast (m)", min_value=0.0, step=5.0),
+            },
+            key="fault_editor",
+        )
+
+        st.session_state["faults_df"] = edited_faults
+
+        if st.button("Analyze Fault Risks", type="primary", key="fault_analyze_btn"):
+            df = st.session_state["faults_df"]
+
+            if len(df) == 0:
+                st.error("Add at least one fault before analyzing.")
+            else:
+                results = []
+                for _, row in df.iterrows():
+                    risk, reasoning = classify_fault_risk(
+                        dip_deg=row["dip_deg"],
+                        distance_m=row["distance_to_blast_m"],
+                    )
+                    results.append({
+                        "fault_id": row["fault_id"],
+                        "strike_deg": row["strike_deg"],
+                        "dip_deg": row["dip_deg"],
+                        "distance_to_blast_m": row["distance_to_blast_m"],
+                        "risk": risk,
+                        "reasoning": reasoning,
+                    })
+
+                st.session_state["fault_result"] = pd.DataFrame(results)
+
+        if "fault_result" in st.session_state:
+            st.divider()
+            st.subheader("Fault Risk Assessment")
+
+            df_result = st.session_state["fault_result"]
+
+            high_count = int((df_result["risk"] == "HIGH").sum())
+            medium_count = int((df_result["risk"] == "MEDIUM").sum())
+            low_count = int((df_result["risk"] == "LOW").sum())
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("HIGH Risk Faults", high_count)
+            col2.metric("MEDIUM Risk Faults", medium_count)
+            col3.metric("LOW Risk Faults", low_count)
+
+            st.dataframe(
+                df_result,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "reasoning": st.column_config.TextColumn("Reasoning", width="large"),
+                },
+            )
+
+            if high_count > 0:
+                st.warning(
+                    f"⚠️ {high_count} fault(s) rated HIGH risk. "
+                    f"Reduce maximum charge per delay and increase inter-hole delay "
+                    f"for holes within 100 m of these faults."
+                )
+
+            if st.button("Clear result", key="fault_clear_btn"):
+                del st.session_state["fault_result"]
+                st.rerun()
 
     with tab_ore:
         st.subheader("Ore Loss & Dilution Estimator")
