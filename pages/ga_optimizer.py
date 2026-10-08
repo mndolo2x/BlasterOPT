@@ -23,7 +23,7 @@ col_opt1, col_opt2 = st.columns([1, 2])
 
 with col_opt1:
     st.subheader("Optimization Constraints")
-    max_ppv = st.number_input("Max Allowed PPV (mm/s)", 1.0, 50.0, 10.0, step=1.0)
+    max_ppv = st.number_input("Max Allowed PPV (mm/s)", 1.0, 50.0, 5.0, step=0.5)
     max_flyrock = st.number_input("Max Allowed Flyrock (m)", 20.0, 300.0, 120.0, step=10.0)
     d50_min, d50_max = st.slider("Target d50 Fragmentation Range (mm)", 50, 600, (120, 320))
 

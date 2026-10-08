@@ -50,7 +50,7 @@ def load_regulatory_limits(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, 
     # Default fallback regulatory limits
     return {
         "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) & Data Protection Act of Botswana",
-        "max_ppv_mms": 10.0,
+        "max_ppv_mms": 5.0,
         "min_ppv_mms": 0.1,
         "max_airblast_dbl": 120.0,
         "max_flyrock_m": 250.0,
@@ -90,7 +90,7 @@ def check_compliance(
 
     # 1. Peak Particle Velocity (PPV) Check
     ppv_val = float(predictions.get("ppv_mms", predictions.get("pred_ppv_mms", 5.0)))
-    max_ppv = float(limits.get("max_ppv_mms", 10.0))
+    max_ppv = float(limits.get("max_ppv_mms", 5.0))
     min_ppv = float(limits.get("min_ppv_mms", 0.1))
 
     if ppv_val > max_ppv:
@@ -217,7 +217,7 @@ def generate_compliance_report(
 
     pdf.set_font("Helvetica", "", 9)
     pdf.cell(0, 5, f"- Stemming Length: {blast_params.get('stemming_m', 5.0):.2f} m (Min limit: {comp_res['active_limits'].get('min_stemming_m', 2.5):.1f} m)", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 5, f"- Ground Vibration (PPV): {predictions.get('ppv_mms', 5.0):.2f} mm/s (Max limit: {comp_res['active_limits'].get('max_ppv_mms', 10.0):.1f} mm/s)", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, f"- Ground Vibration (PPV): {predictions.get('ppv_mms', 5.0):.2f} mm/s (Max limit: {comp_res['active_limits'].get('max_ppv_mms', 5.0):.1f} mm/s)", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 5, f"- Airblast Overpressure: {predictions.get('airblast_dbl', 115.0):.1f} dBL (Max limit: {comp_res['active_limits'].get('max_airblast_dbl', 120.0):.1f} dBL)", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 5, f"- Flyrock Range: {predictions.get('flyrock_m', 100.0):.1f} m (Max limit: {comp_res['active_limits'].get('max_flyrock_m', 250.0):.1f} m)", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)

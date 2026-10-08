@@ -49,7 +49,7 @@ FORBIDDEN_INPUT_PATTERNS = [
         "type": "BYPASS_LIMITS",
         "pattern": r"\b(ignore\s+the\s+(vibration|airblast|ppv)\s+limit|exceed\s+the\s+limit|bypass\s+limits|disregard\s+safety)\b",
         "reason": "Request to bypass or ignore regulatory safety limits.",
-        "safe_response": "I cannot bypass or ignore regulatory safety limits. All blast designs must comply with Botswana Department of Mines environmental thresholds (PPV <= 10.0 mm/s, Airblast <= 120 dB).",
+        "safe_response": "I cannot bypass or ignore regulatory safety limits. All blast designs must comply with Botswana Department of Mines environmental thresholds (PPV <= 5.0 mm/s, Airblast <= 120 dB).",
     },
     {
         "type": "INVENT_DATA",
@@ -229,7 +229,7 @@ def check_regulatory_compliance(
     Validates a BlastDesign object against environmental limits and max cost bounds.
     """
     limits = load_regulatory_limits()
-    max_ppv = float(limits.get("max_ppv_mms", 10.0))
+    max_ppv = float(limits.get("max_ppv_mms", 5.0))
     max_airblast = float(limits.get("max_airblast_dbl", 120.0))
 
     predicted_ppv = design.predicted_vibration.ppv_mm_s

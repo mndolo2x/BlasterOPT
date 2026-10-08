@@ -163,7 +163,7 @@ def run_all_checks(design: Any, predictions: Any, constraints: Any) -> SafetyRep
     pred_airblast = _get_val(predictions, ["airblast", "airblast_dbl", "pred_airblast_dbl"], 110.0)
     pred_flyrock = _get_val(predictions, ["flyrock", "flyrock_m", "pred_flyrock_m"], 100.0)
 
-    max_ppv = _get_val(constraints, ["max_ppv_mm_s", "max_ppv_mms", "max_ppv"], 10.0)
+    max_ppv = _get_val(constraints, ["max_ppv_mm_s", "max_ppv_mms", "max_ppv"], 5.0)
     max_airblast = _get_val(constraints, ["max_airblast_db", "max_airblast_dbl", "max_airblast"], 120.0)
     max_flyrock = _get_val(constraints, ["flyrock_exclusion_zone_m", "max_flyrock_m", "max_flyrock"], 250.0)
 
@@ -193,7 +193,7 @@ def evaluate_safety(
     """
     if limits is None:
         limits = {
-            "max_ppv_mms": 10.0,
+            "max_ppv_mms": 5.0,
             "max_airblast_dbl": 120.0,
             "max_flyrock_m": 250.0,
             "min_stemming_m": 2.5,
@@ -208,7 +208,7 @@ def evaluate_safety(
     # 1. Ground Vibration (PPV)
     if "ppv_mms" in predictions or "pred_ppv_mms" in predictions or "ppv" in predictions:
         pred_ppv = float(predictions.get("ppv_mms", predictions.get("pred_ppv_mms", predictions.get("ppv", 0.0))))
-        limit_ppv = float(limits.get("max_ppv_mms", limits.get("max_ppv_mm_s", limits.get("max_ppv", 10.0))))
+        limit_ppv = float(limits.get("max_ppv_mms", limits.get("max_ppv_mm_s", limits.get("max_ppv", 5.0))))
         ci = confidence_intervals.get("ppv_mms", confidence_intervals.get("ppv", (pred_ppv * 0.85, pred_ppv * 1.18)))
         checks.append(check_ppv(pred_ppv, limit_ppv, lower_95=ci[0], upper_95=ci[1]))
 

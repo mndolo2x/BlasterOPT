@@ -53,7 +53,7 @@ def validate_sequence(
     Regulatory compliance (Botswana Department of Mines / Environmental Guidelines) mandates strict limits:
     - Minimum Inter-Hole Delay: Must be >= 8 ms (typically 17-25 ms) to prevent excessive burden overlap and misfires.
     - Minimum Inter-Row Delay: Must be >= 25 ms (typically 42-65 ms) to allow adequate muckpile movement.
-    - Max Charge per Delay Window (8 ms window): Must satisfy USBM scaled distance ground vibration limits (PPV <= 10.0 mm/s).
+    - Max Charge per Delay Window (8 ms window): Must satisfy USBM scaled distance ground vibration limits (PPV <= 5.0 mm/s).
     - Airblast Overpressure: Must satisfy dBL <= 120 dB.
 
     Parameters:
@@ -72,7 +72,7 @@ def validate_sequence(
         regulatory_limits = {
             "min_hole_delay_ms": 8.0,
             "min_row_delay_ms": 25.0,
-            "max_ppv_mms": 10.0,
+            "max_ppv_mms": 5.0,
             "max_airblast_dbl": 120.0,
             "max_charge_per_delay_kg": 1000.0,
         }
@@ -101,7 +101,7 @@ def validate_sequence(
 
     min_h_limit = regulatory_limits.get("min_hole_delay_ms", 8.0)
     min_r_limit = regulatory_limits.get("min_row_delay_ms", 25.0)
-    max_ppv_limit = regulatory_limits.get("max_ppv_mms", 10.0)
+    max_ppv_limit = regulatory_limits.get("max_ppv_mms", 5.0)
     max_air_limit = regulatory_limits.get("max_airblast_dbl", 120.0)
 
     if hole_delay < min_h_limit:

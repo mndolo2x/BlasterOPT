@@ -29,7 +29,7 @@ class BlastOptimizer:
     def __init__(
         self,
         fixed_parameters: Dict[str, float],
-        max_ppv_limit_mms: float = 10.0,
+        max_ppv_limit_mms: float = 5.0,
         max_flyrock_limit_m: float = 100.0,
         target_d50_range_mm: Tuple[float, float] = (100.0, 300.0),
         ml_pipeline: Optional[BlastMLPipeline] = None,
