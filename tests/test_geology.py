@@ -6,9 +6,26 @@ from src.geology import RMRCalculator, QSystemCalculator, JointAnalyzer, FaultSt
 
 
 def test_rmr_calculator():
-    res = RMRCalculator.calculate_rmr(ucs_mpa=120.0, rqd_pct=75.0, spacing_m=0.5)
-    assert 0 <= res["rmr_score"] <= 100
-    assert "rock_class" in res
+    res = RMRCalculator.calculate_rmr(
+        ucs_mpa=100.0,
+        rqd_pct=85.0,
+        spacing_m=1.2,
+        persistence="1-3 m",
+        aperture="0.1-1.0 mm",
+        roughness="Rough",
+        infilling="None",
+        weathering="Slightly weathered",
+        groundwater="Damp",
+        orientation="Fair",
+    )
+    assert res["rmr_score"] == 74
+    assert res["strength_rating"] == 12
+    assert res["rqd_rating"] == 17
+    assert res["spacing_rating"] == 15
+    assert res["condition_rating"] == 25
+    assert res["groundwater_rating"] == 10
+    assert res["orientation_rating"] == -5
+    assert res["rock_class"] == "Good Rock (Class II)"
 
 
 def test_q_system_calculator():
