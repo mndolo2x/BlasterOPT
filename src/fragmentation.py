@@ -674,4 +674,73 @@ def render_fragmentation_page(lang_code: str = "en"):
 
         if st.button("Calibrate Site Rock Factor"):
             cal_a = RockFactorCalibrator.calibrate_rock_factor(meas_d50, pred_d50, curr_a)
-            st.success(f"Calibrated Site Rock Blastability Factor A: `{cal_a}`")
+            ratio = meas_d50 / max(pred_d50, 10.0)
+            adjustment_pct = ((ratio ** 0.8) - 1.0) * 100.0
+
+            st.session_state["rsm_result"] = {
+                "current_A": float(curr_a),
+                "A_calibrated": float(cal_a),
+                "measured_d50": float(meas_d50),
+                "predicted_d50": float(pred_d50),
+                "ratio": float(ratio),
+                "adjustment_pct": float(adjustment_pct),
+            }
+
+        if "rsm_result" in st.session_state:
+            r = st.session_state["rsm_result"]
+
+            st.divider()
+            st.subheader("Calibration Result")
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric(
+                "Current Rock Factor A",
+                f"{r['current_A']:.2f}",
+            )
+            col2.metric(
+                "Calibrated Rock Factor A",
+                f"{r['A_calibrated']:.2f}",
+                delta=f"{r['A_calibrated'] - r['current_A']:+.2f}",
+            )
+            col3.metric(
+                "Adjustment",
+                f"{r['adjustment_pct']:+.1f}%",
+            )
+
+            st.caption(
+                f"Calibration ratio (measured / predicted): "
+                f"{r['measured_d50']:.0f} / {r['predicted_d50']:.0f} = **{r['ratio']:.3f}**"
+            )
+
+            if r["ratio"] > 1.05:
+                st.warning(
+                    f"⚠️ **Rock is harder than the model assumed.** "
+                    f"Measured fragmentation is coarser than predicted by "
+                    f"{r['adjustment_pct']:.1f}%. The rock factor should be increased "
+                    f"from {r['current_A']:.2f} to **{r['A_calibrated']:.2f}** for "
+                    f"future Kuz-Ram predictions at this site."
+                )
+            elif r["ratio"] < 0.95:
+                st.warning(
+                    f"⚠️ **Rock is softer than the model assumed.** "
+                    f"Measured fragmentation is finer than predicted by "
+                    f"{abs(r['adjustment_pct']):.1f}%. The rock factor should be "
+                    f"decreased from {r['current_A']:.2f} to "
+                    f"**{r['A_calibrated']:.2f}**."
+                )
+            else:
+                st.success(
+                    f"✅ **Model is well calibrated.** "
+                    f"The prediction is within 5% of the measurement. "
+                    f"Rock factor of {r['current_A']:.2f} is accurate for this site."
+                )
+
+            st.info(
+                f"**To apply this calibration:** go to the Kuz-Ram tab, "
+                f"set the Rock Factor slider to {r['A_calibrated']:.2f}, "
+                f"and click Calculate Fragmentation again."
+            )
+
+            if st.button("Clear calibration", key="rsm_clear_btn"):
+                del st.session_state["rsm_result"]
+                st.rerun()
