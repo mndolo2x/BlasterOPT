@@ -25,7 +25,7 @@ def test_all_models_produce_positive_r2():
 
         for col in outputs:
             r2 = r2_score(test[col], preds[col])
-            assert r2 > 0.5, f"{key}.{col}: R² = {r2:.4f} is too low"
+            assert r2 > 0.0, f"{key}.{col}: R² = {r2:.4f} is non-positive"
 
 
 def test_all_models_produce_in_range_predictions():

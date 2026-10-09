@@ -58,12 +58,12 @@ def test_adjust_charging_plan_high_torque_increases_stemming():
 def test_risk_controller_returns_is_safe_false_when_limits_exceeded():
     """Test risk_controller returns is_safe=False and lists violations when limits are exceeded."""
     unsafe_design = {
-        "predicted_ppv_mms": 14.5,        # Exceeds 10.0 limit
+        "predicted_ppv_mms": 14.5,        # Exceeds 5.0 limit
         "predicted_airblast_dbl": 126.0,  # Exceeds 120.0 limit
         "predicted_flyrock_m": 290.0,     # Exceeds 250.0 limit
     }
     limits = {
-        "max_ppv_mms": 10.0,
+        "max_ppv_mms": 5.0,
         "max_airblast_dbl": 120.0,
         "max_flyrock_m": 250.0,
     }
@@ -80,7 +80,7 @@ def test_risk_controller_returns_is_safe_false_when_limits_exceeded():
 def test_risk_controller_safe_design():
     """Test risk_controller returns is_safe=True for safe design."""
     safe_design = {
-        "predicted_ppv_mms": 7.5,
+        "predicted_ppv_mms": 4.2,
         "predicted_airblast_dbl": 114.0,
         "predicted_flyrock_m": 120.0,
     }

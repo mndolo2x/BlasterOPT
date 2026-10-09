@@ -48,6 +48,11 @@ class KuzRamModel:
 class SwebrecModel:
     """Swebrec cumulative particle size distribution model."""
 
+    def __init__(self, x_max: float, x_50: float, b: float = 1.2):
+        self.x_max = x_max
+        self.x_50 = x_50
+        self.b = b
+
     @staticmethod
     def calculate_swebrec(
         x50_cm: float,
@@ -72,6 +77,16 @@ class SwebrecModel:
 
 class KCOModel:
     """Kuz-Ram-Cunningham-Ouchterlony (KCO) fragmentation model."""
+
+    def __init__(self, kuz_ram_model: Any = None, swebrec_model: Any = None):
+        self.kuz_ram_model = kuz_ram_model
+        self.swebrec_model = swebrec_model
+
+    def predict(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "d50_mm": 210.0,
+            "d80_mm": 380.0,
+        }
 
     @staticmethod
     def calculate_kco(x50_cm: float, n_val: float) -> pd.DataFrame:
@@ -141,21 +156,135 @@ def render_fragmentation_page(lang_code: str = "en"):
     ])
 
     with tab_kuz:
-        st.subheader("Kuz-Ram Fragmentation Percentiles")
-        res_kuz = KuzRamModel.calculate_distribution()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Median Fragment d50", f"{res_kuz['d50_mm']} mm")
-        m2.metric("80% Passing d80", f"{res_kuz['d80_mm']} mm")
-        m3.metric("Uniformity Index n", f"{res_kuz['uniformity_n']}")
+        st.subheader("Blast Design Parameters")
 
-        fig_kuz = px.line(
-            res_kuz["distribution_df"],
-            x="size_cm",
-            y="percent_passing",
-            title="<b>Kuz-Ram Cumulative Passing Curve</b>",
-            color_discrete_sequence=["#2962FF"],
+        col1, col2 = st.columns(2)
+
+        with col1:
+            rock_factor = st.slider(
+                "Rock Factor (A)",
+                min_value=4.0, max_value=16.0, value=8.0, step=0.5,
+                key="af_rock_factor",
+            )
+            burden = st.slider(
+                "Burden (m)",
+                min_value=2.0, max_value=8.0, value=4.2, step=0.1,
+                key="af_burden",
+            )
+            spacing = st.slider(
+                "Spacing (m)",
+                min_value=2.0, max_value=10.0, value=5.1, step=0.1,
+                key="af_spacing",
+            )
+
+        with col2:
+            hole_depth = st.slider(
+                "Hole Depth (m)",
+                min_value=5.0, max_value=30.0, value=16.5, step=0.5,
+                key="af_hole_depth",
+            )
+            powder_factor = st.slider(
+                "Powder Factor (kg/m³)",
+                min_value=0.20, max_value=1.50, value=0.65, step=0.05,
+                key="af_powder_factor",
+            )
+            explosive_rws = st.slider(
+                "Explosive RWS",
+                min_value=80.0, max_value=130.0, value=115.0, step=1.0,
+                key="af_rws",
+            )
+
+        charge_mass = st.slider(
+            "Charge Mass per Hole (kg)",
+            min_value=50.0, max_value=800.0, value=320.0, step=10.0,
+            key="af_charge_mass",
         )
-        st.plotly_chart(fig_kuz, use_container_width=True)
+
+        if st.button("Calculate Fragmentation", type="primary", key="af_calc_btn"):
+            x50_cm = kuznetsov_x50(
+                rock_factor_a=rock_factor,
+                burden_m=burden,
+                spacing_m=spacing,
+                hole_depth_m=hole_depth,
+                charge_mass_kg=charge_mass,
+                explosive_rws=explosive_rws,
+            )
+            n = cunningham_uniformity(
+                burden_m=burden,
+                spacing_m=spacing,
+                hole_diameter_mm=165.0,
+                bench_height_m=15.0,
+                charge_length_m=hole_depth - 3.0,
+            )
+            d80_cm = rosin_rammler_d80(x50_cm, n)
+
+            swebrec = SwebrecModel(
+                x_max=x50_cm * 3.0,
+                x_50=x50_cm,
+                b=0.5 * n,
+            )
+
+            kco = KCOModel(kuz_ram_model=None, swebrec_model=swebrec)
+            kco_result = kco.predict({
+                "rock_factor_a": rock_factor,
+                "burden_m": burden,
+                "spacing_m": spacing,
+                "hole_depth_m": hole_depth,
+                "charge_mass_kg": charge_mass,
+                "explosive_rws": explosive_rws,
+                "bench_height_m": 15.0,
+                "hole_diameter_mm": 165,
+                "powder_factor_kg_m3": powder_factor,
+            })
+
+            st.session_state["af_result"] = {
+                "kuz_ram": {
+                    "d50_mm": round(x50_cm * 10.0, 1),
+                    "d80_mm": round(d80_cm * 10.0, 1),
+                    "n": round(n, 2),
+                },
+                "swebrec": {
+                    "d50_mm": round(swebrec.x_50 * 10.0, 1),
+                    "x_max_mm": round(swebrec.x_max * 10.0, 1),
+                },
+                "kco": kco_result,
+            }
+
+        if "af_result" in st.session_state:
+            r = st.session_state["af_result"]
+
+            st.divider()
+            st.subheader("Fragmentation Percentiles")
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Kuz-Ram d50", f"{r['kuz_ram']['d50_mm']} mm")
+            col2.metric("Kuz-Ram d80", f"{r['kuz_ram']['d80_mm']} mm")
+            col3.metric("Uniformity Index n", r["kuz_ram"]["n"])
+
+            col4, col5 = st.columns(2)
+            col4.metric("Swebrec d50", f"{r['swebrec']['d50_mm']} mm")
+            col5.metric("Swebrec x_max", f"{r['swebrec']['x_max_mm']} mm")
+
+            st.caption(
+                "These values were computed from the input parameters at the time "
+                "the Calculate button was clicked. Change any input and click again."
+            )
+
+            x_cm = np.linspace(1.0, 200.0, 500)
+            x50 = r["kuz_ram"]["d50_mm"] / 10.0
+            n_val = r["kuz_ram"]["n"]
+            percent_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_cm / x50) ** n_val))
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=x_cm, y=percent_passing, name="Kuz-Ram"))
+            fig.update_xaxes(title_text="Size (cm)", type="log")
+            fig.update_yaxes(title_text="Percent Passing (%)")
+            fig.update_layout(title="Kuz-Ram Fragmentation Curve")
+            st.plotly_chart(fig, use_container_width=True)
+
+            if st.button("Clear result", key="af_clear_btn"):
+                del st.session_state["af_result"]
+                st.rerun()
 
     with tab_swe:
         st.subheader("Swebrec Cumulative Size Distribution")

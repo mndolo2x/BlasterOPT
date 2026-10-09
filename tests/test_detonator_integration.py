@@ -17,7 +17,7 @@ def test_validate_sequence_compliant():
         "hole_delay_ms": 17.0,
         "row_delay_ms": 42.0,
         "max_charge_per_delay_kg": 640.0,
-        "predicted_ppv_mms": 8.2,
+        "predicted_ppv_mms": 4.2,
         "predicted_airblast_dbl": 112.5,
     }
 
@@ -33,7 +33,7 @@ def test_validate_sequence_non_compliant_violations():
     violating_seq = {
         "hole_delay_ms": 4.0,  # Below 8 ms limit
         "row_delay_ms": 15.0,  # Below 25 ms limit
-        "predicted_ppv_mms": 14.5,  # Exceeds 10.0 mm/s limit
+        "predicted_ppv_mms": 14.5,  # Exceeds 5.0 mm/s limit
         "predicted_airblast_dbl": 125.0,  # Exceeds 120 dBL limit
     }
 
@@ -89,7 +89,7 @@ def test_upload_proceeds_on_valid_sequence():
         "hole_delay_ms": 17.0,
         "row_delay_ms": 42.0,
         "max_charge_per_delay_kg": 640.0,
-        "predicted_ppv_mms": 8.0,
+        "predicted_ppv_mms": 4.0,
         "predicted_airblast_dbl": 115.0,
     }
 
