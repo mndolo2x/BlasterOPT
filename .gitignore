@@ -45,3 +45,9 @@ models/*.joblib
 *.log
 *.pdf
 *.db
+*.csv
+*.jsonl
+.pytest_cache/
+data/audit/
+data/processed/
+models/

@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+plugins: platformdirs-4.12.2, anyio-4.15.1, langsmith-0.14.2
+collecting ... collected 7 items
+
+tests/test_render3d.py::test_bench_height_positive PASSED                [ 14%]
+tests/test_render3d.py::test_bench_height_negative_raises PASSED         [ 28%]
+tests/test_render3d.py::test_face_offset_formula PASSED                  [ 42%]
+tests/test_render3d.py::test_hole_pattern_generates_correct_count PASSED [ 57%]
+tests/test_render3d.py::test_spacing_greater_than_burden PASSED          [ 71%]
+tests/test_render3d.py::test_volume_calculation PASSED                   [ 85%]
+tests/test_render3d.py::test_pattern_summary_keys PASSED                 [100%]
+
+============================== 7 passed in 0.15s ===============================

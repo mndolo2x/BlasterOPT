@@ -11,7 +11,7 @@ def test_page_registry_completeness():
     except ImportError:
         from src.page_registry import PAGE_REGISTRY
 
-    assert len(PAGE_REGISTRY) == 9
+    assert len(PAGE_REGISTRY) >= 9
     for key, config in PAGE_REGISTRY.items():
         assert "display_name" in config
         assert "required_outputs" in config

@@ -368,6 +368,7 @@ page = st.sidebar.radio(
         get_translation("nav_fragmentation", lang_code),
         get_translation("nav_safety", lang_code),
         get_translation("nav_pattern", lang_code),
+        "3D Blast Design 💥",
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_audit_log", lang_code),
         get_translation("nav_system_health", lang_code),
@@ -425,6 +426,7 @@ page_keys = {
     get_translation("nav_safety", "tn"): "safety",
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
+    "3D Blast Design 💥": "blast_3d_design",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
     get_translation("nav_guardrail_log", "tn"): "guardrail_log",
     get_translation("nav_audit_log", "en"): "audit_log",
@@ -2246,6 +2248,15 @@ elif active_module == "pattern":
             hole_delay_ms=hole_delay,
         )
         st.plotly_chart(fig_pattern, use_container_width=True)
+
+
+# --- MODULE: 3D BLAST DESIGN ---
+elif active_module == "blast_3d_design":
+    try:
+        exec(open(os.path.join(repo_root, "pages/blast_3d_design.py")).read())
+    except Exception as exc:
+        st.error("Error loading 3D Blast Design module:")
+        st.exception(exc)
 
 
 # --- MODULE 7: VISUALIZE ---

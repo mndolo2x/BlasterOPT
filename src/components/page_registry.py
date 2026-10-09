@@ -78,6 +78,15 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "required_outputs": [],  # accepts any model
         "description": "Natural language blast design",
     },
+    "blast_3d_design": {
+        "display_name": "3D Blast Design",
+        "required_outputs": [
+            "fragmentation_d80_cm",
+            "vibration_ppv_mms",
+            "airblast_db",
+        ],
+        "description": "Interactive 3D drill pattern layout with timing, geology, and model predictions",
+    },
 }
 
 
