@@ -536,9 +536,135 @@ def render_fragmentation_page(lang_code: str = "en"):
             )
 
     with tab_wip:
-        st.subheader("WipFrag Optical Image Analysis Importer")
-        wip_res = OpticalImageAnalyzer.import_wipfrag_data()
-        st.json(wip_res)
+        st.subheader("WipFrag Measured Fragmentation")
+
+        st.caption(
+            "Upload a WipFrag CSV export, or enter the measured percentiles manually. "
+            "The values will be compared against the Kuz-Ram prediction from the current blast design."
+        )
+
+        # Two input methods: CSV upload or manual entry
+        input_method = st.radio(
+            "Input method",
+            ["Upload WipFrag CSV", "Enter values manually"],
+            horizontal=True,
+        )
+
+        if input_method == "Upload WipFrag CSV":
+            uploaded = st.file_uploader(
+                "WipFrag CSV (columns: size_mm, percent_passing)",
+                type=["csv"],
+                key="wipfrag_upload",
+            )
+            if uploaded is not None:
+                try:
+                    measured_df = pd.read_csv(uploaded)
+                    st.success(f"Loaded {len(measured_df)} data points from {uploaded.name}.")
+                    st.session_state["wipfrag_data"] = measured_df
+                    st.dataframe(measured_df.head(10), use_container_width=True)
+                except Exception as e:
+                    st.error(f"Failed to load CSV: {e}")
+                    st.stop()
+            else:
+                st.info("Upload a CSV file to proceed.")
+        else:
+            st.write("**Measured percentiles (mm)**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                d20 = st.number_input("d20 (mm)", min_value=1.0, value=45.0, step=5.0, key="wip_d20")
+            with col2:
+                d50 = st.number_input("d50 (mm)", min_value=1.0, value=210.0, step=5.0, key="wip_d50")
+            with col3:
+                d80 = st.number_input("d80 (mm)", min_value=1.0, value=420.0, step=5.0, key="wip_d80")
+
+            col4, col5 = st.columns(2)
+            with col4:
+                fines = st.number_input("Fines % (< 10mm)", min_value=0.0, max_value=100.0, value=8.5, step=0.5, key="wip_fines")
+            with col5:
+                boulders = st.number_input("Boulders % (> 800mm)", min_value=0.0, max_value=100.0, value=4.2, step=0.5, key="wip_boulders")
+
+            if st.button("Analyze WipFrag Data", type="primary", key="wip_calc_btn"):
+                # Build a simple 5-point distribution from the percentiles
+                measured_data = {
+                    "size_mm": [10, d20, d50, d80, 800],
+                    "percent_passing": [fines, 20, 50, 80, 100 - boulders],
+                }
+                st.session_state["wipfrag_data"] = pd.DataFrame(measured_data)
+                st.session_state["wipfrag_summary"] = {
+                    "d20_mm": d20,
+                    "d50_mm": d50,
+                    "d80_mm": d80,
+                    "fines_pct": fines,
+                    "boulder_pct": boulders,
+                }
+
+        if "wipfrag_data" in st.session_state and "af_result" in st.session_state:
+            measured_df = st.session_state["wipfrag_data"]
+
+            st.divider()
+            st.subheader("Measured vs Predicted Fragmentation")
+
+            r = st.session_state["af_result"]
+            x50_pred_cm = r["kuz_ram"]["d50_mm"] / 10.0
+            n_pred = r["kuz_ram"]["n"]
+
+            # Predicted curve
+            x_pred_cm = np.linspace(0.5, 100, 500)
+            predicted_passing = 100 * (1 - np.exp(-0.693 * (x_pred_cm / x50_pred_cm) ** n_pred))
+
+            # Measured curve
+            x_meas_cm = measured_df["size_mm"].values / 10.0
+            y_meas = measured_df["percent_passing"].values
+
+            fig = go.Figure()
+
+            fig.add_trace(go.Scatter(
+                x=x_pred_cm, y=predicted_passing,
+                mode="lines", name="Kuz-Ram Predicted",
+                line=dict(color="blue", width=2),
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=x_meas_cm, y=y_meas,
+                mode="lines+markers", name="WipFrag Measured",
+                line=dict(color="orange", width=2),
+                marker=dict(size=8),
+            ))
+
+            fig.update_xaxes(title_text="Size (cm)", type="log")
+            fig.update_yaxes(title_text="Percent Passing (%)", range=[0, 102])
+            fig.update_layout(title="Measured vs Predicted Fragmentation", height=500)
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Compute error metrics
+            from scipy.interpolate import interp1d
+
+            pred_interp = interp1d(x_pred_cm, predicted_passing, bounds_error=False, fill_value="extrapolate")
+            predicted_at_measured = pred_interp(x_meas_cm)
+            residuals = y_meas - predicted_at_measured
+
+            rmse = float(np.sqrt(np.mean(residuals ** 2)))
+            mae = float(np.mean(np.abs(residuals)))
+            bias = float(np.mean(residuals))
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("RMSE", f"{rmse:.1f}%")
+            col2.metric("MAE", f"{mae:.1f}%")
+            col3.metric("Bias", f"{bias:+.1f}%")
+
+            if abs(bias) < 5:
+                st.success("Kuz-Ram prediction matches WipFrag measurement well (|bias| < 5%).")
+            elif bias > 0:
+                st.warning(
+                    f"Kuz-Ram over-predicts passing by {bias:.1f}%. "
+                    f"Consider recalibrating the rock factor."
+                )
+            else:
+                st.warning(
+                    f"Kuz-Ram under-predicts passing by {abs(bias):.1f}%. "
+                    f"Consider recalibrating the rock factor."
+                )
 
     with tab_cal:
         st.subheader("Saubi & Suglo (2026) RSM Rock Factor Calibrator")
