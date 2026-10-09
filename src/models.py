@@ -1634,6 +1634,32 @@ MODEL_REGISTRY = {
         },
         "reference": "Saubi, O. et al. (2025). Journal of Mining Institute, 275, 179-195."
     },
+    "pinn": {
+        "display_name": "PINN (Physics-Informed Neural Network)",
+        "architecture": "12-128-256-256-128-3",
+        "optimizer": "adam",
+        "outputs": [
+            "fragmentation_d80_cm",
+            "vibration_ppv_mms",
+            "airblast_db",
+        ],
+        "feature_columns": [
+            "burden_m",
+            "spacing_m",
+            "hole_diameter_mm",
+            "hole_depth_m",
+            "stemming_m",
+            "sub_drill_m",
+            "powder_factor_kg_m3",
+            "max_charge_per_delay_kg",
+            "rock_strength_ucs",
+            "rmr",
+            "monitoring_distance_m",
+            "blastability_index",
+        ],
+        "source": "Physics-Informed Neural Network with Kuz-Ram and USBM constraints",
+        "type": "biust",
+    },
     "airblast_minimizer": {
         "display_name": "Debswana Open-Pit Airblast Minimizer",
         "type": "biust",
