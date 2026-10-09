@@ -2,7 +2,7 @@
 Physics-Informed Neural Network (PINN) Module for BlastOpt Botswana.
 
 Implements Model 2 (Physics-Informed Neural Network) blending data-driven deep learning with fundamental
-rock fracture mechanics and wave propagation equations (Kuz-Ram d80 and USBM PPV attenuation) as soft loss terms.
+rock fracture mechanics and wave propagation equations (Kuz-Ram d80, USBM PPV attenuation, and Siskind airblast) as soft loss terms.
 Includes Monte Carlo Dropout uncertainty estimation for epistemic and aleatoric confidence quantification.
 """
 
@@ -58,7 +58,8 @@ if HAS_TORCH:
         Soft loss regularization penalizes deviations from:
         - Kuz-Ram fragmentation equation: X50 = A * (V0 / Q)^0.8 * Q^(1/6) * (115 / E)^(19/30)
         - USBM PPV attenuation equation: PPV = K * (D / sqrt(W))^(-B)
-        L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm
+        - Siskind airblast equation: airblast_db = 165 - 25 * log10(D / W^(1/3))
+        L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm + lambda_3 * L_airblast
         """
 
         def __init__(self, input_dim: int = 12, dropout_rate: float = 0.1):
@@ -104,10 +105,10 @@ if HAS_TORCH:
             return pred_frag, pred_ppv, pred_air
 
         def compute_physics_loss(
-            self, x: torch.Tensor, pred_frag: torch.Tensor, pred_ppv: torch.Tensor
-        ) -> Tuple[torch.Tensor, torch.Tensor]:
+            self, x: torch.Tensor, pred_frag: torch.Tensor, pred_ppv: torch.Tensor, pred_air: torch.Tensor
+        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
             """
-            Computes soft physics loss terms for Kuz-Ram and USBM equations.
+            Computes soft physics loss terms for Kuz-Ram, USBM, and Siskind airblast equations.
 
             Parameters:
             -----------
@@ -117,11 +118,13 @@ if HAS_TORCH:
                 Predicted fragmentation D80 (mm).
             pred_ppv : torch.Tensor
                 Predicted ground vibration PPV (mm/s).
+            pred_air : torch.Tensor
+                Predicted airblast overpressure (dB).
 
             Returns:
             --------
-            Tuple[torch.Tensor, torch.Tensor]
-                (loss_kuzram, loss_usbm) soft physics losses.
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+                (loss_kuzram, loss_usbm, loss_airblast) soft physics losses.
             """
             # Extract relevant columns from batch tensor
             # Index 6: powder_factor_kg_m3 (Q/V0 = pf), Index 7: max_charge_per_delay_kg (W), Index 10: monitoring_distance_m (D)
@@ -143,7 +146,14 @@ if HAS_TORCH:
             usbm_ppv = 1140.0 * (sd ** (-1.6))
             loss_usbm = torch.mean((pred_ppv - usbm_ppv) ** 2)
 
-            return loss_kuzram, loss_usbm
+            # 3. Siskind airblast equation: airblast_db = 165 - 25 * log10(D / W^(1/3))
+            # where D = monitoring_distance_m, W = max_charge_per_delay_kg
+            w_cbrt = torch.pow(w_delay, 1.0 / 3.0)
+            siskind_airblast_db = 165.0 - 25.0 * torch.log10(dist / w_cbrt + 1e-8)
+            loss_airblast = torch.mean((pred_air - siskind_airblast_db) ** 2)
+
+            return loss_kuzram, loss_usbm, loss_airblast
+
 else:
     class BlastPINN:
         """Fallback placeholder when PyTorch is not available."""
@@ -161,6 +171,7 @@ def train_pinn(
     lr: float = 0.001,
     lambda_1: float = 0.1,
     lambda_2: float = 0.1,
+    lambda_3: float = 0.1,
     patience: int = 50,
 ) -> Tuple[Any, Dict[str, List[float]]]:
     """
@@ -186,6 +197,8 @@ def train_pinn(
         Tunable weight for Kuz-Ram equation soft loss (lambda_1).
     lambda_2 : float, default=0.1
         Tunable weight for USBM equation soft loss (lambda_2).
+    lambda_3 : float, default=0.1
+        Tunable weight for Siskind airblast equation soft loss (lambda_3).
     patience : int, default=50
         Early stopping patience epochs.
 
@@ -233,10 +246,10 @@ def train_pinn(
         l_data = mse_loss(preds_all, y_tr)
 
         # 2. Physics Soft Losses
-        l_kuz, l_usbm = model.compute_physics_loss(X_tr, pred_f, pred_p)
-        l_phys = lambda_1 * l_kuz + lambda_2 * l_usbm
+        l_kuz, l_usbm, l_air = model.compute_physics_loss(X_tr, pred_f, pred_p, pred_a)
+        l_phys = lambda_1 * l_kuz + lambda_2 * l_usbm + lambda_3 * l_air
 
-        # L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm
+        # L_total = L_data + lambda_1 * L_kuzram + lambda_2 * L_usbm + lambda_3 * L_airblast
         l_total = l_data + l_phys
         l_total.backward()
         optimizer.step()
