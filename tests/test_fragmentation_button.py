@@ -1,5 +1,5 @@
 """
-Functional unit tests for Advanced Fragmentation Kuz-Ram button calculation logic and Swebrec curve bounds.
+Functional unit tests for Advanced Fragmentation Kuz-Ram button calculation logic, Swebrec curve bounds, and multi-model percentile comparison.
 """
 
 import numpy as np
@@ -42,6 +42,12 @@ def evaluate_swebrec_curve(x50_cm: float, x_max_cm: float, b: float) -> tuple[np
     return x_cm, percent_passing
 
 
+def find_d_percentile(x_values, passing_values, target_pct):
+    """Find the size at which passing equals target_pct."""
+    idx = np.argmin(np.abs(passing_values - target_pct))
+    return round(float(x_values[idx]), 1)
+
+
 def test_fragmentation_changes_with_powder_factor():
     """Higher powder factor must produce finer fragmentation (smaller d50)."""
     d1 = calculate_fragmentation_d50(0.65)
@@ -77,3 +83,22 @@ def test_swebrec_curve_crosses_50_at_d50_and_100_at_xmax():
     # Check at x50 point
     idx_50 = np.argmin(np.abs(x_cm - x50_cm))
     assert abs(percent_passing[idx_50] - 50.0) < 1.0
+
+
+def test_distribution_comparison_percentiles_are_distinct():
+    """Kuz-Ram, Swebrec, and KCO models must produce distinct percentile predictions."""
+    x50_cm = 29.7
+    n = 1.23
+    x_max_cm = 89.1
+    b = n * 0.5
+
+    x_kuz = np.linspace(0.5, x_max_cm * 1.05, 500)
+    x_sw, sw_passing = evaluate_swebrec_curve(x50_cm, x_max_cm, b)
+
+    kuz_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_kuz / x50_cm) ** n))
+
+    d80_kuz = find_d_percentile(x_kuz, kuz_passing, 80)
+    d80_sw = find_d_percentile(x_sw, sw_passing, 80)
+
+    assert d80_kuz != d80_sw, f"Expected distinct d80 between Kuz-Ram ({d80_kuz}) and Swebrec ({d80_sw})"
+    assert d80_kuz > 0 and d80_sw > 0

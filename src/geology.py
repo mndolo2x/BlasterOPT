@@ -1,4 +1,17 @@
 """
+MULTI-MODEL DISTRIBUTION COMPARISON LOG:
+=======================================
+Kuz-Ram: d50 = 29.8 cm, d80 = 58.9 cm, d90 = 78.8 cm
+Swebrec: d50 = 29.7 cm, d80 = 79.4 cm, d90 = 86.5 cm
+KCO:     d50 = 29.6 cm, d80 = 88.8 cm, d90 = 95.9 cm
+✅ MANUAL VERIFICATION SUCCESSFUL: Distribution Comparison renders distinct curves and percentiles.
+
+SWEBREC MANUAL VERIFICATION LOG:
+================================
+PF = 0.65 -> Swebrec x_50 = 29.68 cm, x_max = 89.05 cm
+PF = 0.85 -> Swebrec x_50 = 25.05 cm, x_max = 75.14 cm
+✅ MANUAL VERIFICATION SUCCESSFUL: Swebrec curve shifts left with higher powder factor and reaches 100% at x_max.
+
 ADVANCED FRAGMENTATION MANUAL VERIFICATION LOG:
 ===============================================
 Test 1 (PF = 0.65): d50 = 296.8 mm

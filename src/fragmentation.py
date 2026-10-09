@@ -403,7 +403,137 @@ def render_fragmentation_page(lang_code: str = "en"):
 
     with tab_comp:
         st.subheader("Kuz-Ram vs Swebrec vs KCO Model Comparison")
-        st.info("Swebrec better predicts fine fragment tails; Kuz-Ram excels at median $d_{50}$ prediction.")
+
+        if "af_result" not in st.session_state:
+            st.info(
+                "Calculate the fragmentation on the Kuz-Ram tab first. "
+                "The comparison uses the same blast design parameters."
+            )
+        else:
+            r = st.session_state["af_result"]
+
+            # Kuz-Ram parameters
+            x50_cm = r["kuz_ram"]["d50_mm"] / 10.0
+            n = r["kuz_ram"]["n"]
+
+            # Swebrec parameters
+            x_max_cm = r["swebrec"]["x_max_mm"] / 10.0
+            b = n * 0.5
+
+            # X ranges
+            x_kuz = np.linspace(0.5, x_max_cm * 1.05, 500)
+            x_sw = np.linspace(0.5, x_max_cm * 0.99, 500)
+
+            # Kuz-Ram (Rosin-Rammler)
+            kuz_ram_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_kuz / x50_cm) ** n))
+
+            # Swebrec
+            numerator = np.log(x_max_cm / x_sw)
+            denominator = np.log(x_max_cm / x50_cm)
+            sw_passing = 100.0 / (1.0 + (numerator / denominator) ** b)
+            x_sw = np.append(x_sw, x_max_cm)
+            sw_passing = np.append(sw_passing, 100.0)
+
+            # KCO — approximate as Swebrec with same x50 but extended x_max
+            x_kco = np.linspace(0.5, x_max_cm * 1.1, 500)
+            kco_passing = 100.0 / (1.0 + (
+                np.log(x_max_cm * 1.1 / x_kco) /
+                np.log(x_max_cm * 1.1 / x50_cm)
+            ) ** (b * 0.9))
+
+            # Build figure
+            fig = go.Figure()
+
+            fig.add_trace(go.Scatter(
+                x=x_kuz, y=kuz_ram_passing,
+                mode="lines", name="Kuz-Ram (Rosin-Rammler)",
+                line=dict(color="blue", width=2),
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=x_sw, y=sw_passing,
+                mode="lines", name="Swebrec",
+                line=dict(color="green", width=2),
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=x_kco, y=kco_passing,
+                mode="lines", name="KCO",
+                line=dict(color="orange", width=2, dash="dash"),
+            ))
+
+            # Reference lines
+            fig.add_hline(y=50, line_dash="dot", line_color="gray", opacity=0.5)
+            fig.add_hline(y=80, line_dash="dot", line_color="gray", opacity=0.5)
+
+            fig.update_xaxes(
+                title_text="Size (cm)",
+                type="log",
+                range=[np.log10(0.5), np.log10(x_max_cm * 1.15)],
+            )
+            fig.update_yaxes(
+                title_text="Percent Passing (%)",
+                range=[0, 102],
+            )
+            fig.update_layout(
+                title="Kuz-Ram vs Swebrec vs KCO Model Comparison",
+                height=550,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                ),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.caption(
+                f"Parameters used: d50 = {x50_cm:.1f} cm, x_max = {x_max_cm:.1f} cm, "
+                f"n = {n:.2f}. All three curves use the same blast design inputs from "
+                f"the Kuz-Ram tab."
+            )
+
+            # Task 2: Numeric comparison table
+            st.subheader("Percentile Comparison")
+
+            def find_d_percentile(x_values, passing_values, target_pct):
+                """Find the size at which passing equals target_pct."""
+                idx = np.argmin(np.abs(passing_values - target_pct))
+                return round(float(x_values[idx]), 1)
+
+            comparison_rows = [
+                {
+                    "Model": "Kuz-Ram",
+                    "d50 (cm)": find_d_percentile(x_kuz, kuz_ram_passing, 50),
+                    "d80 (cm)": find_d_percentile(x_kuz, kuz_ram_passing, 80),
+                    "d90 (cm)": find_d_percentile(x_kuz, kuz_ram_passing, 90),
+                },
+                {
+                    "Model": "Swebrec",
+                    "d50 (cm)": find_d_percentile(x_sw, sw_passing, 50),
+                    "d80 (cm)": find_d_percentile(x_sw, sw_passing, 80),
+                    "d90 (cm)": find_d_percentile(x_sw, sw_passing, 90),
+                },
+                {
+                    "Model": "KCO",
+                    "d50 (cm)": find_d_percentile(x_kco, kco_passing, 50),
+                    "d80 (cm)": find_d_percentile(x_kco, kco_passing, 80),
+                    "d90 (cm)": find_d_percentile(x_kco, kco_passing, 90),
+                },
+            ]
+
+            st.dataframe(
+                pd.DataFrame(comparison_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.caption(
+                "The three models give different predictions, especially at the coarse end. "
+                "The choice of model depends on the specific rock type and blasting conditions."
+            )
 
     with tab_wip:
         st.subheader("WipFrag Optical Image Analysis Importer")
