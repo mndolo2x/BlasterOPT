@@ -18,6 +18,7 @@ deap>=1.4
 paho-mqtt>=2.1
 influxdb-client>=1.40
 pyvista>=0.43
+stpyvista>=0.0.8
 trimesh>=4.0
 requests>=2.31
 pymoo>=0.6

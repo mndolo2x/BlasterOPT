@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+plugins: platformdirs-4.12.2, anyio-4.15.1, langsmith-0.14.2
+collecting ... collected 3 items
+
+tests/test_pyvista_3d_scene.py::test_plotly_3d_renders_without_webgl PASSED [ 33%]
+tests/test_pyvista_3d_scene.py::test_pyvista_scene_import PASSED         [ 66%]
+tests/test_pyvista_3d_scene.py::test_pyvista_feature_flag_default_false PASSED [100%]
+
+============================== 3 passed in 1.40s ===============================

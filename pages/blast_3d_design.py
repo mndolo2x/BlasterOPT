@@ -181,8 +181,19 @@ with col_center:
     )
     pattern = generate_holes(pattern)
 
-    fig = render_bench_and_holes(bench, pattern)
-    st.plotly_chart(fig, use_container_width=True)
+    USE_PYVISTA = os.getenv("USE_PYVISTA", "false").lower() == "true"
+
+    if USE_PYVISTA:
+        try:
+            from src.ui.pyvista_scene import render_bench_scene
+            render_bench_scene(bench, pattern)
+        except Exception as exc:
+            st.warning(f"PyVista rendering failed ({exc}). Falling back to Plotly (SVG mode)...")
+            fig = render_bench_and_holes(bench, pattern)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        fig = render_bench_and_holes(bench, pattern)
+        st.plotly_chart(fig, use_container_width=True)
 
 
 # ==================== RIGHT COLUMN: RESULTS ====================
