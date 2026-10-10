@@ -37,16 +37,18 @@ def compute_face_offset(bench: BenchGeometry) -> float:
     return float(height / np.tan(angle_rad))
 
 
-def build_bench_mesh(bench: BenchGeometry, resolution: int = 20) -> Dict[str, Dict[str, np.ndarray]]:
+def build_bench_mesh(bench: BenchGeometry, subdrill_m: float = 1.5, resolution: int = 20) -> Dict[str, Dict[str, np.ndarray]]:
     """
-    Build a 3D surface mesh for the bench.
+    Build a 3D surface mesh for the bench, extending the base down to toe elevation minus subdrill.
 
     Returns a dict with:
         crest: {x, y, z} meshgrid arrays
         face: {x, y, z} meshgrid arrays
+        bottom_z: bottom elevation matching subdrilled hole toes
     """
     height = compute_bench_height(bench)
     face_offset = compute_face_offset(bench)
+    bottom_z = bench.toe_elevation_m - max(subdrill_m, 0.0)
 
     # Top surface (crest plane)
     x_crest = np.linspace(0, bench.length_m, resolution)
@@ -54,13 +56,14 @@ def build_bench_mesh(bench: BenchGeometry, resolution: int = 20) -> Dict[str, Di
     X_crest, Y_crest = np.meshgrid(x_crest, y_crest)
     Z_crest = np.full_like(X_crest, bench.crest_elevation_m)
 
-    # Face surface (slope from crest to toe)
+    # Face surface (slope from crest to toe - subdrill)
     x_face = np.linspace(0, bench.length_m, resolution)
-    z_face = np.linspace(bench.crest_elevation_m, bench.toe_elevation_m, resolution)
+    z_face = np.linspace(bench.crest_elevation_m, bottom_z, resolution)
     X_face, Z_face = np.meshgrid(x_face, z_face)
     Y_face = np.full_like(X_face, 0.0)  # Free face at Y=0
 
     return {
         "crest": {"x": X_crest, "y": Y_crest, "z": Z_crest},
         "face": {"x": X_face, "y": Y_face, "z": Z_face},
+        "bottom_z": bottom_z,
     }
