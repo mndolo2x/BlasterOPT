@@ -11,4 +11,4 @@ tests/test_bench_twin.py::test_make_bench_figure_returns_plotly_figure PASSED [ 
 tests/test_bench_twin.py::test_toggles_hide_traces_correctly PASSED      [ 80%]
 tests/test_bench_twin.py::test_export_html_writes_file PASSED            [100%]
 
-============================== 5 passed in 1.91s ===============================
+============================== 5 passed in 2.10s ===============================

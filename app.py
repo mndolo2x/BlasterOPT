@@ -80,7 +80,6 @@ from src.ensemble_uncertainty import EnsembleUQ, train_ensemble, predict_with_un
 from src.geology import render_geology_page
 from src.fragmentation import render_fragmentation_page
 from src.safety import render_safety_environmental_page
-from src.ui.bench_twin import make_bench_figure
 
 import traceback
 
@@ -615,6 +614,599 @@ elif active_module == "ingestion":
         st.write(f"data_source: {st.session_state.get('data_source')}")
         st.write(f"data_rows: {st.session_state.get('data_rows')}")
 
+
+# --- MODULE 3: ML MODEL MANAGER ---
+elif active_module == "ml_manager":
+    st.header("🤖 Machine Learning Model Training & Evaluation")
+
+    tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
+
+    with tab_diag:
+        st.subheader("📊 Model Registry Diagnostics")
+        import models.registry as reg_module
+        from models.registry import get_registry
+        diag_reg = get_registry()
+        st.caption(f"**Loaded Module Path:** `{getattr(reg_module, '__file__', 'Unknown')}`")
+
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        scan_ms = getattr(diag_reg, "scan_time_ms", 0.0)
+        m_col1.metric("Models Discovered", len(diag_reg.list_models()))
+        m_col2.metric("Registry Scan Time", f"{scan_ms:.2f} ms")
+        m_col3.metric("Load Errors", len(diag_reg.get_load_errors()))
+        with m_col4:
+            st.write("")
+            if st.button("🔄 Rescan Registry"):
+                diag_reg.discover()
+                st.success("Rescanned registry without app restart!")
+                st.rerun()
+
+        st.subheader("Discovered Model Types")
+        if hasattr(diag_reg, "get_model_counts_by_type"):
+            counts = diag_reg.get_model_counts_by_type()
+        else:
+            counts = {}
+            for m in diag_reg.list_models():
+                m_type = getattr(m, "model_type", "unknown")
+                counts[m_type] = counts.get(m_type, 0) + 1
+
+        if counts:
+            st.json(counts)
+
+        st.subheader("Registered Models")
+        for m in diag_reg.list_models():
+            st.markdown(f"**{m.display_name}** (`{m.name}`) — `{m.model_type.upper()}` — v{m.version}")
+            st.caption(f"**Description:** {m.description}")
+            st.caption(f"**Inputs:** {', '.join(m.input_features)} | **Outputs:** {', '.join(m.output_features)}")
+
+        st.subheader("Load Errors")
+        errors = diag_reg.get_load_errors()
+        if errors:
+            for e in errors:
+                st.error(f"{e}")
+        else:
+            st.success("No load errors encountered during filesystem auto-discovery.")
+
+    with tab_train:
+        st.subheader("1. Select Training Data")
+        st.caption("Choose which dataset this model will train on.")
+
+        data_source = st.radio(
+            "Training data source",
+            options=[
+                "Use synthetic data from Data Ingestion page",
+                "Upload real data (CSV)",
+                "Regenerate fresh synthetic data",
+            ],
+            index=0,
+        )
+
+        # ---------- OPTION 1: SYNTHETIC FROM DATA INGESTION ----------
+        if data_source == "Use synthetic data from Data Ingestion page":
+            if not st.session_state.get("data_ready", False):
+                st.error(
+                    "⚠️ No data found. Go to **Data Ingestion & Generator** and "
+                    "generate synthetic data, or select a different option above."
+                )
+                st.stop()
+            training_df = st.session_state["df"]
+            st.info(
+                f"📊 Using {training_df.shape[0]} rows × {training_df.shape[1]} columns "
+                f"from Data Ingestion page."
+            )
+
+        # ---------- OPTION 2: UPLOAD REAL DATA ----------
+        elif data_source == "Upload real data (CSV)":
+            uploaded = st.file_uploader("Choose a CSV file", type=["csv"])
+            if uploaded is None:
+                st.info("⬆️ Upload a CSV to proceed.")
+                st.stop()
+            try:
+                raw_uploaded_df = pd.read_csv(uploaded)
+                training_df = engineer_features(clean_and_preprocess(raw_uploaded_df))
+                st.success(
+                    f"✅ Loaded {training_df.shape[0]} rows × {training_df.shape[1]} columns "
+                    f"from {uploaded.name}."
+                )
+            except Exception as e:
+                st.error(f"❌ Failed to load CSV: {e}")
+                st.stop()
+
+        # ---------- OPTION 3: REGENERATE SYNTHETIC ----------
+        else:
+            st.warning(
+                "⚠️ This will generate a NEW synthetic dataset and update st.session_state['df']."
+            )
+            n_samples = st.slider("Number of records", 100, 5000, 1000, step=100)
+            seed = st.number_input("Random seed", value=42, step=1)
+            if st.button("Generate Fresh Dataset"):
+                with st.spinner(f"Generating {n_samples} records..."):
+                    raw_fresh = generate_synthetic_blast_data(
+                        num_samples=n_samples, seed=int(seed)
+                    )
+                    fresh_df = engineer_features(clean_and_preprocess(raw_fresh))
+                    validate_synthetic_data(fresh_df)
+
+                    keys_to_clear = [
+                        "df", "dataset", "df_clean", "synthetic_df", "uploaded_df",
+                        "regenerated_df", "data_ready", "data_fingerprint",
+                    ]
+                    for key in keys_to_clear:
+                        if key in st.session_state:
+                            del st.session_state[key]
+
+                    st.session_state["df"] = fresh_df
+                    st.session_state["data_ready"] = True
+                    st.session_state["data_source"] = "synthetic"
+                    st.session_state["data_rows"] = fresh_df.shape[0]
+                    st.session_state["data_cols"] = fresh_df.shape[1]
+                    st.session_state["data_fingerprint"] = dataframe_fingerprint(fresh_df)
+                    st.session_state["data_generated_at"] = datetime.now().isoformat()
+                    st.session_state["data_loaded_at"] = datetime.now().isoformat()
+                    st.session_state["data_details"] = f"Fresh Synthetic {fresh_df.shape[0]} rows, seed={seed}"
+                    st.rerun()
+
+            if st.session_state.get("data_ready", False):
+                training_df = st.session_state["df"]
+                st.success(f"✅ Generated {training_df.shape[0]} new records. Fingerprint: `{st.session_state.get('data_fingerprint')}`")
+            else:
+                st.info("Click 'Generate Fresh Dataset' to proceed.")
+                st.stop()
+
+        # ---------- SHARED: DATA PREVIEW ----------
+        st.divider()
+        st.subheader("Data Preview")
+        st.caption(
+            f"{training_df.shape[0]} rows × {training_df.shape[1]} columns. "
+            f"Preview shows first 10 rows."
+        )
+        st.dataframe(training_df.head(10), use_container_width=True)
+
+        st.divider()
+        st.subheader("2. Select Algorithm")
+
+        biust_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "biust"}
+        blasteropt_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "baseline" or v.get("type") == "blasteropt"}
+
+        group = st.radio(
+            "Model family",
+            ["BIUST Research Models", "BlasterOPT Physics Models"],
+            horizontal=True,
+        )
+        model_options = biust_models if group == "BIUST Research Models" else blasteropt_models
+
+        selected_key = st.selectbox(
+            "Algorithm",
+            options=list(model_options.keys()),
+            format_func=lambda k: model_options[k],
+        )
+
+        config = MODEL_REGISTRY[selected_key]
+        st.caption(f"Outputs: {', '.join(config['outputs'])}")
+        st.caption(f"Source: {config.get('source', 'N/A')}")
+
+        st.divider()
+        st.subheader("3. Train Model")
+
+        from src.models import (
+            GAANNModel, ANN_RF_Ensemble, PSOANNModel,
+            AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
+        )
+
+        model_input_cols = {
+            "ga_ann_jwaneng": getattr(GAANNModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "ann_rf_ensemble_jwaneng": getattr(ANN_RF_Ensemble, "INPUT_COLUMNS", FEATURE_COLS),
+            "pso_ann_orapa": getattr(PSOANNModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "airblast_minimizer": getattr(AirblastMinimizerModel, "INPUT_COLUMNS", FEATURE_COLS),
+            "flyrock_predictor": getattr(FlyrockPredictor, "INPUT_COLUMNS", FEATURE_COLS),
+            "cost_predictor": getattr(CostPredictor, "INPUT_COLUMNS", FEATURE_COLS),
+        }
+
+        required_features = model_input_cols.get(selected_key, FEATURE_COLS)
+        required_outputs = config["outputs"]
+
+        missing_features = [c for c in required_features if c not in training_df.columns]
+        missing_outputs = [c for c in required_outputs if c not in training_df.columns]
+
+        if missing_features or missing_outputs:
+            st.error("❌ Cannot train on this dataset. Missing required columns.")
+            if missing_features:
+                st.write(f"**Missing features:** `{missing_features}`")
+            if missing_outputs:
+                st.write(f"**Missing outputs for {selected_key}:** `{missing_outputs}`")
+            st.write(f"**Available columns:** `{list(training_df.columns)}`")
+            st.stop()
+
+        st.success(
+            f"✅ Dataset is compatible with {config['display_name']}. "
+            f"Ready to train on {training_df.shape[0]} rows using {len(required_features)} input features."
+        )
+
+        if "trained_models" in st.session_state and selected_key in st.session_state["trained_models"]:
+            pass
+
+        if st.button("Train Model", type="primary"):
+
+            # Pre-flight check
+            st.write("### 🔬 Training Pre-flight Check")
+            st.write(f"**Data source selected:** {data_source}")
+            st.write(f"**DataFrame object ID:** `{id(training_df)}`")
+            st.write(f"**Rows:** {training_df.shape[0]}")
+            st.write(f"**Columns:** {training_df.shape[1]}")
+
+            fingerprint = dataframe_fingerprint(training_df)
+            st.write(f"**Data fingerprint (SHA-256, first 16 chars):** `{fingerprint}`")
+
+            # Define X and y from THIS DataFrame only
+            X = training_df[required_features]
+            y = training_df[required_outputs]
+
+            st.write(f"**X shape:** {X.shape}")
+            st.write(f"**y shape:** {y.shape}")
+            st.write(f"**y columns:** {list(y.columns)}")
+
+            # Instantiate a FRESH model
+            from sklearn.ensemble import RandomForestRegressor as SklearnRF
+            from sklearn.linear_model import Ridge as SklearnRidge
+            from xgboost import XGBRegressor as SklearnXGB
+
+            model_classes = {
+                "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
+                "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
+                "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
+                "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
+                "flyrock_predictor": FlyrockPredictor,
+                "cost_predictor": CostPredictor,
+                "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
+                "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
+                "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+            }
+            factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
+            model = factory()
+
+            # TRAIN
+            with st.spinner(f"Training {config['display_name']} on {len(training_df)} rows..."):
+                model.fit(X, y)
+
+            # Post-training verification
+            st.write("### ✅ Training Complete")
+            st.write(f"**Trained on {len(training_df)} rows**")
+            st.write(f"**Data fingerprint:** `{fingerprint}`")
+            st.write(f"**Model instance:** `{type(model).__name__}`")
+
+            if hasattr(model, "is_trained") and not model.is_trained():
+                st.error(
+                    "❌ Model training did not complete. `is_trained()` returned False."
+                )
+                st.stop()
+
+            # Save to session state
+            if "trained_models" not in st.session_state:
+                st.session_state["trained_models"] = {}
+            if "trained_model_metadata" not in st.session_state:
+                st.session_state["trained_model_metadata"] = {}
+
+            st.session_state["trained_models"][selected_key] = model
+            st.session_state["trained_model_metadata"][selected_key] = {
+                "display_name": config["display_name"],
+                "trained_at": datetime.now().isoformat(),
+                "rows": training_df.shape[0],
+                "fingerprint": fingerprint,
+                "outputs": config["outputs"],
+            }
+
+            st.session_state[f"trained_{selected_key}_fingerprint"] = fingerprint
+            st.session_state[f"trained_{selected_key}_rows"] = training_df.shape[0]
+            st.session_state[f"trained_{selected_key}_source"] = data_source
+            st.session_state[f"trained_{selected_key}_at"] = datetime.now().isoformat()
+
+            # Save to disk
+            import os, joblib
+            os.makedirs("models", exist_ok=True)
+            joblib.dump({
+                "model": model,
+                "fingerprint": fingerprint,
+                "rows": training_df.shape[0],
+                "source": data_source,
+                "trained_at": st.session_state[f"trained_{selected_key}_at"],
+                "output_columns": required_outputs,
+                "feature_columns": required_features,
+            }, f"models/{selected_key}.pkl")
+
+            st.success(
+                f"✅ Trained {config['display_name']} on {training_df.shape[0]} rows. "
+                f"Data fingerprint: `{fingerprint}`"
+            )
+
+            # Verify the model learned something
+            sample = X.head(5)
+            preds = model.predict(sample)
+
+            st.write("### 🎯 Verification: Predictions on Training Data")
+
+            preds_mat = preds.values if isinstance(preds, pd.DataFrame) else np.asarray(preds)
+            pred_std = float(preds_mat.std())
+            if pred_std < 1e-6:
+                st.error(
+                    f"❌ All predictions are identical (std = {pred_std:.2e}). "
+                    f"The model did not learn."
+                )
+                st.stop()
+            else:
+                st.success(f"✅ Predictions have variance (std = {pred_std:.4f}). Model learned.")
+
+        st.divider()
+        st.subheader("4. Model Evaluation Metrics")
+
+        trained = st.session_state.get("trained_models", {})
+        if selected_key not in trained:
+            st.info("Train the model to see evaluation metrics.")
+            st.stop()
+
+        model = trained[selected_key]
+
+        # Guard: evaluation must use the SAME training_df
+        fp_now = dataframe_fingerprint(training_df)
+        fp_trained = st.session_state.get(f"trained_{selected_key}_fingerprint")
+
+        if fp_now != fp_trained:
+            st.error(
+                f"⚠️ Data fingerprint mismatch. Trained on `{fp_trained}`, "
+                f"evaluating on `{fp_now}`. Retrain before evaluating."
+            )
+            st.stop()
+
+        st.caption(f"✅ Evaluating on the same data used for training (fingerprint: `{fp_trained}`)")
+
+        # Training summary
+        st.info(
+            f"**Training summary:**  \n"
+            f"• Model: {config['display_name']}  \n"
+            f"• Data source: {st.session_state.get(f'trained_{selected_key}_source')}  \n"
+            f"• Rows: {st.session_state.get(f'trained_{selected_key}_rows')}  \n"
+            f"• Fingerprint: `{fp_trained}`  \n"
+            f"• Trained at: {st.session_state.get(f'trained_{selected_key}_at')}"
+        )
+
+        # Cross-validation using manual_cv_score for multi-output & PyTorch models
+        from src.models import manual_cv_score
+
+        model_classes = {
+            "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
+            "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
+            "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
+            "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
+            "flyrock_predictor": FlyrockPredictor,
+            "cost_predictor": CostPredictor,
+            "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
+            "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
+            "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+        }
+        factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
+
+        X = training_df[required_features]
+        y = training_df[required_outputs]
+
+        cv_results = manual_cv_score(
+            model_class=factory,
+            X=X,
+            y=y,
+            cv=5,
+        )
+
+        eval_rows = []
+        for col, metrics in cv_results.items():
+            eval_rows.append({
+                "Output": col,
+                "R2_mean": round(metrics["r2_mean"], 4),
+                "R2_std": round(metrics["r2_std"], 4),
+                "RMSE_mean": round(metrics["rmse_mean"], 4),
+            })
+
+        if eval_rows:
+            st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
+            st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
+        else:
+            st.warning("No valid metrics computed.")
+
+
+# --- MODULE: MODEL COMPARISON ---
+elif active_module == "comparison":
+    st.header("🔬 Debswana Research Models Comparison")
+    st.markdown(
+        "Benchmarking production-validated research models trained on **Jwaneng** and **Orapa** mine datasets."
+    )
+
+    # Performance Table
+    rows = []
+    for model_key, meta in MODEL_REGISTRY.items():
+        perf = meta.get("performance", {})
+        r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
+        r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
+        r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
+        rows.append({
+            "Model Key": model_key,
+            "Architecture": meta.get("architecture", "N/A"),
+            "Optimizer": meta.get("optimizer", "N/A"),
+            "Source Data": meta.get("source", "N/A"),
+            "Fragmentation Performance (R²)": f"{r2_frag:.3f}" if isinstance(r2_frag, (float, int)) else str(r2_frag),
+            "Vibration Performance (R²)": f"{r2_vib:.3f}" if isinstance(r2_vib, (float, int)) else str(r2_vib),
+            "Airblast Performance (R²)": f"{r2_air:.3f}" if isinstance(r2_air, (float, int)) else str(r2_air),
+            "Reference Citation": meta.get("reference", "N/A"),
+        })
+
+    df_registry = pd.DataFrame(rows)
+    st.subheader("Model Performance Summary Table")
+    st.dataframe(df_registry, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("Select Model for Sensitivity & Key Drivers Analysis")
+    selected_key = st.selectbox("Select Model", list(MODEL_REGISTRY.keys()))
+
+    if selected_key:
+        model_info = MODEL_REGISTRY[selected_key]
+        c1, c2 = st.columns([1, 1])
+
+        with c1:
+            st.subheader("Model Metadata & Source")
+            st.info(f"**Architecture:** `{model_info.get('architecture')}`")
+            st.info(f"**Outputs:** `{', '.join(model_info.get('outputs', []))}`")
+            st.info(f"**Data Source:** `{model_info.get('source')}`")
+            st.success(f"**Literature Citation:** {model_info.get('reference')}")
+
+        with c2:
+            st.subheader("Key Drivers & Sensitivity Analysis")
+            if "key_drivers" in model_info:
+                st.write("**Key Driving Features:**")
+                st.json(model_info["key_drivers"])
+            elif "key_sensitivity" in model_info:
+                st.write("**Key Parameter Sensitivity:**")
+                st.json(model_info["key_sensitivity"])
+
+            if "inverse_design" in model_info:
+                st.write("**Inverse Design Targets:**")
+                st.json(model_info["inverse_design"])
+
+
+# --- MODULE 4: PREDICTOR & KUZ-RAM CURVE ---
+elif active_module == "predictor":
+    exec(open(os.path.join(repo_root, "pages/predictor.py")).read())
+
+
+# --- MODULE 5: GENETIC ALGORITHM OPTIMIZER ---
+elif active_module == "optimizer":
+    exec(open(os.path.join(repo_root, "pages/ga_optimizer.py")).read())
+
+
+# --- MODULE: ECONOMIC DASHBOARD ---
+elif active_module == "economic":
+    try:
+        exec(open(os.path.join(repo_root, "pages/economic_dashboard.py")).read())
+    except Exception as exc:
+        st.error("Error loading Economic Dashboard module:")
+        st.exception(exc)
+
+
+# --- MODULE: SIMILAR BLASTS RECOMMENDER ---
+elif active_module == "recommender":
+    try:
+        exec(open(os.path.join(repo_root, "pages/similar_blasts.py")).read())
+    except Exception as exc:
+        st.error("Error loading Similar Blasts Recommender module:")
+        st.exception(exc)
+
+
+# --- MODULE: REAL-TIME MWD MONITORING ---
+elif active_module == "mwd":
+    st.header("📡 Real-Time Measure-While-Drilling (MWD) Telemetry & Closed-Loop Control")
+    st.markdown(
+        "Live MQTT stream ingestion of drill rig telemetry (penetration rate, torque, weight-on-bit, vibration). "
+        "Closed-loop analytics automatically compare **as-drilled** vs **as-designed** parameters and adapt charging plans."
+    )
+
+    col_mwd1, col_mwd2 = st.columns([1, 2])
+
+    with col_mwd1:
+        st.subheader("Simulate Live MWD Telemetry Stream")
+        mwd_hole_id = st.text_input("Drill Hole ID", value="HOLE_JWA_204")
+        mwd_depth = st.number_input("Measured Depth (m)", 1.0, 30.0, 15.0, step=0.5)
+        mwd_rop = st.number_input("Rate of Penetration (m/hr)", 5.0, 120.0, 38.0, step=2.0)
+        mwd_torque = st.number_input("Drill Torque (N·m)", 200.0, 5000.0, 1350.0, step=50.0)
+        mwd_wob = st.number_input("Weight on Bit (kg)", 1000.0, 25000.0, 9200.0, step=200.0)
+        mwd_rock = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Granite_Competent", "Sandstone_Soft", "Void_Fractured"])
+
+        if st.button("Transmit MWD Telemetry Sample", type="primary"):
+            sample_payload = {
+                "hole_id": mwd_hole_id,
+                "depth_m": mwd_depth,
+                "penetration_rate_m_hr": mwd_rop,
+                "torque_nm": mwd_torque,
+                "weight_on_bit_kg": mwd_wob,
+                "rock_type": mwd_rock,
+                "timestamp": pd.Timestamp.now().isoformat(),
+            }
+            parsed_sample = parse_mwd_message(sample_payload)
+            MWD_HISTORY.append(parsed_sample)
+            st.success(f"Simulated MWD sample transmitted for {mwd_hole_id}!")
+
+    with col_mwd2:
+        st.subheader("📊 Live MWD Telemetry Stream & Specific Energy")
+
+        # Mock telemetry feed if history is empty
+        if not MWD_HISTORY:
+            default_samples = [
+                parse_mwd_message({"hole_id": f"HOLE_{i:03d}", "depth_m": 12.0 + i*0.5, "penetration_rate_m_hr": 35.0 + i*2, "torque_nm": 1200.0 + i*50, "weight_on_bit_kg": 8500.0})
+                for i in range(1, 6)
+            ]
+            df_mwd = pd.DataFrame(default_samples)
+        else:
+            df_mwd = pd.DataFrame(MWD_HISTORY[-15:])
+
+        st.dataframe(df_mwd, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📐 As-Drilled vs As-Designed Geometry Comparison")
+
+        # As-designed targets vs As-drilled MWD measured averages
+        designed_depth = 15.0
+        designed_burden = 6.0
+        measured_depth = float(df_mwd["depth_m"].iloc[-1]) if not df_mwd.empty else 15.0
+
+        fig_mwd = go.Figure(data=[
+            go.Bar(name="As-Designed Target", x=["Depth (m)", "Burden (m)"], y=[designed_depth, designed_burden], marker_color="#2962FF"),
+            go.Bar(name="As-Drilled Measured (MWD)", x=["Depth (m)", "Burden (m)"], y=[measured_depth, designed_burden * (1 + (measured_depth - designed_depth)*0.05)], marker_color="#FF6D00"),
+        ])
+        fig_mwd.update_layout(barmode="group", title="<b>Geometry Compliance Check</b>", template="plotly_white", height=350)
+        st.plotly_chart(fig_mwd, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🚨 Real-Time Closed-Loop Adaptive Charging Alerts")
+
+        depth_diff = measured_depth - designed_depth
+        if abs(depth_diff) > 1.0:
+            st.error(f"⚠️ **GEOMETRY DEVIATION ALERT:** Hole depth deviates by {depth_diff:+.2f} m from design target ({designed_depth:.1f} m).")
+            st.warning("⚡ **ADAPTIVE CHARGING PLAN:** Automatically adjusting sub-drilling stemming length and bulk explosive density to prevent flyrock and toe accumulation.")
+        else:
+            st.success("✅ **GEOMETRY COMPLIANT:** As-drilled hole dimensions are within ±1.0 m tolerance bounds of design specifications.")
+
+        st.markdown("---")
+        st.subheader("⚡ Model 1: Dynamic Adaptive Charging & Risk Controller")
+
+        col_ad1, col_ad2 = st.columns(2)
+
+        curr_design_mwd = st.session_state.get("last_predict_inputs", {"powder_factor_kg_m3": 0.65, "stemming_m": 5.0})
+        latest_mwd_sample = df_mwd.iloc[-1].to_dict() if not df_mwd.empty else {"hole_id": "HOLE_001", "penetration_rate": 20.0, "torque": 1900.0}
+
+        with col_ad1:
+            if st.button("Recommend In-Flight Charging Adjustment", type="primary"):
+                adjusted_plan = adjust_charging_plan(mwd_data=latest_mwd_sample, current_design=curr_design_mwd)
+                st.session_state["active_adjusted_plan"] = adjusted_plan
+
+                # Immutably log recommendation to SQLite database
+                audit_log(
+                    action="RECOMMEND_ADJUSTMENT",
+                    user_id="REALTIME_ADAPTIVE_ENGINE",
+                    original_value=curr_design_mwd,
+                    new_value=adjusted_plan,
+                    reason_code="MWD_ROP_LOW_TORQUE_HIGH",
+                )
+                st.success(f"Dynamic adjustment recommended for {adjusted_plan.get('adjusted_for_hole', 'hole')}!")
+
+        if "active_adjusted_plan" in st.session_state:
+            adj_plan = st.session_state["active_adjusted_plan"]
+            st.json(adj_plan)
+
+            risk_eval = risk_controller(adj_plan)
+
+            if risk_eval["is_safe"]:
+                st.success("🛡️ **RISK CONTROLLER:** Adjusted design is SAFE and complies with all regulatory limits.")
+            else:
+                st.error("🛡️ **RISK CONTROLLER WARNING:** Predicted limit violation in adjusted design!")
+                for v in risk_eval["violations"]:
+                    st.write(f"- ⚠️ {v}")
+                for r in risk_eval["recommendations"]:
+                    st.info(f"💡 {r}")
+
+
 # --- MODULE: DIGITAL TWIN OF THE BENCH ---
 elif active_module == "digital_twin":
     st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
@@ -664,29 +1256,34 @@ elif active_module == "digital_twin":
             st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
             as_drilled_df = dt_obj["as_drilled_data"]
 
-            holes = []
-            for _, row in as_drilled_df.iterrows():
-                holes.append({
-                    "hole_id": str(row.get("hole_id", "")),
-                    "x": float(row["x_m"]),
-                    "y": float(row["y_m"]),
-                    "z": float(row["z_m"]),
-                    "x_toe": float(row.get("x_toe_m", row["x_m"])),
-                    "y_toe": float(row.get("y_toe_m", row["y_m"])),
-                    "z_toe": float(row["z_m"] - row.get("depth_m", 12.0)),
-                    "charge_kg": float(row.get("charge_kg", row.get("charge_mass_kg", 150.0))),
-                })
+            fig_3d = go.Figure()
+            fig_3d.add_trace(go.Scatter3d(
+                x=as_drilled_df["x_m"],
+                y=as_drilled_df["y_m"],
+                z=as_drilled_df["z_m"],
+                mode="markers+text",
+                name="As-Drilled Collars",
+                marker=dict(size=8, color="#D50000", symbol="circle"),
+                text=as_drilled_df["hole_id"],
+            ))
 
-            fig = make_bench_figure(
-                holes=holes,
-                overlays=None,
-                show_holes=True,
-                show_geology=True,
-                show_faults=True,
-                title=f"Digital Twin — {bench_id_input}",
+            for _, hole in as_drilled_df.iterrows():
+                fig_3d.add_trace(go.Scatter3d(
+                    x=[hole["x_m"], hole["x_m"]],
+                    y=[hole["y_m"], hole["y_m"]],
+                    z=[hole["z_m"], hole["z_m"] - hole["depth_m"]],
+                    mode="lines",
+                    line=dict(color="#FF6D00", width=4),
+                    showlegend=False,
+                ))
+
+            fig_3d.update_layout(
+                title="<b>3D Bench Spatial Geometry & As-Drilled Trajectories</b>",
+                scene=dict(xaxis_title="Easting (m)", yaxis_title="Northing (m)", zaxis_title="Elevation (m)"),
+                template="plotly_white",
+                height=420,
             )
-            fig.update_layout(height=420)
-            st.plotly_chart(fig, use_container_width=True, config={"renderer": "svg"})
+            st.plotly_chart(fig_3d, use_container_width=True)
 
             st.markdown("---")
             st.subheader("💥 Fragmentation Size Distribution & Percentiles")
@@ -778,4 +1375,936 @@ elif active_module == "digital_twin":
             for idx, node in enumerate(path_nodes, 1):
                 st.info(f"**Step {idx} [{node['node_type']}]:** {node['data']}")
 
-# truncated to keep message short; full file content not needed here
+
+# --- MODULE: DRILL CONNECTIVITY ---
+elif active_module == "connectivity":
+    st.header("🚜 Direct-to-Drill Telematics & ISO 15143-3 Integration")
+    st.markdown(
+        "Direct API connectivity to **Sandvik (My Sandvik)** and **Epiroc (Certiq)** smart drill rigs via ISO 15143-3 (AEMP 2.0). "
+        "Eliminates manual paper/USB data entry by pushing 3D drill patterns directly to drill rig cabin displays."
+    )
+
+    c_dc1, c_dc2 = st.columns([1, 2])
+
+    with c_dc1:
+        st.subheader("🔌 Vendor Telematics Status")
+        sandvik_conn = connect_to_sandvik()
+        epiroc_conn = connect_to_epiroc()
+
+        st.info(f"**Sandvik Status:** `{sandvik_conn['status'].upper()}` (ISO 15143-3 Compliant)")
+        st.info(f"**Epiroc Status:** `{epiroc_conn['status'].upper()}` (ISO 15143-3 Compliant)")
+
+        st.subheader("🚀 Push Pattern to Drill Rig")
+        selected_vendor = st.selectbox("Select Drill Vendor", ["Sandvik", "Epiroc"])
+
+        if selected_vendor == "Sandvik":
+            rig_list = [r["drill_id"] for r in sandvik_conn["fleet"]]
+        else:
+            rig_list = [r["drill_id"] for r in epiroc_conn["fleet"]]
+
+        selected_rig = st.selectbox("Select Target Drill Rig", rig_list)
+        pattern_id = st.text_input("Pattern Design ID", value="PATTERN_CUT8_BENCH15S")
+        num_holes_push = st.number_input("Number of Holes in Pattern", 4, 200, 24)
+
+        st.markdown("---")
+        st.subheader("✍️ Certified Blaster Sign-off Gate")
+        signoff_id = st.text_input("Blaster Credential ID", value="BLASTER_BW_9021")
+        signoff_role = st.selectbox("Blaster Role", ["Certified Blaster", "Pit Supervisor", "Chief Mining Engineer"])
+        signoff_decision = st.radio("Sign-off Decision", ["APPROVED", "REJECTED", "CHANGES_REQUESTED"], index=0)
+        override_notes = st.text_area("Mandatory Override Reasoning (if REQUIRES_REVIEW)", value="")
+        ack_unc = st.checkbox(
+            "☑️ I explicitly acknowledge the prediction uncertainty and 95% confidence bounds.",
+            value=False,
+            help="Mandatory acknowledgment for pattern designs requiring engineer review."
+        )
+
+        if st.button("Record Official Sign-off Decision"):
+            try:
+                rec = record_decision(
+                    design_id_or_request=pattern_id,
+                    decision=signoff_decision,
+                    user_id=signoff_id,
+                    user_role="CERTIFIED_BLASTER" if "Certified" in signoff_role else signoff_role,
+                    reason=override_notes,
+                    acknowledged_uncertainty=ack_unc,
+                )
+                st.success(f"Sign-off recorded! Digital Signature Hash: `{rec.signature[:16]}...`")
+            except Exception as e:
+                st.error(f"Sign-off failed: {e}")
+
+        # Check approval gate status
+        is_approved, gate_msg = check_approval_gate(pattern_id, action="push_to_drill_rig")
+        if is_approved:
+            st.success(f"✅ {gate_msg}")
+        else:
+            st.warning(f"🔒 {gate_msg}")
+
+        if st.button("Push Design File to Rig", type="primary", disabled=not is_approved):
+            design_payload = {"design_id": pattern_id, "num_holes": int(num_holes_push)}
+            sync_res = sync_design_to_drill(
+                design_file=design_payload,
+                drill_id=selected_rig,
+                vendor=selected_vendor.lower(),
+            )
+            st.success(sync_res["message"])
+
+    with c_dc2:
+        st.subheader("📡 Connected Drill Rig Fleets")
+
+        all_fleet = sandvik_conn["fleet"] + epiroc_conn["fleet"]
+        df_fleet = pd.DataFrame(all_fleet)
+        st.dataframe(df_fleet, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📐 As-Drilled vs As-Designed Telematics Compliance")
+
+        # As-designed vs As-drilled compliance table
+        compliance_data = [
+            {"Hole ID": "Hole_01", "Design Depth (m)": 15.0, "Drilled Depth (m)": 15.2, "Deviation (m)": "+0.20", "Status": "PASS"},
+            {"Hole ID": "Hole_02", "Design Depth (m)": 15.0, "Drilled Depth (m)": 14.8, "Deviation (m)": "-0.20", "Status": "PASS"},
+            {"Hole ID": "Hole_03", "Design Depth (m)": 15.0, "Drilled Depth (m)": 16.4, "Deviation (m)": "+1.40", "Status": "WARN (Overdrilled)"},
+            {"Hole ID": "Hole_04", "Design Depth (m)": 15.0, "Drilled Depth (m)": 15.1, "Deviation (m)": "+0.10", "Status": "PASS"},
+        ]
+        st.dataframe(pd.DataFrame(compliance_data), use_container_width=True)
+
+
+# --- MODULE: ELECTRONIC DETONATOR INTEGRATION ---
+elif active_module == "detonator":
+    st.header("⚡ Electronic Detonator Field-to-Cloud Integration")
+    st.markdown(
+        "Direct integration with major electronic initiation systems in Botswana (**AEL IntelliShot**, **BME AXXIS**, **Orica i-kon III**). "
+        "Upload millisecond-precision timing sequences, validate regulatory compliance, and download firing confirmations."
+    )
+
+    c_det1, c_det2 = st.columns([1, 2])
+
+    with c_det1:
+        st.subheader("⚙️ System Selection & Sequence Upload")
+        det_system = st.selectbox("Select Electronic Detonator System", ["AEL IntelliShot", "BME AXXIS", "Orica i-kon III"])
+        blast_id_det = st.text_input("Blast Pattern ID", value="BLAST_JWA_2024_08")
+
+        hole_delay_det = st.number_input("Inter-Hole Delay (ms)", 1.0, 100.0, 17.0, step=1.0)
+        row_delay_det = st.number_input("Inter-Row Delay (ms)", 5.0, 200.0, 42.0, step=1.0)
+        charge_delay_det = st.number_input("Max Charge per Delay (kg)", 50.0, 5000.0, 640.0, step=50.0)
+
+        seq_payload = {
+            "blast_id": blast_id_det,
+            "hole_delay_ms": hole_delay_det,
+            "row_delay_ms": row_delay_det,
+            "max_charge_per_delay_kg": charge_delay_det,
+            "predicted_ppv_mms": 8.5,
+            "predicted_airblast_dbl": 115.0,
+        }
+
+        # Real-time Sequence Regulatory Validation
+        is_valid_seq, seq_violations = validate_sequence(seq_payload)
+
+        if is_valid_seq:
+            st.success("✅ **REGULATORY COMPLIANT:** Sequence satisfies Botswana vibration and airblast thresholds.")
+        else:
+            for v in seq_violations:
+                st.error(v)
+
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("Upload Timing Sequence", type="primary"):
+                up_res = upload_timing_sequence(det_system, seq_payload, blast_id=blast_id_det)
+                if up_res.get("status") == "blocked":
+                    st.error(f"❌ {up_res.get('message', 'Timing sequence upload blocked.')}")
+                    for v in up_res.get("violations", []):
+                        st.write(f"- ⚠️ {v}")
+                else:
+                    st.success(f"Uploaded to {up_res['detonator_system']}!")
+
+        with col_b2:
+            if st.button("Download Confirmation"):
+                conf_res = download_firing_confirmation(det_system, blast_id=blast_id_det)
+                st.success(f"Downloaded confirmation for {conf_res['blast_id']}!")
+
+    with c_det2:
+        st.subheader("📊 Firing Confirmations & Field Diagnostics")
+
+        df_conf_list = load_firing_confirmations()
+        if not df_conf_list:
+            # Seed mock default confirmation if database is empty
+            download_firing_confirmation("AEL IntelliShot", blast_id="BLAST_JWA_2024_01")
+            download_firing_confirmation("BME AXXIS", blast_id="BLAST_ORA_2024_03")
+            df_conf_list = load_firing_confirmations()
+
+        df_conf = pd.DataFrame(df_conf_list)
+        st.dataframe(df_conf, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🔍 Electronic System Vendor Architecture")
+        st.info("**AEL IntelliShot:** Uses Commander control boxes and Tagger handheld devices with smart lead wire auto-tagging.")
+        st.info("**BME AXXIS:** AXXIS Titanium / Gii dual-capacitor architecture with sub-millisecond firing window accuracy.")
+        st.info("**Orica i-kon III:** High-capacity Logger/Blaster suite supporting up to 4,800 caps per blast with encrypted telemetry.")
+
+
+# --- MODULE: SYNC STATUS & WRITE-AHEAD LOG ---
+elif active_module == "sync":
+    st.header("🔄 Offline-First Sync Status & Write-Ahead Log (WAL) Manager")
+    st.markdown(
+        "Ensures zero data loss in remote Botswana open-pit benches (Jwaneng, Orapa, Karowe) "
+        "by queuing field actions in a persistent **Write-Ahead Log (WAL)** and replaying queue with exponential backoff retries upon connection."
+    )
+
+    c_sync1, c_sync2 = st.columns([1, 2])
+
+    # Instantiate persistent WriteAheadLog & SyncManager
+    wal_instance = WriteAheadLog("data/processed/write_ahead_log.json")
+    sync_manager = SyncManager(wal=wal_instance)
+
+    with c_sync1:
+        st.subheader("⚙️ Connection & Queue Status")
+        is_online_sim = st.toggle("Simulate Network Connection", value=True, help="Toggle between Online and Offline pit floor connection.")
+
+        pending_wal = wal_instance.get_pending()
+
+        status_color = "green" if is_online_sim else "red"
+        st.markdown(f"**Network Connectivity:** :{status_color}[{'ONLINE (Connected)' if is_online_sim else 'OFFLINE (Remote Pit)'}]")
+        st.metric("Pending WAL Actions", len(pending_wal))
+        st.metric("Last Sync Timestamp", sync_manager.last_sync_timestamp if sync_manager.last_sync_timestamp else "Not Synced Yet")
+
+        st.markdown("---")
+        st.subheader("Simulate Offline Action Entry")
+        sim_action_type = st.selectbox("Action Type", ["FIELD_LOG", "DESIGN_UPDATE", "MWD_TELEMETRY"])
+        sim_hole = st.text_input("Hole ID", value="HOLE_WAL_101")
+        sim_val = st.number_input("Measured Depth / Value", 1.0, 50.0, 15.2)
+
+        if st.button("Enqueue Action into WAL", type="primary"):
+            entry = wal_instance.append(sim_action_type, {"hole_id": sim_hole, "measured_value": sim_val, "role": "blaster"})
+            st.success(f"Action enqueued to WAL! ID: {entry['wal_id']}")
+
+        if st.button("Force Sync Now 🚀"):
+            sync_res = sync_manager.sync_all(online_check_fn=lambda: is_online_sim)
+            if sync_res["status"] == "offline":
+                st.error("Cannot sync: Network device is currently offline.")
+            else:
+                st.success(f"Sync Execution Complete! Processed {sync_res['synced_count']} WAL items with exponential backoff retry support.")
+
+    with c_sync2:
+        st.subheader("📋 Persistent Write-Ahead Log (WAL) Pending Queue")
+
+        pending_items = wal_instance.get_pending()
+        if pending_items:
+            df_wal = pd.DataFrame(pending_items)
+            st.dataframe(df_wal, use_container_width=True)
+        else:
+            st.info("Write-Ahead Log (WAL) is empty. All field actions are synchronized with cloud server.")
+
+        st.markdown("---")
+        st.subheader("⚔️ Conflict Resolution Engine Test")
+        st.markdown("Tests timestamp-based `last_write_wins` or `merge_conservative` conflict resolution for simultaneous field/cloud edits.")
+
+        loc_depth = st.number_input("Local Field Depth Edit (m)", 1.0, 30.0, 15.5)
+        rem_depth = st.number_input("Remote Server Depth (m)", 1.0, 30.0, 15.0)
+        strategy_sel = st.selectbox("Conflict Resolution Strategy", ["last_write_wins", "remote_wins", "local_wins", "merge_conservative"])
+
+        if st.button("Resolve Conflict Example"):
+            loc_rec = {"hole_id": "HOLE_01", "depth_m": loc_depth, "timestamp": "2026-09-16T12:00:00"}
+            rem_rec = {"hole_id": "HOLE_01", "depth_m": rem_depth, "timestamp": "2026-09-16T10:00:00"}
+            res_rec = resolve_conflicts(loc_rec, rem_rec, strategy=strategy_sel)
+            st.json(res_rec)
+
+
+# --- MODULE: REGULATORY COMPLIANCE ---
+elif active_module == "regulatory":
+    st.header("📜 Botswana Mining Regulatory Compliance & Audit Module")
+    selected_model, _ = render_page_model_selector("regulatory_compliance")
+    st.markdown(
+        "Automated compliance evaluation under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)** "
+        "and **Data Protection Act of Botswana**. Evaluates ground vibration (PPV), airblast noise overpressure (dBL), "
+        "flyrock safety boundaries, and stemming confinement."
+    )
+
+    c_reg1, c_reg2 = st.columns([1, 2])
+
+    reg_limits = load_regulatory_limits()
+
+    with c_reg1:
+        st.subheader("⚖️ Active Regulatory Threshold Limits")
+        st.info(f"**Legislative Framework:** {reg_limits.get('act')}")
+        st.metric("Max Ground Vibration (PPV)", f"{reg_limits.get('max_ppv_mms', 10.0):.1f} mm/s")
+        st.metric("Max Airblast Overpressure", f"{reg_limits.get('max_airblast_dbl', 120.0):.1f} dBL")
+        st.metric("Max Flyrock Boundary Range", f"{reg_limits.get('max_flyrock_m', 250.0):.1f} m")
+        st.metric("Min Stemming Confinement", f"{reg_limits.get('min_stemming_m', 2.5):.1f} m")
+
+    with c_reg2:
+        st.subheader("🔍 Proposed Blast Design Compliance Evaluation")
+
+        last_in = st.session_state.get("last_predict_inputs", {})
+        last_out = st.session_state.get("last_predict_results", {})
+
+        comp_eval = check_compliance(blast_params=last_in, predictions=last_out, custom_limits=reg_limits)
+
+        if comp_eval["is_compliant"]:
+            st.success("✅ **FULLY COMPLIANT:** Proposed blast design satisfies all Botswana Department of Mines environmental & safety regulations.")
+        else:
+            st.error("❌ **NON-COMPLIANT:** Detected regulatory threshold violations in proposed design!")
+            st.subheader("Detected Violations:")
+            for v in comp_eval["violations"]:
+                st.write(f"- ⚠️ {v}")
+
+            st.subheader("Actionable Engineering Recommendations:")
+            for r in comp_eval["recommendations"]:
+                st.info(f"💡 {r}")
+
+        st.markdown("---")
+        st.subheader("📄 Export Official Regulatory Submission Report")
+
+        report_pdf_path = generate_compliance_report(
+            blast_params=last_in,
+            predictions=last_out,
+            output_path="data/processed/botswana_regulatory_compliance_report.pdf",
+        )
+
+        with open(report_pdf_path, "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+
+        st.download_button(
+            label="📄 Download Official Compliance PDF Report",
+            data=pdf_bytes,
+            file_name="Botswana_Mining_Regulatory_Compliance_Report.pdf",
+            mime="application/pdf",
+            type="primary",
+        )
+
+
+# --- MODULE: DEBSWANA ENTERPRISE INTEGRATIONS ---
+elif active_module == "integrations":
+    st.header("🔗 Debswana Enterprise Systems Integration")
+    st.markdown(
+        "Direct API integration with Debswana's core enterprise systems (**SAP ERP**, **Deswik CAD**, **GEOVIA Surpac**) "
+        "to eliminate manual spreadsheet exports and data silos across procurement, mine planning, and geology."
+    )
+
+    c_int1, c_int2 = st.columns([1, 2])
+
+    with c_int1:
+        st.subheader("⚙️ System API Status & Verification")
+
+        st.markdown("### 🏢 1. SAP ERP (Procurement & Costing)")
+        if st.button("Test SAP Connection", type="primary"):
+            sap_res = connect_to_sap()
+            st.success(f"Status: {sap_res['status'].upper()} | Sync: {sap_res['last_sync']}")
+            st.json(sap_res["retrieved_costs"])
+
+        st.markdown("### 📐 2. Deswik CAD (Mine Planning)")
+        if st.button("Test Deswik Connection"):
+            deswik_res = connect_to_deswik()
+            st.success(f"Status: {deswik_res['status'].upper()} | Sync: {deswik_res['last_sync']}")
+            st.json(deswik_res["retrieved_mine_plan"])
+
+        st.markdown("### 🪨 3. GEOVIA Surpac (Geology Block Model)")
+        if st.button("Test Surpac Connection"):
+            surpac_res = connect_to_surpac()
+            st.success(f"Status: {surpac_res['status'].upper()} | Sync: {surpac_res['last_sync']}")
+            st.json(surpac_res["retrieved_geology"])
+
+    with c_int2:
+        st.subheader("📊 Enterprise Data Flow Summary")
+
+        df_flow = pd.DataFrame([
+            {"System": "SAP ERP", "Inbound Data": "Explosive $/kg, Drilling $/m, Budget Limits", "Outbound Data": "Actual post-blast $/t expenditure", "Protocol": "REST / OData"},
+            {"System": "Deswik CAD", "Inbound Data": "Bench boundaries, 3D collar targets", "Outbound Data": "Optimized pattern geometry", "Protocol": "REST / API"},
+            {"System": "GEOVIA Surpac", "Inbound Data": "3D Block model, RQD, Bond Work Index", "Outbound Data": "Predicted d50 size overlays", "Protocol": "API / File Exchange"},
+        ])
+        st.dataframe(df_flow, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📤 Push Actual Blast Costs to SAP")
+
+        blast_id_push = st.text_input("Blast ID for SAP Cost Accounting", value="BLAST_JWA_2024_08")
+        cost_push_val = st.number_input("Actual Calculated Cost ($/t)", 0.1, 100.0, 5.25)
+
+        if st.button("Push Cost Record to SAP Cost Center"):
+            push_res = push_to_sap({"blast_id": blast_id_push, "total_cost_per_tonne_usd": cost_push_val})
+            st.success(push_res["message"])
+
+
+# --- MODULE: PINN PREDICTION & UNCERTAINTY ---
+elif active_module == "pinn":
+    st.header("🧠 Physics-Informed Neural Network (PINN) & Uncertainty Quantification")
+    selected_model, _ = render_page_model_selector("pinn")
+    st.markdown(
+        "Model 2 (Physics-Informed Neural Network) embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations "
+        "as soft loss terms ($L_{\\text{total}} = L_{\\text{data}} + \\lambda_1 L_{\\text{kuzram}} + \\lambda_2 L_{\\text{usbm}}$). "
+        "Monte Carlo Dropout estimates epistemic uncertainty and alerts blasters to Out-Of-Distribution (OOD) risks."
+    )
+
+    c_pinn1, c_pinn2 = st.columns([1, 2])
+
+    with c_pinn1:
+        st.subheader("⚙️ PINN 12 Input Parameters")
+        last_in = st.session_state.get("last_predict_inputs", {})
+
+        b_pinn = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2)
+        s_pinn = st.slider("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2)
+        d_pinn = st.slider("Hole Diameter (mm)", 80.0, 380.0, float(last_in.get("hole_diameter_mm", 250.0)), step=10.0)
+        h_pinn = st.slider("Hole Depth (m)", 5.0, 35.0, float(last_in.get("bench_height_m", 15.0)), step=0.5)
+        stem_pinn = st.slider("Stemming Length (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2)
+        sub_pinn = st.slider("Sub-drill (m)", 0.5, 3.0, 1.5, step=0.1)
+        pf_pinn = st.slider("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05)
+        w_pinn = st.slider("Max Charge per Delay (kg)", 10.0, 2000.0, float(last_in.get("max_charge_per_delay_kg", 640.0)), step=20.0)
+        ucs_pinn = st.slider("Rock Strength UCS (MPa)", 20.0, 300.0, 120.0, step=5.0)
+        rmr_pinn = st.slider("Rock Mass Rating RMR", 20.0, 90.0, 65.0, step=1.0)
+        dist_pinn = st.slider("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0)
+        bi_pinn = st.slider("Blastability Index BI", 10.0, 100.0, 55.0, step=1.0)
+
+        pinn_feature_vec = [
+            b_pinn, s_pinn, d_pinn, h_pinn, stem_pinn, sub_pinn,
+            pf_pinn, w_pinn, ucs_pinn, rmr_pinn, dist_pinn, bi_pinn
+        ]
+
+        mc_samples = st.slider("Monte Carlo Dropout Pass Samples", 20, 300, 100, step=20)
+
+    with c_pinn2:
+        st.subheader("📊 PINN Predictions & 95% Confidence Intervals")
+
+        pinn_model = BlastPINN(input_dim=12)
+        uncertainty_res = predict_with_uncertainty(pinn_model, np.array([pinn_feature_vec]), n_samples=mc_samples)
+
+        means = uncertainty_res["mean"]
+        cis = uncertainty_res["ci_95"]
+        is_high_unc = uncertainty_res.get("high_uncertainty", False)
+
+        m_p1, m_p2, m_p3 = st.columns(3)
+        m_p1.metric(
+            "Fragmentation (D80)",
+            f"{means['fragmentation']:.1f} mm",
+            f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
+        )
+        m_p2.metric(
+            "Ground Vibration (PPV)",
+            f"{means['ppv']:.2f} mm/s",
+            f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
+        )
+        m_p3.metric(
+            "Airblast Overpressure",
+            f"{means['airblast']:.1f} dB",
+            f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
+        )
+
+        st.markdown("---")
+        st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
+
+        if is_high_unc:
+            st.error("⚠️ **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
+            st.warning("💡 **RECOMMENDATION:** High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.")
+        else:
+            st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
+
+        st.markdown("---")
+        st.subheader("🔍 DeepSHAP Feature Contribution Explanation for PINN")
+
+        pinn_df_input = pd.DataFrame([pinn_feature_vec], columns=PINN_INPUT_COLS)
+        pinn_shap = get_shap_explanation(
+            model=pinn_model,
+            input_data=pinn_df_input,
+            feature_names=PINN_INPUT_COLS,
+        )
+
+        waterfall_fig = pinn_shap.get("waterfall_plot")
+        if waterfall_fig is not None:
+            st.plotly_chart(waterfall_fig, use_container_width=True)
+
+        force_fig = pinn_shap.get("force_plot")
+        if force_fig is not None:
+            st.plotly_chart(force_fig, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📐 Physics Soft Loss Terms Embedding")
+        st.info("**Kuz-Ram Soft Penalty ($L_{\\text{kuzram}}$):** Penalizes predictions deviating from $X_{50} = A \\cdot K^{-0.8} \\cdot Q^{1/6} \\cdot (115/E)^{19/30}$.")
+        st.info("**USBM PPV Soft Penalty ($L_{\\text{usbm}}$):** Penalizes predictions deviating from $PPV = 1140 \\cdot (D / \\sqrt{W})^{-1.6}$.")
+
+
+# --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
+elif active_module == "pareto":
+    try:
+        exec(open(os.path.join(repo_root, "pages/pareto_optimizer.py")).read())
+    except Exception as exc:
+        st.error("Error loading Pareto Optimizer module:")
+        st.exception(exc)
+
+
+# --- MODULE: MODEL CARDS & EXPLAINABILITY AUDIT ---
+elif active_module == "model_cards":
+    st.header("📋 Model Cards Governance & Explanation Audit Trail")
+    st.markdown(
+        "Standardized model documentation cards and immutable SQLite audit trail recording "
+        "every AI prediction explanation generated for regulatory compliance under the **Mines, Quarries, Works and Machinery Act (Cap. 44:02)**."
+    )
+
+    tab_mc1, tab_mc2 = st.tabs(["📄 Model Cards Viewer", "📜 Immutable Explanation Audit Log"])
+
+    with tab_mc1:
+        st.subheader("Select Model Card")
+
+        # Map of available models in registry & pipeline
+        available_models = {
+            "GA-ANN Jwaneng Multi-Output Model": "ga_ann_jwaneng",
+            "ANN-RF Ensemble Jwaneng Predictor": "ann_rf_ensemble_jwaneng",
+            "PSO-ANN Orapa Fragmentation Model": "pso_ann_orapa",
+            "Debswana Open-Pit Airblast Minimizer": "airblast_minimizer",
+        }
+
+        selected_card_label = st.selectbox("Select Model", list(available_models.keys()))
+        selected_key = available_models[selected_card_label]
+
+        model_meta = MODEL_REGISTRY.get(selected_key, {})
+
+        # Generate / ensure model card Markdown file exists
+        col_mc_btn1, col_mc_btn2 = st.columns([1, 3])
+
+        with col_mc_btn1:
+            if st.button("Generate Model Card 📄", type="primary"):
+                card_filepath = generate_model_card(
+                    model_name=selected_card_label,
+                    model=None,
+                    training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
+                    performance_metrics=model_meta.get("performance", {}),
+                    research_reference=model_meta.get("reference", "Debswana Mining Series"),
+                    output_dir="models/cards/",
+                    version="1.0.0",
+                )
+                st.session_state["last_generated_card"] = card_filepath
+                st.success(f"Generated model card: `{card_filepath}`")
+
+        card_path_to_display = st.session_state.get("last_generated_card", f"models/cards/{selected_key.lower()}_v1.0.0.md")
+
+        if not os.path.exists(card_path_to_display):
+            card_path_to_display = generate_model_card(
+                model_name=selected_card_label,
+                model=None,
+                training_data={"source": model_meta.get("source", "Debswana Open-Pit Mine"), "size": "120 production blasts"},
+                performance_metrics=model_meta.get("performance", {}),
+                output_dir="models/cards/",
+                version="1.0.0",
+            )
+
+        if os.path.exists(card_path_to_display):
+            with open(card_path_to_display, "r", encoding="utf-8") as f:
+                card_md_content = f.read()
+
+            st.markdown(card_md_content)
+
+            st.download_button(
+                label="📄 Download Model Card (.md)",
+                data=card_md_content,
+                file_name=os.path.basename(card_path_to_display),
+                mime="text/markdown",
+            )
+        else:
+            st.error("Model card Markdown file could not be generated.")
+        with col_mc_btn2:
+            pass
+
+    with tab_mc2:
+        st.subheader("📜 Recent Logged Explanations (Immutable SQLite Audit Trail)")
+        st.markdown(
+            "Every prediction explanation (SHAP feature values, LIME weights, natural language summary, user ID, timestamp) "
+            "is automatically recorded in an append-only database table to ensure full post-blast forensic accountability."
+        )
+
+        col_aud1, col_aud2 = st.columns([1, 2])
+
+        with col_aud1:
+            st.markdown("### 🧪 Simulate Logging an Explanation")
+            sim_pred_id = st.text_input("Prediction / Blast ID", value="PRED_JWA_2026_08")
+            sim_user_id = st.text_input("Blaster / Engineer User ID", value="CHIEF_BLASTER_BOTSWANA_01")
+            sim_nl = st.text_area("Natural Language Summary", value="Ground PPV is predicted to meet safety constraints at 8.50 mm/s (limit: 10.0 mm/s). Primary driver is maximum charge per delay.")
+
+            if st.button("Log Explanation to Audit Database", type="primary"):
+                log_res = log_explanation(
+                    prediction_id=sim_pred_id,
+                    shap_values={"powder_factor_kg_m3": -12.4, "max_charge_per_delay_kg": 18.2, "burden_m": 4.1},
+                    lime_weights={"powder_factor_kg_m3": -0.15, "max_charge_per_delay_kg": 0.22},
+                    natural_language=sim_nl,
+                    user_id=sim_user_id,
+                )
+                st.success(f"Successfully logged explanation record! Row ID: {log_res['row_id']}")
+
+        with col_aud2:
+            st.markdown("### 📋 Audit Trail Log Records")
+            audit_history = get_explanation_history(limit=25)
+
+            if audit_history:
+                df_audit = pd.DataFrame(audit_history)
+                st.dataframe(df_audit, use_container_width=True)
+            else:
+                st.info("No audit logs recorded yet. Use the simulation tool on the left to record sample explanations.")
+
+
+# --- MODULE: ENSEMBLE UNCERTAINTY QUANTIFICATION ---
+elif active_module == "ensemble_uq":
+    st.header("🛡️ Model 5: Ensemble Uncertainty Quantification (UQ)")
+    selected_model, _ = render_page_model_selector("uncertainty_quantification")
+    st.markdown(
+        "Combines four base model architectures (**ANN**, **XGBoost**, **Random Forest**, **PINN**) "
+        "trained on 80% bootstrap sub-samples. Explicitly decomposes uncertainty into **aleatoric** (data noise) "
+        "and **epistemic** (model knowledge gap) components with 95% confidence intervals."
+    )
+
+    c_uq1, c_uq2 = st.columns([1, 2])
+
+    with c_uq1:
+        st.subheader("⚙️ Blast Input Parameters")
+        last_in = st.session_state.get("last_predict_inputs", {})
+
+        b_uq = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2, key="uq_b")
+        s_uq = st.slider("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2, key="uq_s")
+        stem_uq = st.slider("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="uq_stem")
+        pf_uq = st.slider("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05, key="uq_pf")
+        charge_uq = st.slider("Max Charge per Delay (kg)", 10.0, 2000.0, float(last_in.get("max_charge_per_delay_kg", 640.0)), step=20.0, key="uq_w")
+        dist_uq = st.slider("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0, key="uq_dist")
+
+        uq_input_vec = [b_uq, s_uq, 250.0, 15.0, stem_uq, 1.5, pf_uq, charge_uq, 120.0, 65.0, dist_uq, 55.0]
+
+        n_members = st.slider("Bagging Ensemble Members per Family", 3, 20, 5, step=1)
+
+        if st.button("Retrain Ensemble 🔄", type="primary"):
+            with st.spinner("Retraining multi-architecture bagging ensemble across bootstrap sub-samples..."):
+                df_curr = st.session_state["df"]
+                feature_cols_present = [c for c in FEATURE_COLS if c in df_curr.columns]
+                X_mat = df_curr[feature_cols_present].values if feature_cols_present else np.random.randn(100, 12)
+                y_mat = df_curr[["d50_mm", "ppv_mms", "flyrock_m"]].values if "d50_mm" in df_curr.columns else np.random.randn(100, 3)
+
+                ens_fitted = train_ensemble(X_mat, y_mat, n_models=n_members, seed=42)
+                st.session_state["active_ensemble_uq"] = ens_fitted
+                st.success("Ensemble retraining complete!")
+
+    with c_uq2:
+        st.subheader("📊 Ensemble Predictions & 95% Confidence Intervals")
+
+        ens_obj = st.session_state.get("active_ensemble_uq", EnsembleUQ(n_models=5))
+        uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
+
+        means = uq_res["mean"]
+        cis = uq_res["ci_95"]
+        al_dict = uq_res["aleatoric"]
+        ep_dict = uq_res["epistemic"]
+
+        m_u1, m_u2, m_u3 = st.columns(3)
+        m_u1.metric(
+            "Fragmentation (D80)",
+            f"{means['fragmentation']:.1f} mm",
+            f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
+        )
+        m_u2.metric(
+            "Ground Vibration (PPV)",
+            f"{means['ppv']:.2f} mm/s",
+            f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
+        )
+        m_u3.metric(
+            "Airblast Overpressure",
+            f"{means['airblast']:.1f} dB",
+            f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
+        )
+
+        st.markdown("---")
+        st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
+
+        if uq_res.get("high_uncertainty", False):
+            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
+            st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
+        else:
+            st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
+
+        st.markdown("---")
+        st.subheader("📉 Stacked Uncertainty Decomposition Chart")
+        fig_uq = plot_uncertainty_decomposition(uq_res)
+        st.plotly_chart(fig_uq, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("📋 Detailed Variance Score Table")
+        df_var = pd.DataFrame({
+            "Target Metric": ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"],
+            "Mean Prediction": [means["fragmentation"], means["ppv"], means["airblast"]],
+            "Aleatoric Variance (Data Noise)": [al_dict["fragmentation"], al_dict["ppv"], al_dict["airblast"]],
+            "Epistemic Variance (Model Knowledge)": [ep_dict["fragmentation"], ep_dict["ppv"], ep_dict["airblast"]],
+            "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
+        })
+        st.dataframe(df_var, use_container_width=True)
+
+
+# --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
+elif active_module == "agent":
+    st.header("🤖 BlasterOPT Conversational Agent Assistant")
+    selected_model, _ = render_page_model_selector("conversational_agent")
+    st.markdown(
+        "Interactive AI decision support agent for open-pit diamond mining operations. "
+        "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "
+        "and presents recommendations in plain English or Setswana."
+    )
+
+    c_ag1, c_ag2 = st.columns([1, 3])
+
+    with c_ag1:
+        st.subheader("⚙️ Agent Controls & Context")
+
+        user_role_sel = st.selectbox(
+            "User Operating Role",
+            ["engineer", "blaster", "supervisor", "operator"],
+            index=0,
+            help="Adapts explanation complexity and available UI controls."
+        )
+
+        bench_ctx_sel = st.selectbox(
+            "Active Mine Bench Context",
+            ["BENCH_JWA_15S", "BENCH_JWA_12N", "BENCH_ORA_15S", "BENCH_KAR_08W"],
+            index=0,
+        )
+
+        mode_sel = st.radio(
+            "Interface Mode",
+            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)", "Knowledge Q&A (Lyntas/Pula)"],
+            index=0,
+        )
+
+        st.markdown("---")
+        demo_mode = st.toggle("🧪 Demo Mode (Pre-load Sample Conversation)", value=False)
+
+        if demo_mode:
+            st.session_state["chat_messages"] = [
+                {"role": "user", "content": "Help me design an optimal blast for bench BENCH_JWA_15S with 10000 tonnes target."},
+                {"role": "assistant", "content": "📋 **Blast Design Summary for BENCH_JWA_15S:**\n- **Powder Factor:** 0.65 kg/m³\n- **Burden x Spacing:** 6.0m x 7.0m\n- **Predicted D50:** 220 mm\n- **Predicted PPV:** 4.20 mm/s (Compliant <= 5.0 mm/s)\n- **Cost:** $4.80 / t\n\n👉 **Next Step:** Would you like me to route this design to your certified blaster for review?"},
+            ]
+            st.info("Sample conversation pre-loaded!")
+
+    with c_ag2:
+        if mode_sel == "Interactive Chat":
+            render_agent_chat(user_role=user_role_sel, bench_id=bench_ctx_sel)
+        elif mode_sel == "Guided Workflow (Non-Expert)":
+            render_guided_mode(bench_id=bench_ctx_sel)
+        elif mode_sel == "Expert Technical Deep-Dive":
+            render_expert_mode(bench_id=bench_ctx_sel)
+        elif mode_sel == "Voice Assistant (Offline)":
+            render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
+        elif mode_sel == "Knowledge Q&A (Lyntas/Pula)":
+            render_knowledge_qa(user_role=user_role_sel)
+
+
+# --- MODULE: AGENT AUDIT LOG ---
+elif active_module == "audit_log":
+    st.header("📜 Conversational Agent Regulatory Audit Log")
+    st.markdown(
+        "Append-only immutable audit trail recording every agent interaction, tool invocation, "
+        "and operator decision/override. Mandated for 7-year regulatory retention under the "
+        "**Mines, Quarries, Works and Machinery Act (Cap. 44:02)**."
+    )
+
+    tab_a1, tab_a2 = st.tabs(["💬 Conversation Interactions Log", "⚙️ Engineering Decisions & Overrides"])
+
+    col_flt1, col_flt2 = st.columns(2)
+    with col_flt1:
+        filter_sess = st.text_input("Filter by Session ID", value="")
+    with col_flt2:
+        filter_user = st.text_input("Filter by User ID", value="")
+
+    with tab_a1:
+        st.subheader("Recent Agent Conversation Interactions")
+        interactions = get_interaction_history(
+            session_id=filter_sess if filter_sess else None,
+            user_id=filter_user if filter_user else None,
+            limit=100,
+        )
+
+        if interactions:
+            df_inter = pd.DataFrame(interactions)
+            st.dataframe(df_inter, use_container_width=True)
+
+            csv_data = df_inter.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📄 Export Interactions CSV",
+                data=csv_data,
+                file_name="BlasterOPT_Agent_Interactions_Audit.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("No interaction logs recorded for current filter criteria.")
+
+    with tab_a2:
+        st.subheader("Recent Engineering Decisions & Overrides")
+        decisions = get_decision_history(
+            session_id=filter_sess if filter_sess else None,
+            user_id=filter_user if filter_user else None,
+            limit=100,
+        )
+
+        if decisions:
+            df_dec = pd.DataFrame(decisions)
+            st.dataframe(df_dec, use_container_width=True)
+
+            csv_dec_data = df_dec.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📄 Export Decisions CSV",
+                data=csv_dec_data,
+                file_name="BlasterOPT_Agent_Decisions_Audit.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("No decision override logs recorded for current filter criteria.")
+
+    st.markdown("---")
+    st.subheader("🏛️ Regulatory Submission Package Export")
+    if st.button("Generate Regulatory Audit Package (JSON Format) 🚀", type="primary"):
+        export_file = export_audit_log_json()
+        with open(export_file, "r", encoding="utf-8") as f:
+            export_content = f.read()
+
+        st.success(f"Audit package generated successfully at `{export_file}`!")
+        st.download_button(
+            label="📄 Download Official Regulatory Audit Package (.json)",
+            data=export_content,
+            file_name="Botswana_Mines_Act_Cap4402_Agent_Audit_Package.json",
+            mime="application/json",
+        )
+
+
+# --- MODULE: GUARDRAIL LOG ---
+elif active_module == "guardrail_log":
+    st.header("🛡️ Hard-Coded Safety Guardrail Trip Log")
+    st.markdown(
+        "Immutable audit log recording every hard-coded safety guardrail trip event. "
+        "These guardrails enforce non-negotiable safety rules (preventing unauthorized detonation, regulatory limit bypass, "
+        "invented measurements, and blaster sign-off bypass)."
+    )
+
+    all_trips = get_guardrail_trips(trip_type_filter="ALL", limit=200)
+
+    # Metrics overview
+    c_g1, c_g2, c_g3, c_g4 = st.columns(4)
+    c_g1.metric("Total Guardrail Trips", len(all_trips))
+
+    type_counts = {}
+    for t in all_trips:
+        ttype = t.get("trip_type", "UNKNOWN")
+        type_counts[ttype] = type_counts.get(ttype, 0) + 1
+
+    c_g2.metric("Fire Blast Blocked", type_counts.get("FIRE_BLAST_REQUEST", 0))
+    c_g3.metric("Limit Bypass Blocked", type_counts.get("BYPASS_LIMITS", 0))
+    c_g4.metric("Regulatory Limit Violations", type_counts.get("REGULATORY_LIMIT_EXCEEDED", 0))
+
+    st.markdown("---")
+    st.subheader("📋 Guardrail Trips Table & Filtering")
+
+    filter_options = ["ALL"] + sorted(list(type_counts.keys()))
+    selected_trip_type = st.selectbox("Filter by Trip Type", filter_options)
+
+    filtered_trips = get_guardrail_trips(trip_type_filter=selected_trip_type, limit=100)
+
+    if filtered_trips:
+        df_trips = pd.DataFrame(filtered_trips)
+        st.dataframe(df_trips, use_container_width=True)
+    else:
+        st.info("No guardrail trips recorded for the selected filter.")
+
+
+# --- MODULE: OLLAMA SYSTEM HEALTH ---
+elif active_module == "system_health":
+    render_system_health()
+
+
+# --- MODULE: GEOLOGY & GEOMECHANICS ---
+elif active_module == "geology":
+    render_geology_page(lang_code)
+
+
+# --- MODULE: ADVANCED FRAGMENTATION ---
+elif active_module == "fragmentation":
+    render_fragmentation_page(lang_code)
+
+
+# --- MODULE: SAFETY & ENVIRONMENTAL ASSESSMENT ---
+elif active_module == "safety":
+    render_safety_environmental_page(lang_code)
+
+
+# --- MODULE 6: 2D BLAST PATTERN & DELAYS ---
+elif active_module == "pattern":
+    st.header("📐 2D Blast Pattern & Initiation Timing Layout")
+
+    col_pat1, col_pat2 = st.columns([1, 3])
+
+    with col_pat1:
+        st.subheader("Grid Parameters")
+        num_rows = st.slider("Number of Rows", 2, 10, 4)
+        holes_per_row = st.slider("Holes per Row", 4, 20, 8)
+        b_pat = st.number_input("Burden (m)", 2.0, 10.0, 6.0, key="pat_b")
+        s_pat = st.number_input("Spacing (m)", 2.0, 12.0, 7.0, key="pat_s")
+
+        st.subheader("Timing Sequence")
+        row_delay = st.number_input("Inter-Row Delay (ms)", 0, 100, 42)
+        hole_delay = st.number_input("Inter-Hole Delay (ms)", 0, 50, 17)
+
+    with col_pat2:
+        fig_pattern = plot_2d_blast_pattern(
+            num_rows=num_rows,
+            holes_per_row=holes_per_row,
+            burden_m=b_pat,
+            spacing_m=s_pat,
+            row_delay_ms=row_delay,
+            hole_delay_ms=hole_delay,
+        )
+        st.plotly_chart(fig_pattern, use_container_width=True)
+
+
+# --- MODULE: 3D BLAST DESIGN ---
+elif active_module == "blast_3d_design":
+    try:
+        exec(open(os.path.join(repo_root, "pages/blast_3d_design.py")).read())
+    except Exception as exc:
+        st.error("Error loading 3D Blast Design module:")
+        st.exception(exc)
+
+
+# --- MODULE 7: VISUALIZE ---
+elif active_module == "visualize":
+    st.header("📈 Interactive Fragmentation Curve & Sensitivity Visualizer")
+    st.markdown(
+        "Explore cumulative rock fragmentation size distributions ($P(x)$ vs. $x$) based on parameters from the Predictor module."
+    )
+
+    pred_res = st.session_state.get("last_predict_results", {"d50_mm": 220.0})
+    base_d50 = float(pred_res.get("d50_mm", 220.0))
+
+    # Base characteristic size calculation (d50 / (ln 2)^(1/n)) with default n=1.2
+    default_xc = base_d50 / (np.log(2.0) ** (1.0 / 1.2))
+
+    col_v1, col_v2 = st.columns([1, 2])
+
+    with col_v1:
+        st.subheader("Kuz-Ram Model Tuning Sliders")
+        st.info(f"**Base Predicted d50:** `{base_d50:.1f} mm`")
+
+        n_uniformity = st.slider(
+            "Uniformity Index (n)",
+            min_value=0.5,
+            max_value=2.5,
+            value=1.2,
+            step=0.05,
+            help="Higher n indicates a more uniform fragment size distribution (fewer boulders and fines).",
+        )
+
+        use_custom_xc = st.checkbox("Override Derived Characteristic Size (x_c)", value=False)
+        if use_custom_xc:
+            xc_val = st.slider(
+                "Characteristic Size x_c (mm)",
+                min_value=10.0,
+                max_value=1000.0,
+                value=float(np.round(default_xc, 1)),
+                step=5.0,
+                help="Sieve size through which 63.2% of blasted rock mass passes.",
+            )
+        else:
+            xc_val = None
+
+    with col_v2:
+        fig_frag = plot_kuz_ram_curve(
+            d50_mm=base_d50,
+            n_uniformity=n_uniformity,
+            xc_custom_mm=xc_val,
+            label="Current Blast Design",
+        )
+        st.plotly_chart(fig_frag, use_container_width=True)

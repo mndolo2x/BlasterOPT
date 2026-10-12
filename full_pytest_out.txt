@@ -422,4 +422,4 @@ tests/test_feedback_loop.py::test_feedback_loop_triggers_recalibration
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp")
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 377 passed, 88 warnings in 189.94s (0:03:09) =================
+================= 377 passed, 88 warnings in 164.36s (0:02:44) =================
