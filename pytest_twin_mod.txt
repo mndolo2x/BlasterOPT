@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+plugins: platformdirs-4.12.2, anyio-4.15.1, langsmith-0.14.2
+collecting ... collected 5 items
+
+tests/test_bench_twin.py::test_load_holes_from_design_returns_correct_shape PASSED [ 20%]
+tests/test_bench_twin.py::test_load_geology_overlays_returns_valid_quads PASSED [ 40%]
+tests/test_bench_twin.py::test_make_bench_figure_returns_plotly_figure PASSED [ 60%]
+tests/test_bench_twin.py::test_toggles_hide_traces_correctly PASSED      [ 80%]
+tests/test_bench_twin.py::test_export_html_writes_file PASSED            [100%]
+
+============================== 5 passed in 1.91s ===============================
