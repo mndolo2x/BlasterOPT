@@ -96,8 +96,8 @@ def generate_holes(
     for row in range(pattern.num_rows):
         for col in range(pattern.holes_per_row):
             x, y = _compute_position(pattern.pattern_type, row, col, pattern)
-            z_collar = 0.0  # local bench coordinate
-            z_toe = -pattern.hole_depth_m
+            z_collar = float(pattern.bench_height_m)
+            z_toe = float(z_collar - pattern.hole_depth_m)
             delay = row * inter_row_delay_ms + col * inter_hole_delay_ms
 
             holes.append(Hole(

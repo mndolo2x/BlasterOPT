@@ -37,33 +37,61 @@ def compute_face_offset(bench: BenchGeometry) -> float:
     return float(height / np.tan(angle_rad))
 
 
-def build_bench_mesh(bench: BenchGeometry, subdrill_m: float = 1.5, resolution: int = 20) -> Dict[str, Dict[str, np.ndarray]]:
+def build_bench_mesh(bench: BenchGeometry, subdrill_m: float = 1.5, resolution: int = 30) -> Dict[str, Dict[str, np.ndarray]]:
     """
-    Build a 3D surface mesh for the bench, extending the base down to toe elevation minus subdrill.
+    Build an irregular 3D topographic surface mesh for the bench and pit floor.
+
+    Generates realistic terrain elevation variation, crest surface topography,
+    vertical bench slope, and pit floor.
 
     Returns a dict with:
         crest: {x, y, z} meshgrid arrays
         face: {x, y, z} meshgrid arrays
+        floor: {x, y, z} meshgrid arrays
         bottom_z: bottom elevation matching subdrilled hole toes
+        get_collar_z: helper lookup function for (x, y) coordinates
     """
     height = compute_bench_height(bench)
     face_offset = compute_face_offset(bench)
     bottom_z = bench.toe_elevation_m - max(subdrill_m, 0.0)
 
-    # Top surface (crest plane)
+    # Top surface (crest plane) with realistic micro-topography
     x_crest = np.linspace(0, bench.length_m, resolution)
     y_crest = np.linspace(0, bench.width_m, resolution)
     X_crest, Y_crest = np.meshgrid(x_crest, y_crest)
-    Z_crest = np.full_like(X_crest, bench.crest_elevation_m)
 
-    # Face surface (slope from crest to toe - subdrill)
+    # Natural topographic variation (waves + fine noise)
+    np.random.seed(42)
+    topo_noise = (
+        0.25 * np.sin(X_crest / 6.0) * np.cos(Y_crest / 5.0) +
+        0.15 * np.cos(X_crest / 3.0) +
+        np.random.uniform(-0.08, 0.08, size=X_crest.shape)
+    )
+    Z_crest = bench.crest_elevation_m + topo_noise
+
+    # Face surface (slope from crest to toe)
     x_face = np.linspace(0, bench.length_m, resolution)
     z_face = np.linspace(bench.crest_elevation_m, bottom_z, resolution)
     X_face, Z_face = np.meshgrid(x_face, z_face)
-    Y_face = np.full_like(X_face, 0.0)  # Free face at Y=0
+    Y_face = np.full_like(X_face, 0.0)
+
+    # Pit Floor
+    y_floor = np.linspace(-bench.width_m * 0.3, 0.0, resolution)
+    X_floor, Y_floor = np.meshgrid(x_crest, y_floor)
+    Z_floor = np.full_like(X_floor, bottom_z) + np.random.uniform(-0.05, 0.05, size=X_floor.shape)
+
+    def get_collar_z(x: float, y: float) -> float:
+        """Calculate local collar elevation on topographic mesh."""
+        noise = (
+            0.25 * np.sin(x / 6.0) * np.cos(y / 5.0) +
+            0.15 * np.cos(x / 3.0)
+        )
+        return float(bench.crest_elevation_m + noise)
 
     return {
         "crest": {"x": X_crest, "y": Y_crest, "z": Z_crest},
         "face": {"x": X_face, "y": Y_face, "z": Z_face},
+        "floor": {"x": X_floor, "y": Y_floor, "z": Z_floor},
         "bottom_z": bottom_z,
+        "get_collar_z": get_collar_z,
     }

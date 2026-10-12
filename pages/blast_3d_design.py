@@ -133,7 +133,7 @@ with col_left:
         hole_depth = bench_h + subdrill
         max_charge = st.slider("Max Charge per Delay (kg)", 100, 900, DEFAULT_DESIGN["max_charge_per_delay_kg"], 10, key="mc_3d")
 
-    with st.expander("🧩 Pattern Layout", expanded=True):
+    with st.expander("🧩 Pattern Layout & Layers", expanded=True):
         num_rows = st.slider("Number of Rows", 2, 15, DEFAULT_DESIGN["num_rows"], key="nr_3d")
         holes_per_row = st.slider("Holes per Row", 2, 15, DEFAULT_DESIGN["holes_per_row"], key="hpr_3d")
         pattern_type = st.selectbox(
@@ -142,6 +142,11 @@ with col_left:
             index=0,
             key="pt_3d",
         )
+
+        st.markdown("---")
+        st.write("**3D Scene Layer Toggles**")
+        show_geology = st.checkbox("Show 3D Geology (Kimberlite / Dolomite / Granite)", value=True, key="geo_toggle")
+        show_fault = st.checkbox("Show Structural Fault FAULT_JWA_01", value=True, key="fault_toggle")
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
@@ -188,11 +193,15 @@ with col_center:
             from src.ui.pyvista_scene import render_bench_scene
             render_bench_scene(bench, pattern)
         except Exception as exc:
-            st.warning(f"PyVista rendering failed ({exc}). Falling back to Plotly (SVG mode)...")
-            fig = render_bench_and_holes(bench, pattern)
+            st.warning(f"PyVista rendering failed ({exc}). Falling back to Plotly...")
+            fig = render_bench_and_holes(
+                bench, pattern, show_geology=show_geology, show_fault=show_fault
+            )
             st.plotly_chart(fig, use_container_width=True)
     else:
-        fig = render_bench_and_holes(bench, pattern)
+        fig = render_bench_and_holes(
+            bench, pattern, show_geology=show_geology, show_fault=show_fault
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 

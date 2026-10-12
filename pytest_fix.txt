@@ -1,0 +1,21 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/jules/.pyenv/versions/3.12.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /app
+plugins: platformdirs-4.12.2, anyio-4.15.1, langsmith-0.14.2
+collecting ... collected 12 items
+
+tests/test_render3d.py::test_bench_height_positive PASSED                [  8%]
+tests/test_render3d.py::test_bench_height_negative_raises PASSED         [ 16%]
+tests/test_render3d.py::test_face_offset_formula PASSED                  [ 25%]
+tests/test_render3d.py::test_hole_pattern_generates_correct_count PASSED [ 33%]
+tests/test_render3d.py::test_spacing_greater_than_burden PASSED          [ 41%]
+tests/test_render3d.py::test_volume_calculation PASSED                   [ 50%]
+tests/test_render3d.py::test_pattern_summary_keys PASSED                 [ 58%]
+tests/test_render3d_visuals.py::test_bench_mesh_subdrill_bottom_elevation PASSED [ 66%]
+tests/test_render3d_visuals.py::test_render_bench_and_holes_figure_layout PASSED [ 75%]
+tests/test_geological_digital_twin.py::test_topo_mesh_and_collar_z_lookup PASSED [ 83%]
+tests/test_geological_digital_twin.py::test_add_geological_overlays_adds_traces PASSED [ 91%]
+tests/test_geological_digital_twin.py::test_render_bench_and_holes_with_geology_toggles PASSED [100%]
+
+============================== 12 passed in 1.17s ==============================

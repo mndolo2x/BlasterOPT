@@ -14,10 +14,15 @@ from src.render3d.hole_pattern import HolePattern
 from src.render3d.timing_viz import timing_color_scale
 
 
+from src.render3d.geology_overlay import add_geological_overlays
+
+
 def render_bench_and_holes(
     bench: BenchGeometry,
     pattern: HolePattern,
     title: str = "3D Blast Design",
+    show_geology: bool = True,
+    show_fault: bool = True,
 ) -> go.Figure:
     """
     Return an interactive Plotly Figure showing the bench and drill holes.
@@ -107,15 +112,20 @@ def render_bench_and_holes(
             b = int(255 * (1.0 - t ** 0.5))
             return f"rgb({r},{g},{b})"
 
+        get_collar = mesh.get("get_collar_z", lambda x, y: bench.crest_elevation_m)
+
         for idx, h in enumerate(pattern.holes):
             val = scalars[idx]
             norm_val = (val - min_s) / (max_s - min_s)
             color_hex = get_plasma_rgb(norm_val)
 
+            collar_z = get_collar(h.x_m, h.y_m)
+            toe_z = collar_z - h.depth_m
+
             fig.add_trace(go.Scatter3d(
                 x=[h.x_m, h.x_m],
                 y=[h.y_m, h.y_m],
-                z=[h.z_collar_m, h.z_toe_m],
+                z=[collar_z, toe_z],
                 mode="lines+markers",
                 line=dict(color=color_hex, width=9),
                 marker=dict(size=[6, 4], color=color_hex),
@@ -149,7 +159,18 @@ def render_bench_and_holes(
             hoverinfo="none",
         ))
 
-    # 4. North Arrow Indicator
+    # 4. Geological Overlays (Kimberlite, Dolomite, Granite, FAULT_JWA_01)
+    add_geological_overlays(
+        fig=fig,
+        bench_length_m=bench.length_m,
+        bench_width_m=bench.width_m,
+        crest_elevation_m=bench.crest_elevation_m,
+        toe_elevation_m=bench.toe_elevation_m,
+        show_geology=show_geology,
+        show_fault=show_fault,
+    )
+
+    # 5. North Arrow Compass Indicator
     max_x = max(bench.length_m, 20.0)
     max_y = max(bench.width_m, 20.0)
     arrow_x = [max_x * 0.9, max_x * 0.9]
