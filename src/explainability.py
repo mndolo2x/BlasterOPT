@@ -411,28 +411,80 @@ def get_lime_explanation(
         if feature_names is None:
             feature_names = [f"feature_{i}" for i in range(len(X_inst))]
 
-    # Setup training background array
+    # Infer the expected model input size to prevent LIME from passing mismatched feature counts.
+    expected_in = None
+    try:
+        if HAS_TORCH and isinstance(model, torch.nn.Module):
+            if hasattr(model, "input_size"):
+                expected_in = int(model.input_size)
+            elif hasattr(model, "hidden1") and hasattr(model.hidden1, "in_features"):
+                expected_in = int(model.hidden1.in_features)
+            else:
+                for p in model.parameters():
+                    if p.dim() >= 2:
+                        expected_in = int(p.shape[1])
+                        break
+    except Exception:
+        expected_in = None
+
+    X_inst = np.asarray(X_inst, dtype=np.float32).reshape(-1)
+    if expected_in is not None:
+        if X_inst.size < expected_in:
+            X_inst = np.pad(X_inst, (0, expected_in - X_inst.size), constant_values=0.0)
+        elif X_inst.size > expected_in:
+            X_inst = X_inst[:expected_in]
+
+    if feature_names is not None:
+        feature_names = list(feature_names)
+        if len(feature_names) < len(X_inst):
+            feature_names = feature_names + [f"feature_{i}" for i in range(len(feature_names), len(X_inst))]
+        elif len(feature_names) > len(X_inst):
+            feature_names = feature_names[: len(X_inst)]
+    else:
+        feature_names = [f"feature_{i}" for i in range(len(X_inst))]
+
     if training_data is not None:
         if isinstance(training_data, pd.DataFrame):
             train_arr = training_data.values
         else:
             train_arr = np.array(training_data)
+        train_arr = np.asarray(train_arr, dtype=np.float32)
+        if train_arr.ndim == 1:
+            train_arr = train_arr.reshape(1, -1)
+        if expected_in is not None:
+            if train_arr.shape[1] < expected_in:
+                pad = np.zeros((train_arr.shape[0], expected_in - train_arr.shape[1]), dtype=np.float32)
+                train_arr = np.hstack([train_arr, pad])
+            elif train_arr.shape[1] > expected_in:
+                train_arr = train_arr[:, :expected_in]
     else:
-        # Default synthetic background matrix if training_data not provided
-        train_arr = np.random.randn(100, len(X_inst)) * 0.1 + X_inst
+        n_bg = max(100, len(X_inst))
+        train_arr = np.random.randn(n_bg, len(X_inst)) * 0.1 + X_inst
 
     # Predict wrapper function
     is_torch_model = HAS_TORCH and isinstance(model, torch.nn.Module)
 
     if is_torch_model:
         def predict_fn(x_numpy):
+            x_arr = np.asarray(x_numpy, dtype=np.float32)
+            if x_arr.ndim == 1:
+                x_arr = x_arr.reshape(1, -1)
+
+            if expected_in is not None:
+                if x_arr.shape[1] < expected_in:
+                    pad = np.zeros((x_arr.shape[0], expected_in - x_arr.shape[1]), dtype=np.float32)
+                    x_arr = np.hstack([x_arr, pad])
+                elif x_arr.shape[1] > expected_in:
+                    x_arr = x_arr[:, :expected_in]
+
             model.eval()
             with torch.no_grad():
-                tensor_in = torch.tensor(x_numpy, dtype=torch.float32)
+                tensor_in = torch.tensor(x_arr, dtype=torch.float32)
                 out = model(tensor_in).detach().cpu().numpy()
-                if out.ndim == 1:
-                    out = out.reshape(-1, 1)
-                return out
+            out = np.array(out, dtype=np.float32)
+            if out.ndim == 1:
+                out = out.reshape(-1, 1)
+            return out
     elif hasattr(model, "predict"):
         def predict_fn(x_numpy):
             out = model.predict(x_numpy)
@@ -535,7 +587,7 @@ def generate_natural_language_explanation(
     neg_contribs = sorted([p for p in pairs if p[1] < 0], key=lambda x: x[1])[:2]
 
     target_name = str(constraints.get("metric", "outcome")).lower()
-    limit_val = constraints.get("limit", None)
+    limit_val = constraints.get("d50_max_mm", constraints.get("limit", None))
     unit = constraints.get("unit", "")
 
     # Header sentence based on limit evaluation
@@ -673,3 +725,4 @@ def explain_prediction(model, input_data, feature_names=None, background_data=No
     - Vibration: burden, charge per delay, distance
     """
     return get_shap_explanation(model, input_data, feature_names=feature_names, background_data=background_data)
+
