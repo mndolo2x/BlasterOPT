@@ -76,9 +76,9 @@ class GeoResponseClassifier:
     def fit(self, X: pd.DataFrame, y: Any) -> "GeoResponseClassifier":
         # Record fitted feature schema
         if isinstance(X, pd.DataFrame):
-            # Exclude target leakage columns if present
-            leakage_cols = ["rock_type_label", "rock_class", "target"]
-            feat_cols = [c for c in X.columns if c not in leakage_cols]
+            # Exclude non-numeric and leakage columns
+            non_feature_cols = ["rock_type_label", "rock_class", "target", "tunnel_id", "blast_id", "hole_id", "bench_id"]
+            feat_cols = [c for c in X.columns if c not in non_feature_cols and pd.api.types.is_numeric_dtype(X[c])]
             self.feature_names_ = list(feat_cols)
             X_mat = X[self.feature_names_].fillna(X[self.feature_names_].median())
         else:
