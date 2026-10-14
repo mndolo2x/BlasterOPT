@@ -67,7 +67,7 @@ def test_metadata_completeness_for_every_model():
     for meta in registry.list_models():
         assert meta.name is not None and len(meta.name) > 0
         assert meta.display_name is not None and len(meta.display_name) > 0
-        assert meta.model_type in ["sklearn", "pytorch", "physics_informed", "ensemble", "calibration", "test", "custom"]
+        assert meta.model_type in ["sklearn", "pytorch", "physics_informed", "ensemble", "calibration", "test", "custom", "classifier"]
         assert meta.description is not None and len(meta.description) > 0
         assert meta.version is not None
         assert isinstance(meta.input_features, list) and len(meta.input_features) > 0

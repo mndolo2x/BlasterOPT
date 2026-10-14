@@ -365,11 +365,11 @@ page = st.sidebar.radio(
         get_translation("nav_ensemble_uq", lang_code),
         get_translation("nav_agent", lang_code),
         get_translation("nav_geology", lang_code),
+        get_translation("nav_georesponse", lang_code),
         get_translation("nav_fragmentation", lang_code),
         get_translation("nav_safety", lang_code),
         get_translation("nav_pattern", lang_code),
         "3D Blast Design 💥",
-        "GeoResponse (MWD Classifier) 🪨",
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_audit_log", lang_code),
         get_translation("nav_system_health", lang_code),
@@ -421,6 +421,8 @@ page_keys = {
     get_translation("nav_agent", "tn"): "agent",
     get_translation("nav_geology", "en"): "geology",
     get_translation("nav_geology", "tn"): "geology",
+    get_translation("nav_georesponse", "en"): "georesponse",
+    get_translation("nav_georesponse", "tn"): "georesponse",
     get_translation("nav_fragmentation", "en"): "fragmentation",
     get_translation("nav_fragmentation", "tn"): "fragmentation",
     get_translation("nav_safety", "en"): "safety",
@@ -428,7 +430,6 @@ page_keys = {
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     "3D Blast Design 💥": "blast_3d_design",
-    "GeoResponse (MWD Classifier) 🪨": "georesponse",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
     get_translation("nav_guardrail_log", "tn"): "guardrail_log",
     get_translation("nav_audit_log", "en"): "audit_log",
@@ -704,7 +705,10 @@ elif active_module == "ml_manager":
                 st.stop()
             try:
                 raw_uploaded_df = pd.read_csv(uploaded)
-                training_df = engineer_features(clean_and_preprocess(raw_uploaded_df))
+                if "rock_class" in raw_uploaded_df.columns or "rock_type_label" in raw_uploaded_df.columns:
+                    training_df = raw_uploaded_df
+                else:
+                    training_df = engineer_features(clean_and_preprocess(raw_uploaded_df))
                 st.success(
                     f"✅ Loaded {training_df.shape[0]} rows × {training_df.shape[1]} columns "
                     f"from {uploaded.name}."
@@ -768,19 +772,31 @@ elif active_module == "ml_manager":
 
         biust_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "biust"}
         blasteropt_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "baseline" or v.get("type") == "blasteropt"}
+        prototype_models = {k: v["display_name"] for k, v in MODEL_REGISTRY.items() if v.get("type") == "prototype"}
 
         group = st.radio(
             "Model family",
-            ["BIUST Research Models", "BlasterOPT Physics Models"],
+            ["BIUST Research Models", "BlasterOPT Physics Models", "Research Prototypes"],
             horizontal=True,
         )
-        model_options = biust_models if group == "BIUST Research Models" else blasteropt_models
+        if group == "BIUST Research Models":
+            model_options = biust_models
+        elif group == "Research Prototypes":
+            model_options = prototype_models
+        else:
+            model_options = blasteropt_models
 
         selected_key = st.selectbox(
             "Algorithm",
             options=list(model_options.keys()),
             format_func=lambda k: model_options[k],
         )
+
+        if selected_key == "geo_response":
+            st.warning(
+                "⚠️ **RESEARCH PROTOTYPE — Trained on Norwegian tunnel drilling data. "
+                "Not calibrated for Botswana open-pit geology. Do not use for operational decisions.**"
+            )
 
         config = MODEL_REGISTRY[selected_key]
         st.caption(f"Outputs: {', '.join(config['outputs'])}")
@@ -793,6 +809,7 @@ elif active_module == "ml_manager":
             GAANNModel, ANN_RF_Ensemble, PSOANNModel,
             AirblastMinimizerModel, FlyrockPredictor, CostPredictor,
         )
+        from models.custom.geo_response_model import GeoResponseModel
 
         model_input_cols = {
             "ga_ann_jwaneng": getattr(GAANNModel, "INPUT_COLUMNS", FEATURE_COLS),
@@ -801,6 +818,7 @@ elif active_module == "ml_manager":
             "airblast_minimizer": getattr(AirblastMinimizerModel, "INPUT_COLUMNS", FEATURE_COLS),
             "flyrock_predictor": getattr(FlyrockPredictor, "INPUT_COLUMNS", FEATURE_COLS),
             "cost_predictor": getattr(CostPredictor, "INPUT_COLUMNS", FEATURE_COLS),
+            "geo_response": GeoResponseModel.get_metadata().input_features,
         }
 
         required_features = model_input_cols.get(selected_key, FEATURE_COLS)
@@ -861,6 +879,7 @@ elif active_module == "ml_manager":
                 "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
                 "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
                 "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+                "geo_response": GeoResponseModel,
             }
             factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
             model = factory()
@@ -969,46 +988,85 @@ elif active_module == "ml_manager":
             f"• Trained at: {st.session_state.get(f'trained_{selected_key}_at')}"
         )
 
-        # Cross-validation using manual_cv_score for multi-output & PyTorch models
-        from src.models import manual_cv_score
+        task_type = config.get("task_type", getattr(getattr(model, "get_metadata", lambda: None)(), "task_type", "regression"))
 
-        model_classes = {
-            "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
-            "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
-            "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
-            "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
-            "flyrock_predictor": FlyrockPredictor,
-            "cost_predictor": CostPredictor,
-            "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
-            "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
-            "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
-        }
-        factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
+        if task_type == "classification":
+            st.subheader("🎯 Classification Evaluation Metrics")
+            from src.georesponse.evaluation import evaluate_rock_type_classifier
+            from src.georesponse.features import compute_mwd_features
 
-        X = training_df[required_features]
-        y = training_df[required_outputs]
+            df_eval = training_df.copy()
+            if "mwd_specific_energy_mj_m3" not in df_eval.columns and "penetration_rate_m_hr" in df_eval.columns:
+                df_eval = compute_mwd_features(df_eval)
 
-        cv_results = manual_cv_score(
-            model_class=factory,
-            X=X,
-            y=y,
-            cv=5,
-        )
+            target_col = "rock_class" if "rock_class" in df_eval.columns else ("rock_type_label" if "rock_type_label" in df_eval.columns else required_outputs[0])
 
-        eval_rows = []
-        for col, metrics in cv_results.items():
-            eval_rows.append({
-                "Output": col,
-                "R2_mean": round(metrics["r2_mean"], 4),
-                "R2_std": round(metrics["r2_std"], 4),
-                "RMSE_mean": round(metrics["rmse_mean"], 4),
-            })
+            group_col = "tunnel_id" if "tunnel_id" in df_eval.columns else ("blast_id" if "blast_id" in df_eval.columns else None)
 
-        if eval_rows:
-            st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
-            st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
+            eval_res = evaluate_rock_type_classifier(
+                df=df_eval,
+                feature_cols=[c for c in required_features if c in df_eval.columns],
+                target_col=target_col,
+                group_col=group_col,
+                n_splits=5,
+            )
+
+            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1.metric("Macro-F1 Score", f"{eval_res['random_forest']['macro_f1']:.4f}")
+            col_m2.metric("Balanced Accuracy", f"{eval_res['random_forest']['balanced_accuracy']:.4f}")
+            col_m3.metric("Baseline Macro-F1", f"{eval_res['majority_baseline']['macro_f1']:.4f}")
+
+            st.write("**Per-Class Precision & Recall Breakdown:**")
+            st.dataframe(pd.DataFrame(eval_res["random_forest"]["per_class"]).T, use_container_width=True)
+
+            st.write("**Confusion Matrix:**")
+            cm_df = pd.DataFrame(
+                eval_res["random_forest"]["confusion_matrix"],
+                index=[f"True: {c}" for c in eval_res["class_labels"]],
+                columns=[f"Pred: {c}" for c in eval_res["class_labels"]],
+            )
+            st.dataframe(cm_df, use_container_width=True)
         else:
-            st.warning("No valid metrics computed.")
+            # Cross-validation using manual_cv_score for multi-output & PyTorch regression models
+            from src.models import manual_cv_score
+
+            model_classes = {
+                "ga_ann_jwaneng": lambda: GAANNModel(input_size=len(required_features)),
+                "ann_rf_ensemble_jwaneng": ANN_RF_Ensemble,
+                "pso_ann_orapa": lambda: PSOANNModel(input_size=len(required_features)),
+                "airblast_minimizer": lambda: AirblastMinimizerModel(input_size=len(required_features)),
+                "flyrock_predictor": FlyrockPredictor,
+                "cost_predictor": CostPredictor,
+                "random_forest_baseline": lambda: SklearnRF(n_estimators=100, random_state=42),
+                "xgboost_baseline": lambda: SklearnXGB(n_estimators=100, random_state=42),
+                "ridge_baseline": lambda: SklearnRidge(alpha=1.0),
+            }
+            factory = model_classes.get(selected_key, lambda: SklearnRF(n_estimators=100, random_state=42))
+
+            X = training_df[required_features]
+            y = training_df[required_outputs]
+
+            cv_results = manual_cv_score(
+                model_class=factory,
+                X=X,
+                y=y,
+                cv=5,
+            )
+
+            eval_rows = []
+            for col, metrics in cv_results.items():
+                eval_rows.append({
+                    "Output": col,
+                    "R2_mean": round(metrics["r2_mean"], 4),
+                    "R2_std": round(metrics["r2_std"], 4),
+                    "RMSE_mean": round(metrics["rmse_mean"], 4),
+                })
+
+            if eval_rows:
+                st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
+                st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
+            else:
+                st.warning("No valid metrics computed.")
 
 
 # --- MODULE: MODEL COMPARISON ---
@@ -1018,27 +1076,52 @@ elif active_module == "comparison":
         "Benchmarking production-validated research models trained on **Jwaneng** and **Orapa** mine datasets."
     )
 
-    # Performance Table
-    rows = []
-    for model_key, meta in MODEL_REGISTRY.items():
-        perf = meta.get("performance", {})
-        r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
-        r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
-        r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
-        rows.append({
-            "Model Key": model_key,
-            "Architecture": meta.get("architecture", "N/A"),
-            "Optimizer": meta.get("optimizer", "N/A"),
-            "Source Data": meta.get("source", "N/A"),
-            "Fragmentation Performance (R²)": f"{r2_frag:.3f}" if isinstance(r2_frag, (float, int)) else str(r2_frag),
-            "Vibration Performance (R²)": f"{r2_vib:.3f}" if isinstance(r2_vib, (float, int)) else str(r2_vib),
-            "Airblast Performance (R²)": f"{r2_air:.3f}" if isinstance(r2_air, (float, int)) else str(r2_air),
-            "Reference Citation": meta.get("reference", "N/A"),
-        })
+    # Separate regression models from classification / research prototype models
+    reg_rows = []
+    proto_rows = []
 
-    df_registry = pd.DataFrame(rows)
-    st.subheader("Model Performance Summary Table")
-    st.dataframe(df_registry, use_container_width=True)
+    for model_key, meta in MODEL_REGISTRY.items():
+        task_type = meta.get("task_type", "regression")
+        is_prototype = meta.get("type") == "prototype" or meta.get("deployment_status") == "prototype" or task_type == "classification"
+
+        perf = meta.get("performance", {})
+
+        if is_prototype:
+            macro_f1 = perf.get("macro_f1", "N/A")
+            bal_acc = perf.get("balanced_accuracy", "N/A")
+            proto_rows.append({
+                "Model Key": model_key,
+                "Display Name": meta.get("display_name", model_key),
+                "Task Type": task_type.capitalize(),
+                "Architecture": meta.get("architecture", "N/A"),
+                "Macro-F1": f"{macro_f1:.3f}" if isinstance(macro_f1, (float, int)) else str(macro_f1),
+                "Balanced Accuracy": f"{bal_acc:.3f}" if isinstance(bal_acc, (float, int)) else str(bal_acc),
+                "Licence / Notice": meta.get("licence", "Research prototype — not for operational decisions"),
+                "Deployment Status": meta.get("deployment_status", "prototype"),
+            })
+        else:
+            r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
+            r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
+            r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
+            reg_rows.append({
+                "Model Key": model_key,
+                "Architecture": meta.get("architecture", "N/A"),
+                "Optimizer": meta.get("optimizer", "N/A"),
+                "Source Data": meta.get("source", "N/A"),
+                "Fragmentation Performance (R²)": f"{r2_frag:.3f}" if isinstance(r2_frag, (float, int)) else str(r2_frag),
+                "Vibration Performance (R²)": f"{r2_vib:.3f}" if isinstance(r2_vib, (float, int)) else str(r2_vib),
+                "Airblast Performance (R²)": f"{r2_air:.3f}" if isinstance(r2_air, (float, int)) else str(r2_air),
+                "Reference Citation": meta.get("reference", "N/A"),
+            })
+
+    st.subheader("1. Production & Research Regression Models")
+    st.dataframe(pd.DataFrame(reg_rows), use_container_width=True)
+
+    if proto_rows:
+        st.divider()
+        st.subheader("2. Research Prototypes & Classifier Benchmarks")
+        st.caption("Research prototypes are displayed separately and are not ranked against production regression models.")
+        st.dataframe(pd.DataFrame(proto_rows), use_container_width=True)
 
     st.markdown("---")
     st.subheader("Select Model for Sensitivity & Key Drivers Analysis")

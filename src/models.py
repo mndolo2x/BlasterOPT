@@ -1700,5 +1700,18 @@ MODEL_REGISTRY = {
         "source": "Scikit-Learn Baseline",
         "performance": {"r2_mean": 0.75},
         "reference": "Linear Ridge Regression Baseline"
+    },
+    "geo_response": {
+        "display_name": "GeoResponse (MWD Rock Classification)",
+        "type": "prototype",
+        "task_type": "classification",
+        "architecture": "RandomForestClassifier",
+        "outputs": ["rock_class"],
+        "source": "Norwegian MWD Research Dataset",
+        "performance": {"macro_f1": 0.82, "balanced_accuracy": 0.80},
+        "reference": "GeoResponse MWD Benchmark v0.1",
+        "licence": "Research-only — Norwegian dataset, not for commercial use",
+        "training_dataset": "Norwegian MWD research dataset",
+        "deployment_status": "prototype"
     }
 }

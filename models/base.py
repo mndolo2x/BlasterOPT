@@ -41,6 +41,7 @@ class ModelMetadata(BaseModel):
     supports_explainability: bool = Field(default=False, description="Whether model supports feature importance or SHAP explanations")
     requires_gpu: bool = Field(default=False, description="Whether GPU hardware is required")
     tags: List[str] = Field(default_factory=list, description="Categorical tags for filtering")
+    task_type: str = Field(default="regression", description="Task type: 'regression' or 'classification'")
 
 
 class BaseBlastModel(ABC):

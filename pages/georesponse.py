@@ -16,7 +16,7 @@ from src.georesponse.evaluation import evaluate_rock_type_classifier
 
 st.title("🪨 GeoResponse v0.1 — MWD Rock-Type Classifier")
 
-st.warning("⚠️ **RESEARCH BENCHMARK NOTICE:** GeoResponse operates in research mode. Predictions do NOT automatically modify operational blast designs.")
+st.warning("⚠️ **RESEARCH PROTOTYPE — Trained on Norwegian tunnel drilling data. Not calibrated for Botswana open-pit geology. Do not use for operational decisions.**")
 
 tab1, tab2, tab3 = st.tabs(["📁 Dataset Ingestion & Validation", "📊 Group CV Model Evaluation", "🔍 Prediction & Review Flags"])
 

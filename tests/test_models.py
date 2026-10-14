@@ -25,6 +25,8 @@ def test_all_model_outputs_exist_in_dataset():
 
     df = generate_synthetic_data(n_samples=100)
     for key, config in MODEL_REGISTRY.items():
+        if config.get("task_type") == "classification" or config.get("type") == "prototype":
+            continue
         for col in config["outputs"]:
             assert col in df.columns, (
                 f"{key} declares output '{col}' but it is not in the dataset. "
