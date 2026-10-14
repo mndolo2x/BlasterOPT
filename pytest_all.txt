@@ -1,0 +1,130 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: /app
+plugins: platformdirs-4.12.2, anyio-4.15.1, langsmith-0.14.2
+collected 396 items
+
+tests/test_agent_audit.py ...                                            [  0%]
+tests/test_agent_graph.py ..............                                 [  4%]
+tests/test_agent_state.py .                                              [  4%]
+tests/test_agent_ui.py ...                                               [  5%]
+tests/test_ann_rf_ensemble.py ....                                       [  6%]
+tests/test_approval_gates.py .......                                     [  8%]
+tests/test_approval_service.py .......                                   [  9%]
+tests/test_audit_service.py ....                                         [ 10%]
+tests/test_autshumato_translator.py ...                                  [ 11%]
+tests/test_bench_twin.py .....                                           [ 12%]
+tests/test_blast_3d_design_page.py ..                                    [ 13%]
+tests/test_blast_design_versioning.py ....                               [ 14%]
+tests/test_cost_calculator.py ......                                     [ 15%]
+tests/test_cost_predictor.py ....                                        [ 16%]
+tests/test_data_ingestion.py ...                                         [ 17%]
+tests/test_data_source_selector.py ....                                  [ 18%]
+tests/test_demo_mode.py ...........                                      [ 21%]
+tests/test_detonator_integration.py ........                             [ 23%]
+tests/test_digital_twin.py ....                                          [ 24%]
+tests/test_dilution.py ....                                              [ 25%]
+tests/test_domain_adaptation.py .......                                  [ 27%]
+tests/test_drill_connectivity.py .....                                   [ 28%]
+tests/test_economics.py ........                                         [ 30%]
+tests/test_ensemble_uncertainty.py ....                                  [ 31%]
+tests/test_ensemble_uq.py .....                                          [ 32%]
+tests/test_explainability.py ...........                                 [ 35%]
+tests/test_explainability_audit.py ..                                    [ 36%]
+tests/test_fault_analyzer.py ...                                         [ 36%]
+tests/test_feedback_loop.py .                                            [ 37%]
+tests/test_fitter.py ...                                                 [ 37%]
+tests/test_flyrock.py .....                                              [ 39%]
+tests/test_fragmentation.py ......                                       [ 40%]
+tests/test_fragmentation_button.py ....                                  [ 41%]
+tests/test_gaann_model.py ....                                           [ 42%]
+tests/test_geo_response_integration.py .........                         [ 44%]
+tests/test_geological_digital_twin.py ...                                [ 45%]
+tests/test_geology.py .....                                              [ 46%]
+tests/test_georesponse.py ..........                                     [ 49%]
+tests/test_gsi_correction.py ....                                        [ 50%]
+tests/test_guardrails.py .....                                           [ 51%]
+tests/test_i18n.py ..                                                    [ 52%]
+tests/test_integrations.py ....                                          [ 53%]
+tests/test_joint_analyzer.py ...                                         [ 54%]
+tests/test_knowledge_tools.py .....                                      [ 55%]
+tests/test_manager.py ..                                                 [ 55%]
+tests/test_mine_to_mill.py ..                                            [ 56%]
+tests/test_ml_manager.py ....                                            [ 57%]
+tests/test_model_cards.py .                                              [ 57%]
+tests/test_model_selector.py .....                                       [ 58%]
+tests/test_model_verification.py ...                                     [ 59%]
+tests/test_models.py ....                                                [ 60%]
+tests/test_models_and_optimization.py ..........                         [ 63%]
+tests/test_models_registry.py ...                                        [ 63%]
+tests/test_mwd_ingestion.py ...                                          [ 64%]
+tests/test_offline_sync.py ....                                          [ 65%]
+tests/test_ollama_health.py ................                             [ 69%]
+tests/test_override_service.py ....                                      [ 70%]
+tests/test_pareto_optimizer.py ............                              [ 73%]
+tests/test_physics_core.py .......                                       [ 75%]
+tests/test_physics_informed.py .....                                     [ 76%]
+tests/test_pinn.py ....                                                  [ 77%]
+tests/test_pinn_page.py ..                                               [ 78%]
+tests/test_pipeline.py ..                                                [ 78%]
+tests/test_predict.py ........                                           [ 80%]
+tests/test_prediction_service.py ....                                    [ 81%]
+tests/test_predictor_page.py ....                                        [ 82%]
+tests/test_pso_ann.py ....                                               [ 83%]
+tests/test_pyvista_3d_scene.py ...                                       [ 84%]
+tests/test_q_button.py ...                                               [ 85%]
+tests/test_realtime_adaptive.py .....                                    [ 86%]
+tests/test_recommender.py .....                                          [ 87%]
+tests/test_registry.py ......                                            [ 89%]
+tests/test_regulatory.py ....                                            [ 90%]
+tests/test_render3d.py .......                                           [ 92%]
+tests/test_render3d_visuals.py ..                                        [ 92%]
+tests/test_rmr_button.py ...                                             [ 93%]
+tests/test_rsm_calibration.py ..                                         [ 93%]
+tests/test_safety.py .....                                               [ 95%]
+tests/test_safety_checks.py ....                                         [ 96%]
+tests/test_speech.py .....                                               [ 97%]
+tests/test_synthetic_data.py ...                                         [ 98%]
+tests/test_tool_registry.py ....                                         [ 99%]
+tests/test_wipfrag.py ...                                                [100%]
+
+=============================== warnings summary ===============================
+../home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:47
+  /home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:47: PendingDeprecationWarning: The set_bad function will be deprecated in a future version. Use cmap.with_extremes(bad=...) or Colormap(bad=...) instead.
+    red_blue.set_bad(gray_rgb.tolist(), 1.0)
+
+../home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:48
+  /home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:48: PendingDeprecationWarning: The set_over function will be deprecated in a future version. Use cmap.with_extremes(over=...) or Colormap(over=...) instead.
+    red_blue.set_over(gray_rgb.tolist(), 1.0)
+
+../home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:49
+  /home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/shap/plots/colors/_colors.py:49: PendingDeprecationWarning: The set_under function will be deprecated in a future version. Use cmap.with_extremes(under=...) or Colormap(under=...) instead.
+    red_blue.set_under(gray_rgb.tolist(), 1.0)  # "under" is incorrectly used instead of "bad" in the scatter plot
+
+tests/test_agent_graph.py: 2 warnings
+tests/test_guardrails.py: 9 warnings
+  /app/src/agent/guardrails.py:102: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    ts = datetime.utcnow().isoformat()
+
+tests/test_ensemble_uncertainty.py: 22 warnings
+  /home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/sklearn/neural_network/_multilayer_perceptron.py:785: ConvergenceWarning: Stochastic Optimizer: Maximum iterations (200) reached and the optimization hasn't converged yet.
+    warnings.warn(
+
+tests/test_feedback_loop.py: 16 warnings
+tests/test_manager.py: 25 warnings
+  /app/src/site_calibration/models.py:12: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp: Optional[str] = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp of blast event")
+
+tests/test_feedback_loop.py: 2 warnings
+tests/test_fitter.py: 3 warnings
+tests/test_gsi_correction.py: 3 warnings
+tests/test_manager.py: 2 warnings
+  /app/src/site_calibration/models.py:33: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    last_updated: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp of calibration fit")
+
+tests/test_feedback_loop.py::test_feedback_loop_triggers_recalibration
+  /app/src/site_calibration/models.py:76: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="ISO timestamp")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 396 passed, 88 warnings in 177.47s (0:02:57) =================

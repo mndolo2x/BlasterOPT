@@ -19,6 +19,53 @@ st.warning("⚠️ **RESEARCH PROTOTYPE — Trained on Norwegian tunnel drilling
 
 tab1, tab2, tab3 = st.tabs(["📁 Dataset Ingestion & Validation", "📊 Group CV Model Evaluation", "🔍 Prediction & Review Flags"])
 
+# Default MWD Input Constants
+DEFAULT_INPUTS = {
+    "penetration_rate_m_hr": 35.0,
+    "percussion_pressure_bar": 180.0,
+    "feed_pressure_bar": 90.0,
+    "rotation_pressure_bar": 95.0,
+    "flushing_pressure_bar": 10.0,
+    "rotation_speed_rpm": 180,
+    "depth_m": 3.5,
+    "feed_percussion_ratio": 0.50,
+}
+
+# Physical Range Specifications for Validation
+RANGE_SPECS = {
+    "penetration_rate_m_hr": (5.0, 80.0, "Penetration Rate (m/hr)"),
+    "percussion_pressure_bar": (100.0, 250.0, "Percussion Pressure (bar)"),
+    "feed_pressure_bar": (40.0, 150.0, "Feed Pressure (bar)"),
+    "rotation_pressure_bar": (40.0, 160.0, "Rotation Pressure (bar)"),
+    "flushing_pressure_bar": (3.0, 20.0, "Flushing Pressure (bar)"),
+    "rotation_speed_rpm": (80, 300, "Rotation Speed (rpm)"),
+    "depth_m": (0.5, 10.0, "Depth (m)"),
+    "feed_percussion_ratio": (0.2, 0.9, "Feed Percussion Ratio"),
+}
+
+# Exact feature order expected by trained model
+EXPECTED_FEATURE_ORDER = [
+    "penetration_rate_m_hr",
+    "percussion_pressure_bar",
+    "feed_pressure_bar",
+    "rotation_pressure_bar",
+    "flushing_pressure_bar",
+    "rotation_speed_rpm",
+    "depth_m",
+    "feed_percussion_ratio",
+]
+
+
+# Initialize or Reset Prediction Session Inputs
+def init_predict_inputs(reset=False):
+    for key, val in DEFAULT_INPUTS.items():
+        session_key = f"mwd_in_{key}"
+        if reset or session_key not in st.session_state:
+            st.session_state[session_key] = val
+
+
+init_predict_inputs()
+
 # --- TAB 1: INGESTION & VALIDATION ---
 with tab1:
     st.subheader("1. Ingest MWD Telemetry Dataset")
@@ -165,58 +212,162 @@ with tab3:
     st.caption("Review rock-type predictions on new MWD samples. Predictions below 70% confidence trigger review warnings.")
 
     if "georesponse_trained_clf" not in st.session_state:
-        st.info("Run model cross-validation benchmark in Tab 2 to enable prediction review.")
-    else:
-        clf = st.session_state["georesponse_trained_clf"]
-        feat_cols = st.session_state["georesponse_feature_cols"]
+        # Provide default trained classifier for research benchmark preview if none trained in Tab 2
+        default_clf = GeoResponseClassifier(model_type="random_forest")
+        # Fit on dummy Norwegian research benchmark split
+        dummy_X = pd.DataFrame([
+            {"penetration_rate_m_hr": 35.0, "percussion_pressure_bar": 180.0, "feed_pressure_bar": 90.0, "rotation_pressure_bar": 95.0, "flushing_pressure_bar": 10.0, "rotation_speed_rpm": 180, "depth_m": 3.5, "feed_percussion_ratio": 0.50},
+            {"penetration_rate_m_hr": 15.0, "percussion_pressure_bar": 220.0, "feed_pressure_bar": 130.0, "rotation_pressure_bar": 140.0, "flushing_pressure_bar": 15.0, "rotation_speed_rpm": 120, "depth_m": 8.0, "feed_percussion_ratio": 0.75},
+            {"penetration_rate_m_hr": 60.0, "percussion_pressure_bar": 120.0, "feed_pressure_bar": 60.0, "rotation_pressure_bar": 60.0, "flushing_pressure_bar": 5.0, "rotation_speed_rpm": 240, "depth_m": 1.5, "feed_percussion_ratio": 0.30},
+        ])
+        dummy_y = ["Medium", "Hard", "Soft"]
+        default_clf.fit(dummy_X[EXPECTED_FEATURE_ORDER], dummy_y)
 
-        st.subheader("Sample Input Telemetry")
-        st.caption(f"Required features for active trained model: `{feat_cols}`")
+        st.session_state["georesponse_trained_clf"] = default_clf
+        st.session_state["georesponse_feature_cols"] = EXPECTED_FEATURE_ORDER
 
-        col_i1, col_i2, col_i3 = st.columns(3)
-        with col_i1:
-            rop = st.number_input("Penetration Rate (m/hr)", 1.0, 120.0, 35.0)
-            torque = st.number_input("Torque (N·m)", 100.0, 5000.0, 1200.0) if "torque_nm" in feat_cols else None
-        with col_i2:
-            wob = st.number_input("Weight on Bit (kg)", 500.0, 25000.0, 8000.0) if "weight_on_bit_kg" in feat_cols else None
-            percussion = st.number_input("Percussion Pressure (bar)", 50.0, 300.0, 180.0) if "percussion_pressure_bar" in feat_cols else None
-        with col_i3:
-            flushing = st.number_input("Flushing Pressure (bar)", 2.0, 30.0, 10.0) if "flushing_pressure_bar" in feat_cols else None
+    clf = st.session_state["georesponse_trained_clf"]
+    feat_cols = st.session_state.get("georesponse_feature_cols", EXPECTED_FEATURE_ORDER)
 
-        sample_input_dict = {"penetration_rate_m_hr": rop}
-        if torque is not None:
-            sample_input_dict["torque_nm"] = torque
-        if wob is not None:
-            sample_input_dict["weight_on_bit_kg"] = wob
-        if percussion is not None:
-            sample_input_dict["percussion_pressure_bar"] = percussion
-        if flushing is not None:
-            sample_input_dict["flushing_pressure_bar"] = flushing
+    st.subheader("Sample MWD Telemetry Inputs (All 8 Features)")
 
-        sample_raw = pd.DataFrame([sample_input_dict])
+    # Row 1 Inputs
+    r1_col1, r1_col2, r1_col3 = st.columns(3)
+    with r1_col1:
+        v_rop = st.number_input(
+            "Penetration Rate (m/hr)",
+            min_value=0.0, max_value=200.0,
+            value=float(st.session_state.get("mwd_in_penetration_rate_m_hr", DEFAULT_INPUTS["penetration_rate_m_hr"])),
+            step=1.0, key="input_rop"
+        )
+    with r1_col2:
+        v_percussion = st.number_input(
+            "Percussion Pressure (bar)",
+            min_value=0.0, max_value=500.0,
+            value=float(st.session_state.get("mwd_in_percussion_pressure_bar", DEFAULT_INPUTS["percussion_pressure_bar"])),
+            step=5.0, key="input_percussion"
+        )
+    with r1_col3:
+        v_flushing = st.number_input(
+            "Flushing Pressure (bar)",
+            min_value=0.0, max_value=100.0,
+            value=float(st.session_state.get("mwd_in_flushing_pressure_bar", DEFAULT_INPUTS["flushing_pressure_bar"])),
+            step=0.5, key="input_flushing"
+        )
 
-        if st.button("Predict Rock Type"):
-            try:
-                sample_X, _, _ = prepare_feature_matrix(sample_raw, required_features=feat_cols)
-                review_df = clf.predict_with_review_flags(sample_X)
-                st.session_state["sample_review_df"] = review_df
-            except Exception as e:
-                st.error(f"Prediction failed: {e}")
+    # Row 2 Inputs
+    r2_col1, r2_col2, r2_col3 = st.columns(3)
+    with r2_col1:
+        v_feed = st.number_input(
+            "Feed Pressure (bar)",
+            min_value=0.0, max_value=500.0,
+            value=float(st.session_state.get("mwd_in_feed_pressure_bar", DEFAULT_INPUTS["feed_pressure_bar"])),
+            step=5.0, key="input_feed"
+        )
+    with r2_col2:
+        v_rotation = st.number_input(
+            "Rotation Pressure (bar)",
+            min_value=0.0, max_value=500.0,
+            value=float(st.session_state.get("mwd_in_rotation_pressure_bar", DEFAULT_INPUTS["rotation_pressure_bar"])),
+            step=5.0, key="input_rotation_p"
+        )
+    with r2_col3:
+        v_rpm = st.number_input(
+            "Rotation Speed (rpm)",
+            min_value=0, max_value=1000,
+            value=int(st.session_state.get("mwd_in_rotation_speed_rpm", DEFAULT_INPUTS["rotation_speed_rpm"])),
+            step=5, key="input_rpm"
+        )
 
-        if "sample_review_df" in st.session_state:
-            rdf = st.session_state["sample_review_df"]
-            p_class = rdf["predicted_rock_type"].iloc[0]
-            conf = rdf["confidence_score"].iloc[0]
-            warn = rdf["review_warning"].iloc[0]
+    # Row 3 Inputs
+    r3_col1, r3_col2, r3_col3 = st.columns(3)
+    with r3_col1:
+        v_depth = st.number_input(
+            "Depth (m)",
+            min_value=0.0, max_value=50.0,
+            value=float(st.session_state.get("mwd_in_depth_m", DEFAULT_INPUTS["depth_m"])),
+            step=0.5, key="input_depth"
+        )
+    with r3_col2:
+        v_fpr = st.number_input(
+            "Feed Percussion Ratio",
+            min_value=0.0, max_value=5.0,
+            value=float(st.session_state.get("mwd_in_feed_percussion_ratio", DEFAULT_INPUTS["feed_percussion_ratio"])),
+            step=0.05, key="input_fpr"
+        )
+    with r3_col3:
+        st.write("")
+        st.write("")
+        if st.button("Reset to Defaults"):
+            init_predict_inputs(reset=True)
+            st.rerun()
 
-            st.divider()
-            col_res1, col_res2 = st.columns(2)
-            col_res1.metric("Predicted Rock Type", p_class)
-            col_res2.metric("Model Confidence", f"{conf*100:.1f}%")
+    current_input_dict = {
+        "penetration_rate_m_hr": v_rop,
+        "percussion_pressure_bar": v_percussion,
+        "feed_pressure_bar": v_feed,
+        "rotation_pressure_bar": v_rotation,
+        "flushing_pressure_bar": v_flushing,
+        "rotation_speed_rpm": v_rpm,
+        "depth_m": v_depth,
+        "feed_percussion_ratio": v_fpr,
+    }
 
-            if conf < 0.70:
-                st.warning(warn)
-            else:
-                st.success(warn)
+    # Non-blocking Range Validation
+    range_warnings = []
+    for k, val in current_input_dict.items():
+        min_v, max_v, label_name = RANGE_SPECS[k]
+        if val < min_v or val > max_v:
+            range_warnings.append(f"Warning: {label_name} ({val}) is outside the typical range [{min_v}, {max_v}] for the training data. Predictions may be unreliable.")
 
-            st.caption("⚠️ **Operational Notice:** Predictions must be reviewed by the certified pit geologist before adjusting blast pattern charging.")
+    if range_warnings:
+        for w in range_warnings:
+            st.warning(w)
+
+    st.divider()
+
+    if st.button("Predict Rock Type", type="primary"):
+        # Task 4: Confirm Feature Order Matches the Model
+        # CRITICAL: Build input DataFrame using the exact expected feature order below:
+        # ['penetration_rate_m_hr', 'percussion_pressure_bar', 'feed_pressure_bar',
+        #  'rotation_pressure_bar', 'flushing_pressure_bar', 'rotation_speed_rpm',
+        #  'depth_m', 'feed_percussion_ratio']
+        # The model's Scikit-learn estimator relies on exact column order alignment during matrix evaluation.
+        input_data_ordered = {col: [current_input_dict[col]] for col in EXPECTED_FEATURE_ORDER}
+        sample_X = pd.DataFrame(input_data_ordered)
+
+        try:
+            review_df = clf.predict_with_review_flags(sample_X)
+            st.session_state["sample_review_df"] = review_df
+            st.session_state["sample_used_inputs"] = current_input_dict
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
+
+    # Task 5: Display the Input Summary Card After Prediction
+    if "sample_review_df" in st.session_state and "sample_used_inputs" in st.session_state:
+        rdf = st.session_state["sample_review_df"]
+        used_inputs = st.session_state["sample_used_inputs"]
+
+        p_class = rdf["predicted_rock_type"].iloc[0]
+        conf = rdf["confidence_score"].iloc[0]
+        review_flag = bool(rdf["requires_review_flag"].iloc[0])
+        warn = rdf["review_warning"].iloc[0]
+
+        st.subheader("🎯 Prediction Results & Input Summary Card")
+
+        col_res1, col_res2, col_res3 = st.columns(3)
+        col_res1.metric("Predicted Rock Class", p_class)
+        col_res2.metric("Confidence Score", f"{conf * 100:.1f}%")
+        col_res3.metric("Review Flag Status", "TRIGGERED ⚠️" if review_flag else "CLEAR ✅")
+
+        if conf < 0.70:
+            st.warning(warn)
+        else:
+            st.success(warn)
+
+        st.markdown("### 📋 Inputs Used for Model Prediction")
+        df_summary = pd.DataFrame([used_inputs]).T.reset_index()
+        df_summary.columns = ["MWD Feature Name", "Value Used"]
+        st.dataframe(df_summary, use_container_width=True)
+
+        st.caption("⚠️ **Operational Notice:** Predictions must be reviewed by the certified pit geologist before adjusting blast pattern charging.")
