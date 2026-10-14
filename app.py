@@ -369,6 +369,7 @@ page = st.sidebar.radio(
         get_translation("nav_safety", lang_code),
         get_translation("nav_pattern", lang_code),
         "3D Blast Design 💥",
+        "GeoResponse (MWD Classifier) 🪨",
         get_translation("nav_guardrail_log", lang_code),
         get_translation("nav_audit_log", lang_code),
         get_translation("nav_system_health", lang_code),
@@ -427,6 +428,7 @@ page_keys = {
     get_translation("nav_pattern", "en"): "pattern",
     get_translation("nav_pattern", "tn"): "pattern",
     "3D Blast Design 💥": "blast_3d_design",
+    "GeoResponse (MWD Classifier) 🪨": "georesponse",
     get_translation("nav_guardrail_log", "en"): "guardrail_log",
     get_translation("nav_guardrail_log", "tn"): "guardrail_log",
     get_translation("nav_audit_log", "en"): "audit_log",
@@ -2256,6 +2258,15 @@ elif active_module == "blast_3d_design":
         exec(open(os.path.join(repo_root, "pages/blast_3d_design.py")).read())
     except Exception as exc:
         st.error("Error loading 3D Blast Design module:")
+        st.exception(exc)
+
+
+# --- MODULE: GEORESPONSE MWD CLASSIFIER ---
+elif active_module == "georesponse":
+    try:
+        exec(open(os.path.join(repo_root, "pages/georesponse.py")).read())
+    except Exception as exc:
+        st.error("Error loading GeoResponse module:")
         st.exception(exc)
 
 

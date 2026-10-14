@@ -87,6 +87,11 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         ],
         "description": "Interactive 3D drill pattern layout with timing, geology, and model predictions",
     },
+    "georesponse": {
+        "display_name": "GeoResponse (MWD Rock Classifier)",
+        "required_outputs": [],
+        "description": "Research-only MWD data ingestion and rock-type classification benchmark",
+    },
 }
 
 

@@ -52,6 +52,12 @@ Full dual-language interface support (English 🇬🇧 & Setswana 🇧🇼) for 
 ### 🔗 Debswana Enterprise Integrations (`src/integrations.py`)
 Eliminates data silos by integrating with SAP ERP (cost/procurement), Deswik CAD (mine planning & pattern design), and GEOVIA Surpac (3D geological block models & Bond Work Index).
 
+### 🪨 GeoResponse v0.1 — MWD Rock-Type Classification Benchmark (`src/georesponse/` & `pages/georesponse.py`)
+Isolated research module for Measure-While-Drilling (MWD) data ingestion and rock-type classification using the publicly documented Norwegian MWD dataset as a research-only benchmark.
+- **Group-Based Validation:** GroupKFold cross-validation by tunnel or blast ID prevents observation leakage across validation splits.
+- **Model Comparison:** Evaluates Majority-Class Baseline vs. Random Forest classifier (reporting macro-F1, balanced accuracy, per-class precision/recall, and confusion matrix).
+- **Research Notice & Safety Guard:** Research-only benchmark. GeoResponse rock-type predictions trigger uncertainty review warnings when confidence is below 70% and do not automatically modify operational blast designs.
+
 ### 🧠 Physics-Informed Neural Network (PINN) Model 2 (`src/pinn.py`)
 Blends deep learning with Kuz-Ram and USBM physics as soft loss penalties ($L_{\text{total}} = L_{\text{data}} + \lambda_1 L_{\text{kuzram}} + \lambda_2 L_{\text{usbm}}$). Uses Monte Carlo dropout inference (`predict_with_uncertainty`) to estimate epistemic confidence and issue Out-Of-Distribution (OOD) risk alerts.
 
