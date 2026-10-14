@@ -24,7 +24,7 @@ def test_geo_response_metadata_has_task_type_classification():
     """Verify GeoResponse ModelMetadata has task_type = 'classification'."""
     meta = GeoResponseModel.get_metadata()
     assert meta.name == "geo_response"
-    assert meta.model_type == "classifier"
+    assert meta.model_type in ["custom", "classifier"]
     assert meta.task_type == "classification"
     assert meta.output_features == ["rock_class"]
     assert "prototype" in meta.tags

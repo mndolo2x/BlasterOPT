@@ -2,28 +2,56 @@
 Configuration constants, schemas, and licensing notices for BlastOPT GeoResponse v0.1.
 """
 
-# Mandatory MWD Ingestion Columns
-REQUIRED_MWD_COLUMNS = [
+# Core Telemetry Ingestion Column Aliases
+COLUMN_ALIASES = {
+    "penetration_rate_m_hr": ["penetration_rate_m_hr", "rop_m_hr", "penetration_rate_m_h"],
+    "penetration_rate_m_min": ["penetration_rate_m_min", "rop_m_min"],
+    "torque_nm": ["torque_nm", "rotation_torque_nm", "torque"],
+    "weight_on_bit_kg": ["weight_on_bit_kg", "wob_kg", "weight_on_bit"],
+    "percussion_pressure_bar": ["percussion_pressure_bar", "hammer_pressure_bar", "percussion_bar"],
+    "feed_pressure_bar": ["feed_pressure_bar", "thrust_pressure_bar"],
+    "rotation_pressure_bar": ["rotation_pressure_bar"],
+    "flushing_pressure_bar": ["flushing_pressure_bar", "water_pressure_bar"],
+    "rotation_speed_rpm": ["rotation_speed_rpm", "rpm"],
+    "depth_m": ["depth_m", "measured_depth_m", "depth"],
+    "rock_type_label": ["rock_type_label", "rock_class", "rock_type", "strata_label"],
+}
+
+# Base required sensors for minimal MWD feature engineering and model training
+MINIMAL_REQUIRED_MWD_COLUMNS = [
     "penetration_rate_m_hr",
-    "torque_nm",
-    "weight_on_bit_kg",
-    "percussion_pressure_bar",
-    "flushing_pressure_bar",
     "rock_type_label",
 ]
 
-# Optional Grouping Identifiers to Prevent Data Leakage Across Splits
-GROUP_IDENTIFIER_COLUMNS = ["tunnel_id", "blast_id", "hole_id"]
+# Optional sensors used for extended feature engineering when available
+OPTIONAL_MWD_COLUMNS = [
+    "torque_nm",
+    "weight_on_bit_kg",
+    "percussion_pressure_bar",
+    "feed_pressure_bar",
+    "rotation_pressure_bar",
+    "flushing_pressure_bar",
+    "rotation_speed_rpm",
+    "depth_m",
+]
 
-# Feature Columns used for Model Training
-FEATURE_COLUMNS = [
+# Grouping Identifiers to Prevent Data Leakage Across Splits
+GROUP_IDENTIFIER_COLUMNS = ["tunnel_id", "blast_id", "hole_id", "bench_id"]
+
+# All possible feature candidates
+ALL_FEATURE_COLUMNS = [
     "penetration_rate_m_hr",
     "torque_nm",
     "weight_on_bit_kg",
     "percussion_pressure_bar",
+    "feed_pressure_bar",
+    "rotation_pressure_bar",
     "flushing_pressure_bar",
+    "rotation_speed_rpm",
+    "depth_m",
     "mwd_specific_energy_mj_m3",
     "rop_torque_ratio",
+    "feed_percussion_ratio",
 ]
 
 TARGET_COLUMN = "rock_type_label"

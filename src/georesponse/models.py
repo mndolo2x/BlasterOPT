@@ -52,13 +52,15 @@ class MajorityClassBaseline(BaseEstimator, ClassifierMixin):
 
 class GeoResponseClassifier:
     """
-    Wrapper for Random Forest, Majority Baseline, and optional CatBoost/LightGBM rock-type classifiers.
+    Dataset-aware wrapper for Random Forest, Majority Baseline, and optional CatBoost/LightGBM rock-type classifiers.
+    Tracks fitted feature schema to validate prediction inputs and prevent target leakage.
     """
 
     def __init__(self, model_type: str = "random_forest", random_state: int = 42):
         self.model_type = model_type.lower()
         self.random_state = random_state
         self.classes_ = None
+        self.feature_names_: List[str] = []
 
         if self.model_type == "majority_baseline":
             self.model = MajorityClassBaseline()
@@ -71,21 +73,48 @@ class GeoResponseClassifier:
         else:
             self.model = RandomForestClassifier(n_estimators=100, max_depth=12, random_state=random_state)
 
-    def fit(self, X: Any, y: Any) -> "GeoResponseClassifier":
-        self.model.fit(X, y)
+    def fit(self, X: pd.DataFrame, y: Any) -> "GeoResponseClassifier":
+        # Record fitted feature schema
+        if isinstance(X, pd.DataFrame):
+            # Exclude target leakage columns if present
+            leakage_cols = ["rock_type_label", "rock_class", "target"]
+            feat_cols = [c for c in X.columns if c not in leakage_cols]
+            self.feature_names_ = list(feat_cols)
+            X_mat = X[self.feature_names_].fillna(X[self.feature_names_].median())
+        else:
+            X_mat = np.asarray(X)
+            self.feature_names_ = [f"feat_{i}" for i in range(X_mat.shape[1])]
+
+        self.model.fit(X_mat, y)
         if hasattr(self.model, "classes_"):
             self.classes_ = self.model.classes_
         return self
 
+    def _validate_input_schema(self, X: pd.DataFrame) -> pd.DataFrame:
+        if isinstance(X, pd.DataFrame):
+            missing_cols = [c for c in self.feature_names_ if c not in X.columns]
+            if missing_cols:
+                raise ValueError(
+                    f"Incompatible dataset schema during prediction. Model requires trained features: {self.feature_names_}, "
+                    f"but dataset is missing required features: {missing_cols}."
+                )
+            return X[self.feature_names_].fillna(X[self.feature_names_].median())
+        else:
+            X_mat = np.asarray(X)
+            if X_mat.shape[1] != len(self.feature_names_):
+                raise ValueError(f"Feature matrix dimension mismatch: expected {len(self.feature_names_)} features, got {X_mat.shape[1]}.")
+            return pd.DataFrame(X_mat, columns=self.feature_names_)
+
     def predict(self, X: Any) -> np.ndarray:
-        return self.model.predict(X)
+        X_mat = self._validate_input_schema(X)
+        return self.model.predict(X_mat)
 
     def predict_proba(self, X: Any) -> np.ndarray:
+        X_mat = self._validate_input_schema(X)
         if hasattr(self.model, "predict_proba"):
-            return self.model.predict_proba(X)
-        preds = self.predict(X)
-        # Dummy one-hot probas
-        probas = np.zeros((len(X), len(self.classes_)))
+            return self.model.predict_proba(X_mat)
+        preds = self.predict(X_mat)
+        probas = np.zeros((len(X_mat), len(self.classes_)))
         for i, p in enumerate(preds):
             if p in self.classes_:
                 c_idx = list(self.classes_).index(p)
@@ -97,8 +126,9 @@ class GeoResponseClassifier:
         Generates predictions alongside class probabilities, confidence scores,
         and review warnings for low-confidence or uncertain predictions.
         """
-        preds = self.predict(X)
-        probas = self.predict_proba(X)
+        X_mat = self._validate_input_schema(X)
+        preds = self.predict(X_mat)
+        probas = self.predict_proba(X_mat)
 
         confidences = np.max(probas, axis=1)
         flags = [c < CONFIDENCE_THRESHOLD for c in confidences]
