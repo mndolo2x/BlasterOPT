@@ -283,7 +283,9 @@ def optimize_blast_design(model, target_fragmentation, max_vibration, max_airbla
     for step in range(1000):
         optimizer.zero_grad()
         out = model(params)
-        frag, vib, air = out[0], out[1], out[2]
+        frag = out[0]
+        vib = out[1] if out.shape[0] > 1 else torch.tensor(0.0)
+        air = out[2] if out.shape[0] > 2 else torch.tensor(0.0)
 
         # Loss: minimize fragmentation difference/maximize frag, minimize vibration/airblast violations
         frag_loss = torch.abs(frag - target_fragmentation) if isinstance(target_fragmentation, (int, float, torch.Tensor)) else -frag

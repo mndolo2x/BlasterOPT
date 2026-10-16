@@ -797,6 +797,10 @@ elif active_module == "ml_manager":
                 "⚠️ **RESEARCH PROTOTYPE — Trained on Norwegian tunnel drilling data. "
                 "Not calibrated for Botswana open-pit geology. Do not use for operational decisions.**"
             )
+        elif selected_key == "airblast_predictor" or "notice" in MODEL_REGISTRY[selected_key]:
+            st.warning(
+                f"⚠️ **{MODEL_REGISTRY[selected_key].get('notice', 'This model requires real airblast data from a production mine. Synthetic data cannot produce a valid airblast signal.')}**"
+            )
 
         config = MODEL_REGISTRY[selected_key]
         st.caption(f"Outputs: {', '.join(config['outputs'])}")
@@ -1118,7 +1122,7 @@ elif active_module == "comparison":
         else:
             r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
             r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
-            r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
+            r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A"))) if "airblast_db" in meta.get("outputs", []) else "N/A"
             reg_rows.append({
                 "Model Key": model_key,
                 "Architecture": meta.get("architecture", "N/A"),

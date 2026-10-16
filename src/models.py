@@ -867,25 +867,22 @@ if HAS_TORCH:
 
     class GAANNModel(nn.Module):
         """
-        Fix 2: Composite GA-ANN pipeline managing three separate single-output models:
+        Composite GA-ANN pipeline predicting two outputs matching published BIUST paper:
         - Model A: fragmentation_d80_cm
         - Model B: vibration_ppv_mms
-        - Model C: airblast_db (with Fix 3 physics-informed loss)
         """
 
         INPUT_COLUMNS = SingleOutputGAANNModel.INPUT_COLUMNS
-        OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
+        OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms"]
 
         def __init__(self, input_size: int = 11):
             super().__init__()
             self.input_size = input_size
             self.model_a = SingleOutputGAANNModel("fragmentation_d80_cm", input_size=input_size)
             self.model_b = SingleOutputGAANNModel("vibration_ppv_mms", input_size=input_size)
-            self.model_c = SingleOutputGAANNModel("airblast_db", input_size=input_size)
             self.models = {
                 "fragmentation_d80_cm": self.model_a,
                 "vibration_ppv_mms": self.model_b,
-                "airblast_db": self.model_c,
             }
 
         @property
@@ -895,14 +892,13 @@ if HAS_TORCH:
         @property
         def output(self):
             class DummyOutputLayer:
-                out_features = 3
+                out_features = 2
             return DummyOutputLayer()
 
         def forward(self, x):
             a = self.model_a(x)
             b = self.model_b(x)
-            c = self.model_c(x)
-            return torch.cat([a, b, c], dim=-1)
+            return torch.cat([a, b], dim=-1)
 
         def is_trained(self) -> bool:
             return all(m.is_trained() for m in self.models.values())
@@ -1618,16 +1614,15 @@ def train_all_models(df: pd.DataFrame, save_dir: str = "models/") -> Dict[str, A
 
 MODEL_REGISTRY = {
     "ga_ann_jwaneng": {
-        "display_name": "GA-ANN Jwaneng Multi-Output Model",
+        "display_name": "GA-ANN Jwaneng Predictor",
         "type": "biust",
-        "architecture": "11-70-25-3",
+        "architecture": "11-70-25-2",
         "optimizer": "genetic_algorithm",
-        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"],
+        "outputs": ["fragmentation_d80_cm", "vibration_ppv_mms"],
         "source": "Jwaneng Mine, 120 production blasts",
         "performance": {
             "fragmentation_r2": 0.910,
             "vibration_r2": 0.925,
-            "airblast_r2": 0.967
         },
         "inverse_design": {
             "optimal_fragmentation_pct": 84,
@@ -1703,6 +1698,18 @@ MODEL_REGISTRY = {
         ],
         "source": "Physics-Informed Neural Network with Kuz-Ram and USBM constraints",
         "type": "biust",
+    },
+    "airblast_predictor": {
+        "display_name": "Airblast Predictor (requires real data)",
+        "type": "prototype",
+        "task_type": "regression",
+        "deployment_status": "NOT TRAINED — awaiting real airblast measurements",
+        "architecture": "ANN / Empirical Wave Attenuation",
+        "outputs": ["airblast_db"],
+        "source": "Debswana open-pit",
+        "notice": "This model requires real airblast data from a production mine. Synthetic data cannot produce a valid airblast signal.",
+        "performance": {"status": "NOT TRAINED"},
+        "reference": "Saubi, O. et al. (2025). Int. J. Mining and Mineral Engineering, 16(2), 148-167."
     },
     "airblast_minimizer": {
         "display_name": "Debswana Open-Pit Airblast Minimizer",

@@ -294,11 +294,11 @@ def _predict_airblast_handler(
     max_airblast_db: float = 120.0,
     max_cost_per_tonne: Optional[float] = None,
 ) -> Dict[str, Any]:
-    return AirblastResult(
-        airblast_db=114.5,
-        confidence_interval=(110.0, 118.0),
-        distance_m=450.0,
-    ).model_dump()
+    return {
+        "status": "NOT TRAINED",
+        "message": "Airblast prediction requires real site data. This model is not yet trained. Please provide historical airblast measurements from the target mine.",
+        "airblast_db": None,
+    }
 
 
 def _predict_downstream_handler(
