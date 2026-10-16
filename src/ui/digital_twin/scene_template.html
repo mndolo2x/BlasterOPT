@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BlastOPT | 3D Bench Digital Twin</title>
+<style>
+:root{color-scheme:dark;--bg:#080f1c;--panel:#101b2b;--panel2:#132237;--line:#2c4057;--text:#edf5ff;--muted:#9fb1c8;--cyan:#00b4d8;--orange:#ff6b35;--green:#35b978;--red:#ff4f59}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:13px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}body{overflow:hidden}button,input{font:inherit}button{background:#13243a;border:1px solid #30445e;color:#c9d8e9;padding:7px 10px;border-radius:7px;cursor:pointer;transition:.15s}button:hover{border-color:var(--cyan);color:#fff;background:#183047}button.active{background:#063e50;border-color:var(--cyan);color:#e7fbff;box-shadow:inset 0 0 0 1px #00b4d82a}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}input[type=range]{width:100%;accent-color:var(--cyan)}input[type=checkbox]{accent-color:var(--cyan)}
+#app{height:100vh;min-height:540px;display:grid;grid-template-columns:260px minmax(360px,1fr) 286px;grid-template-rows:56px minmax(0,1fr) 42px;gap:0;background:var(--bg)}
+header{grid-column:1/4;display:flex;align-items:center;gap:18px;border-bottom:1px solid #24374e;padding:0 18px;background:#0b1422;min-width:0} .brand{display:flex;align-items:center;gap:10px;min-width:235px}.brand svg{width:28px;height:28px;flex:none}.brandName{font-size:18px;font-weight:800;letter-spacing:.2px;color:var(--cyan)}.brandSub{font-size:10px;color:#6f8ba8;letter-spacing:1.4px;text-transform:uppercase;margin-top:1px}.headTitle{font-weight:650;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.headRight{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--muted)}.pill{font-size:10px;padding:4px 7px;border:1px solid #42536b;border-radius:999px;color:#b8cae0;white-space:nowrap}.pill.demo{border-color:#86592e;background:#2a2117;color:#ffc28e}.iconButton{width:31px;height:31px;display:grid;place-items:center;padding:0;font-size:15px}
+aside{background:#0d1725;min-height:0;overflow:auto;scrollbar-color:#31465f transparent;scrollbar-width:thin}#left{border-right:1px solid #22344a;padding:12px;display:flex;flex-direction:column;gap:11px}#right{border-left:1px solid #22344a;padding:12px;display:flex;flex-direction:column;gap:10px}.panel{background:linear-gradient(180deg,#122034f2,#0f1b2bf2);border:1px solid #2b4058;border-radius:9px;padding:12px}.panelTitle{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:750;letter-spacing:.45px;text-transform:uppercase;color:#dcecff;margin-bottom:11px}.panelTitle .ico{color:var(--cyan);font-size:15px}.subtle{color:var(--muted)}.row{display:flex;align-items:center;justify-content:space-between;gap:8px}.value{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#f4f8ff}.small{font-size:11px}.control{margin:10px 0}.control label{display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;color:#b8c9dd;font-size:12px}.rangeVal{color:#f5f8fc;font-family:ui-monospace,monospace}.checkrow{display:flex;align-items:center;gap:8px;margin:7px 0;color:#c4d4e7}.checkrow input{width:14px;height:14px}.viewGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.viewGrid button{padding:8px 4px}.legendItem{display:flex;align-items:center;gap:8px;margin:8px 0;color:#bdcde0}.swatch{width:13px;height:13px;border-radius:3px;border:1px solid #ffffff66;box-shadow:0 0 8px #0004;flex:none}.sectionDivider{height:1px;background:#283b52;margin:10px 0}.metric{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #293b50}.metric:last-child{border-bottom:0}.metric span:first-child{color:#9fb1c8}.metric strong{font-weight:650;color:#ecf5ff;font-variant-numeric:tabular-nums}.status{display:inline-flex;align-items:center;gap:6px;font-size:10px;padding:4px 7px;border-radius:5px;background:#123a2e;border:1px solid #23654d;color:#88f0bb}.status::before{content:"";width:6px;height:6px;border-radius:50%;background:#39d48b}.warning{color:#ffb27b}.note{padding:9px;border-radius:6px;background:#101e30;border:1px solid #2a3c54;color:#8fa6c2;font-size:10px;line-height:1.5}
+#viewport{position:relative;min-width:0;min-height:0;overflow:hidden;background:radial-gradient(ellipse at 48% 34%,#172638 0,#0a1422 53%,#060c16 100%)}#gl{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none;touch-action:none;cursor:grab}#gl:active{cursor:grabbing}.viewportTop{position:absolute;left:14px;right:14px;top:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;pointer-events:none}.sceneTag{background:#091321d9;border:1px solid #2f465e;border-radius:7px;padding:8px 10px;box-shadow:0 5px 20px #0002;pointer-events:none}.sceneTag b{display:block;font-size:11px;letter-spacing:.25px}.sceneTag span{font-size:10px;color:#9fb1c8}.viewTools{display:flex;gap:5px;pointer-events:auto}.viewTools button{width:31px;height:31px;padding:0;font-size:13px;background:#0a1726e8}.cornerLegend{position:absolute;left:14px;bottom:14px;border:1px solid #2a4058;background:#0b1522e8;border-radius:7px;padding:10px;min-width:190px;pointer-events:none}.cornerLegend .legendItem{font-size:10px;margin:5px 0}.cornerLegend .grad{height:8px;border-radius:4px;background:linear-gradient(90deg,#2636f5,#13c6e6,#20c783,#f0df38,#ff7c22,#e52c31);margin:7px 0 4px}.compass{position:absolute;right:16px;bottom:15px;width:62px;height:62px;filter:drop-shadow(0 3px 9px #0008);pointer-events:none}.faultLabel{position:absolute;display:none;background:#4b1016e8;border:1px solid #ff616b;color:#ffb4b9;font-size:10px;font-weight:800;padding:3px 6px;border-radius:4px;white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px #000}.tooltip{position:absolute;display:none;pointer-events:none;background:#081321f5;border:1px solid #00b4d8;border-radius:7px;padding:8px 10px;min-width:160px;box-shadow:0 8px 22px #0007;font-size:11px;z-index:5}.tooltip b{color:#fff;font-size:12px}.tooltip div{color:#a8bdd4;margin-top:3px}.selectionHalo{color:var(--cyan)}
+footer{grid-column:1/4;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0a1422;border-top:1px solid #25374d;padding:0 14px;color:#8da4bf;font-size:10px;min-width:0}footer .footerLeft,footer .footerMid,footer .footerRight{display:flex;align-items:center;gap:9px;white-space:nowrap;min-width:0}footer .footerMid{overflow:hidden;text-overflow:ellipsis}footer button{padding:5px 9px;font-size:10px}footer .primary{background:#00a7ce;border-color:#00b4d8;color:#00131c;font-weight:750}.dot{width:6px;height:6px;border-radius:50%;background:#36d995;display:inline-block;margin-right:5px}
+@media(max-width:1100px){#app{grid-template-columns:220px minmax(300px,1fr) 240px}.brand{min-width:200px}.headTitle{font-size:12px}#left,#right{padding:8px}.panel{padding:9px}.cornerLegend{min-width:160px}.compass{width:52px;height:52px}}
+@media(max-width:790px){body{overflow:auto}#app{height:auto;min-height:100vh;grid-template-columns:1fr;grid-template-rows:52px 60vh auto auto 42px}header{grid-column:1;position:relative;padding:0 10px;gap:8px}.brand{min-width:0}.brandSub,.headRight .pill{display:none}.headTitle{font-size:11px}#left{grid-row:3;border-right:0;border-top:1px solid #24374e}#viewport{grid-row:2;min-height:450px}#right{grid-row:4;border-left:0;border-top:1px solid #24374e}footer{grid-row:5;grid-column:1;position:sticky;bottom:0}footer .footerMid{display:none}.cornerLegend{transform:scale(.88);transform-origin:bottom left;left:8px;bottom:8px}.compass{right:8px;bottom:8px}}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M3 25 12 8l5 9 4-6 8 14H3Z" stroke="#00b4d8" stroke-width="2"/><path d="m9 25 6-10 4 6 3-4 4 8" stroke="#5ce7fb" stroke-width="1.3"/></svg><div><div class="brandName">BlastOPT</div><div class="brandSub">Blast engineering platform</div></div></div>
+  <div class="headTitle">Digital Twin of Bench <span class="subtle">/</span> Jwaneng · Bench 14</div>
+  <div class="headRight"><span class="pill demo">DEMONSTRATION SCENE</span><button class="iconButton" title="Help" aria-label="Help">?</button><button class="iconButton" title="Settings" aria-label="Settings">⚙</button><div style="width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#183149;border:1px solid #3a617b;color:#b8ecfa;font-weight:800">B</div></div>
+</header>
+<aside id="left">
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">◈</span> Scene controls</div>
+    <div class="subtle small" style="margin-bottom:7px">CAMERA PRESETS</div>
+    <div class="viewGrid"><button data-view="iso" class="active">Isometric</button><button data-view="top">Top plan</button><button data-view="front">Front</button><button data-view="side">Side</button></div>
+    <div class="sectionDivider"></div>
+    <div class="control"><label><span>Vertical exaggeration</span><span id="veVal" class="rangeVal">1.5×</span></label><input id="ve" type="range" min="1" max="3" step="0.1" value="1.5"></div>
+    <div class="control"><label><span>Geology opacity</span><span id="opVal" class="rangeVal">100%</span></label><input id="op" type="range" min="45" max="100" step="5" value="100"></div>
+    <div class="control"><label><span>Display mode</span><span class="subtle">Interactive</span></label><div class="viewGrid"><button id="rotateMode" class="active">⟳ Rotate</button><button id="panMode">✥ Pan</button><button id="zoomMode">⊕ Zoom</button><button id="fitBtn">Fit scene</button></div></div>
+  </div>
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">▧</span> Scene layers</div>
+    <label class="checkrow"><input id="holesToggle" type="checkbox" checked> Drill holes & collars</label>
+    <label class="checkrow"><input id="geoToggle" type="checkbox" checked> Geological zones</label>
+    <label class="checkrow"><input id="faultToggle" type="checkbox" checked> Fault planes</label>
+    <label class="checkrow"><input id="contourToggle" type="checkbox" checked> Elevation contours</label>
+    <label class="checkrow"><input id="gridToggle" type="checkbox" checked> Survey grid</label>
+    <label class="checkrow"><input id="rubbleToggle" type="checkbox" checked> Toe rock / rubble</label>
+  </div>
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">◉</span> Geology legend</div>
+    <div class="legendItem"><i class="swatch" style="background:#8f58b9"></i><span>Kimberlite zone</span><span class="subtle" style="margin-left:auto">0.60</span></div>
+    <div class="legendItem"><i class="swatch" style="background:#8290a0"></i><span>Dolomite waste</span><span class="subtle" style="margin-left:auto">0.45</span></div>
+    <div class="legendItem"><i class="swatch" style="background:#d88942"></i><span>Granite contact</span><span class="subtle" style="margin-left:auto">0.55</span></div>
+    <div class="legendItem"><i class="swatch" style="background:#d83343"></i><span>Fault plane</span></div>
+    <div class="sectionDivider"></div><div class="subtle small">CHARGE WEIGHT · kg</div><div class="grad" style="height:9px;border-radius:5px;background:linear-gradient(90deg,#303bff,#10bfe8,#22c77b,#e5df37,#ff8a24,#d92736);margin:7px 0 4px"></div><div class="row small"><span class="subtle">50 kg</span><span class="subtle">250 kg</span></div>
+  </div>
+  <div class="note">Synthetic terrain, holes and geology are illustrative demo geometry. This viewer does not represent a surveyed Jwaneng bench or a validated blast simulation.</div>
+</aside>
+<main id="viewport">
+  <canvas id="gl" aria-label="Interactive 3D bench digital twin"></canvas>
+  <div class="viewportTop"><div class="sceneTag"><b>BENCH 14 · 3D SPATIAL VIEW</b><span>60 × 40 m footprint · 48 holes · 3 stepped drops</span></div><div class="viewTools"><button data-view="top" title="Top view">⌗</button><button id="zoomIn" title="Zoom in">＋</button><button id="zoomOut" title="Zoom out">－</button><button id="viewReset" title="Reset camera">⟲</button><button id="pngBtn" title="Export viewport PNG">⇩</button></div></div>
+  <div class="cornerLegend"><div class="subtle small" style="font-weight:700;letter-spacing:.4px">CHARGE WEIGHT</div><div class="grad"></div><div class="row small"><span class="subtle">50</span><span class="subtle">150</span><span class="subtle">250 kg</span></div><div class="sectionDivider"></div><div class="legendItem"><i class="swatch" style="background:#8f58b9"></i>Kimberlite</div><div class="legendItem"><i class="swatch" style="background:#8290a0"></i>Dolomite</div><div class="legendItem"><i class="swatch" style="background:#d88942"></i>Granite contact</div></div>
+  <div id="faultLabel1" class="faultLabel">FAULT_JWA_01</div><div id="faultLabel2" class="faultLabel">FAULT_JWA_02</div>
+  <div id="tip" class="tooltip"></div>
+  <svg class="compass" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="#0b1524d9" stroke="#3c5872"/><circle cx="32" cy="32" r="21" fill="none" stroke="#213951"/><path d="M32 8 38 35 32 30 26 35Z" fill="#00b4d8"/><path d="M32 56 27 34 32 39 37 34Z" fill="#71889e"/><text x="32" y="7" text-anchor="middle" fill="#eaf8ff" font-size="8" font-weight="700">N</text></svg>
+  <div id="webglErr" style="display:none;position:absolute;inset:15%;background:#101b2bee;border:1px solid #ff6b35;border-radius:10px;padding:20px;align-content:center;text-align:center;color:#f7c5a3">WebGL could not initialize in this browser. Try a current version of Chrome or Edge with hardware acceleration enabled.</div>
+</main>
+<aside id="right">
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">▤</span> Bench summary</div>
+    <div class="metric"><span>Footprint</span><strong>60 × 40 m</strong></div><div class="metric"><span>Bench height</span><strong>15.0 m</strong></div><div class="metric"><span>Stepped drops</span><strong>3 × 3.5 m</strong></div><div class="metric"><span>Hole layout</span><strong>8 × 6</strong></div><div class="metric"><span>Total holes</span><strong>48</strong></div><div class="metric"><span>Fault surfaces</span><strong>2 illustrative</strong></div>
+  </div>
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">◎</span> Selected drill hole</div>
+    <div id="holeDetails"><div class="subtle small">Hover over a collar or click a hole to inspect its properties.</div></div>
+  </div>
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">▥</span> Geological context</div>
+    <div class="metric"><span>Dominant lithology</span><strong>Kimberlite</strong></div><div class="metric"><span>Rock factor</span><strong>12.4*</strong></div><div class="metric"><span>RMR score</span><strong>69*</strong></div><div class="metric"><span>Nearby structures</span><strong>2 demo faults</strong></div><div class="small subtle" style="margin-top:7px">*Illustrative values only — not calibrated or measured at site.</div>
+  </div>
+  <div class="panel">
+    <div class="panelTitle"><span class="ico">◉</span> View status</div>
+    <div class="row"><span class="subtle">Camera</span><strong id="cameraName">Isometric · 28°</strong></div><div class="row" style="margin-top:8px"><span class="subtle">WebGL</span><span class="status">GPU scene</span></div><div class="row" style="margin-top:8px"><span class="subtle">Data mode</span><span class="pill demo">SYNTHETIC</span></div>
+  </div>
+  <div class="note"><b style="color:#cfe0f3">Engineering boundary</b><br>Geometry, holes, faults and rock zones in this demo are generated for visualization. No fragmentation, PPV, flyrock or airblast results are being calculated.</div>
+</aside>
+<footer><div class="footerLeft"><span><i class="dot"></i>3D renderer active</span><span>•</span><span>48 drill holes</span><span>•</span><span>3D geometry</span></div><div class="footerMid"><span>Local coordinate frame</span><span>·</span><span>Synthetic terrain</span><span>·</span><span id="footerCamera">ISO 28°</span></div><div class="footerRight"><button id="resetFooter">Reset view</button><button class="primary" id="exportFooter">Export PNG</button></div></footer>
+</div>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);const canvas=$('gl'),viewport=$('viewport');
+const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,stencil:false,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+if(!gl){$('webglErr').style.display='grid';return;}
+const PI=Math.PI,DEG=PI/180;
+const VSH=`attribute vec3 aPos;attribute vec3 aNormal;attribute vec3 aColor;uniform mat4 uVP;varying vec3 vPos;varying vec3 vNormal;varying vec3 vColor;void main(){vPos=aPos;vNormal=aNormal;vColor=aColor;gl_Position=uVP*vec4(aPos,1.0);}`;
+const FSH=`precision mediump float;varying vec3 vPos;varying vec3 vNormal;varying vec3 vColor;uniform vec3 uLightDir;uniform vec3 uCamera;uniform float uOpacity;uniform float uKind;uniform float uTime;
+float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453123);}float n3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}float fbm(vec3 p){float v=0.0;float a=0.52;for(int i=0;i<4;i++){v+=a*n3(p);p*=2.05;a*=0.48;}return v;}
+void main(){vec3 base=vColor;float large=fbm(vPos*vec3(.70,1.15,.85));float fine=n3(vPos*vec3(7.7,10.0,7.7));float micro=n3(vPos*vec3(26.0,34.0,26.0));if(uKind<0.5){base*=.80+large*.36+fine*.10;float fleck=smoothstep(.80,.98,micro);base=mix(base,base*vec3(1.20,1.14,1.02),fleck*.22);}else if(uKind<1.5){base*=.70+large*.52+fine*.20;float mineral=smoothstep(.72,.96,micro);base=mix(base,vec3(.68,.62,.53),mineral*.35);}else if(uKind<2.5){base*=.88+large*.20;}else if(uKind<3.5){base*=.90+fine*.12;}else if(uKind<4.5){base*=.67+large*.48+fine*.24;}
+vec3 N=normalize(vNormal);if(!gl_FrontFacing)N=-N;vec3 L=normalize(uLightDir);vec3 V=normalize(uCamera-vPos);float diff=max(dot(N,L),0.0);float fill=max(dot(N,normalize(vec3(-.25,-.45,.85))),0.0);float ao=.90+.10*large;float lit=(.42+.56*diff+.16*fill)*ao;vec3 H=normalize(L+V);float spec=pow(max(dot(N,H),0.0),24.0)*.11;if(uKind>1.5&&uKind<3.5)spec*=.25;vec3 col=base*lit+vec3(spec);float alpha=uOpacity;if(uKind>4.5)alpha=1.0;gl_FragColor=vec4(col,alpha);}`;
+function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+const prog=gl.createProgram();gl.attachShader(prog,compile(gl.VERTEX_SHADER,VSH));gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,FSH));gl.linkProgram(prog);if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(prog));gl.useProgram(prog);
+const loc={pos:gl.getAttribLocation(prog,'aPos'),normal:gl.getAttribLocation(prog,'aNormal'),color:gl.getAttribLocation(prog,'aColor'),vp:gl.getUniformLocation(prog,'uVP'),light:gl.getUniformLocation(prog,'uLightDir'),camera:gl.getUniformLocation(prog,'uCamera'),opacity:gl.getUniformLocation(prog,'uOpacity'),kind:gl.getUniformLocation(prog,'uKind'),time:gl.getUniformLocation(prog,'uTime')};
+gl.uniform3fv(loc.light,new Float32Array([-0.45,-0.52,0.88]));
+gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.clearColor(.025,.047,.076,1);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+const scene={opaque:[],transparent:[],lines:[],faults:[],holes:[],labels:[]};
+const W=60,L=40,STEP=15,DROP=3.5,BOTTOM=-15.2;
+function noise2(x,y){return Math.sin(x*0.63+Math.sin(y*.37))*Math.cos(y*.51-x*.17)+.38*Math.sin(x*1.87+y*.91)*Math.cos(y*1.41-x*.49)+.16*Math.sin(x*4.4+y*3.2)*Math.cos(y*3.9-x*2.7);}... (truncated for brevity)
