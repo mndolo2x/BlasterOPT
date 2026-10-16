@@ -607,6 +607,10 @@ class ANN_RF_Ensemble:
         result["fragmentation_d80_cm"] += combined_res[:, 0]
         result["vibration_ppv_mms"] += combined_res[:, 1]
 
+        # Clip predictions to physical bounds
+        result["fragmentation_d80_cm"] = np.clip(result["fragmentation_d80_cm"], 5.0, 150.0)
+        result["vibration_ppv_mms"] = np.clip(result["vibration_ppv_mms"], 0.1, 50.0)
+
         return result
 
     def predict_ann_only(self, X: Any) -> pd.DataFrame:
@@ -648,41 +652,16 @@ class ANN_RF_Ensemble:
 
 
 if HAS_TORCH:
-    class GAANNModel(nn.Module):
+    class SingleOutputGAANNModel(nn.Module):
         """
-        GA-ANN model (10-70-25-3) with physics-informed baseline.
-
-        The neural network predicts residuals from the Kuznetsov/Cunningham
-        physics baseline. This guarantees physically plausible outputs even
-        when the network is untrained.
+        Single-output GA-ANN model (11-70-25-1) for a specific target output.
+        Predicts residuals relative to a physics baseline.
 
         Architecture:
-            Input layer: 10 features
+            Input layer: 11 features
             Hidden layer 1: 70 neurons, ReLU
             Hidden layer 2: 25 neurons, ReLU
-            Output layer: 3 targets (fragmentation_d80_cm, vibration_ppv_mms, airblast_db)
-
-        Reference: Saubi, O. et al. (2026). "Simultaneous prediction and
-        optimisation of rock fragmentation and ground vibration using an
-        ANN-RF ensemble in open-pit blasting." Discover Applied Sciences,
-        8(5), 547.
-
-        Input features (10):
-            0: burden_m
-            1: spacing_m
-            2: powder_factor_kg_m3
-            3: stemming_m
-            4: rock_factor_A
-            5: hole_depth_m
-            6: hole_diameter_mm
-            7: max_charge_per_delay_kg
-            8: explosive_rws
-            9: bench_height_m
-
-        Outputs (3):
-            0: fragmentation_d80_cm
-            1: vibration_ppv_mms
-            2: airblast_db
+            Output layer: 1 target
         """
 
         INPUT_COLUMNS = [
@@ -691,14 +670,15 @@ if HAS_TORCH:
             "max_charge_per_delay_kg", "explosive_rws", "bench_height_m",
             "monitoring_distance_m"
         ]
-        OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
-        def __init__(self, input_size: int = 11):
+        def __init__(self, target_col: str, input_size: int = 11):
             super().__init__()
+            self.target_col = target_col
+            self.OUTPUT_COLUMNS = [target_col]
             self.input_size = input_size
             self.hidden1 = nn.Linear(input_size, 70)
             self.hidden2 = nn.Linear(70, 25)
-            self.output = nn.Linear(25, 3)
+            self.output = nn.Linear(25, 1)
             self.relu = nn.ReLU()
             self._is_trained = False
 
@@ -710,17 +690,141 @@ if HAS_TORCH:
         def is_trained(self) -> bool:
             return self._is_trained
 
-        def predict(self, X: pd.DataFrame) -> pd.DataFrame:
-            """
-            Predict with physics baseline + neural network residual.
+        def _physics_baseline(self, X: pd.DataFrame) -> pd.DataFrame:
+            """Compute single-target physics baseline for each row."""
+            from src.physics_core import (
+                kuznetsov_x50, cunningham_uniformity,
+                rosin_rammler_d80, usbm_ppv, siskind_airblast,
+            )
 
-            The residual is clamped so it cannot exceed 50% of the baseline value.
+            results = []
+            for _, row in X.iterrows():
+                b = max(float(row.get("burden_m", 6.0)), 0.1)
+                s = max(float(row.get("spacing_m", 7.0)), 0.1)
+                rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
+                d_mm = float(row.get("hole_diameter_mm", 250.0))
+                h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
+                bh = max(float(row.get("bench_height_m", 15.0)), 1.0)
+                stem = max(float(row.get("stemming_m", 5.0)), 0.1)
+                pf = float(row.get("powder_factor_kg_m3", 0.65))
+                q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 320.0))), 0.1)
+                q_hole = max(float(row.get("charge_mass_per_hole_kg", pf * b * s * bh)), 1.0)
+                dist = max(float(row.get("monitoring_distance_m", 500.0)), 10.0)
+                rws = max(float(row.get("explosive_rws", 100.0)), 10.0)
+
+                if self.target_col == "fragmentation_d80_cm":
+                    x50_cm = kuznetsov_x50(
+                        rock_factor_a=rf, burden_m=b, spacing_m=s, hole_depth_m=h, charge_mass_kg=q_hole, explosive_rws=rws
+                    )
+                    n_val = cunningham_uniformity(
+                        burden_m=b, spacing_m=s, hole_diameter_mm=d_mm, bench_height_m=bh, charge_length_m=max(h - stem, 1.0)
+                    )
+                    val = rosin_rammler_d80(x50_cm, n_val)
+                elif self.target_col == "vibration_ppv_mms":
+                    val = usbm_ppv(max_charge_per_delay_kg=q_delay, distance_m=dist)
+                elif self.target_col == "airblast_db":
+                    val = siskind_airblast(max_charge_per_delay_kg=q_delay, distance_m=dist)
+                else:
+                    val = 100.0
+
+                results.append({self.target_col: float(val)})
+
+            return pd.DataFrame(results, index=X.index)
+
+        def fit(self, X: Any, y: Any, epochs: int = 300, lr: float = 1e-3, batch_size: int = 32, verbose: bool = False, use_physics_loss: bool = False, **kwargs) -> Any:
             """
+            Train single-output neural network on physics residuals.
+            Fix 3: For airblast_db, optionally include monotonic physics-informed penalty.
+            """
+            import torch
+            import torch.nn as nn
+            from torch.utils.data import TensorDataset, DataLoader
+
             X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
-            baseline = self._physics_baseline(X_df)
+            if isinstance(y, pd.DataFrame):
+                y_val = y[self.target_col].values if self.target_col in y.columns else y.iloc[:, 0].values
+            elif isinstance(y, pd.Series):
+                y_val = y.values
+            else:
+                y_val = np.asarray(y).ravel()
+
+            baseline = self._physics_baseline(X_df)[self.target_col].values
+            residuals = (y_val - baseline).reshape(-1, 1)
+
+            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
+            if available_cols:
+                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
+            else:
+                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
+
+            if X_mat.shape[1] < self.input_size:
+                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
+                X_mat = np.hstack([X_mat, padding])
+            elif X_mat.shape[1] > self.input_size:
+                X_mat = X_mat[:, :self.input_size]
+
+            self.scaler_x = StandardScaler()
+            X_scaled = self.scaler_x.fit_transform(X_mat)
+
+            self.scaler_y = StandardScaler()
+            res_scaled = self.scaler_y.fit_transform(residuals)
+
+            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
+            y_tensor = torch.tensor(res_scaled, dtype=torch.float32)
+
+            dataset = TensorDataset(X_tensor, y_tensor)
+            loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=1e-5)
+            loss_fn = nn.MSELoss()
+
+            # Physics loss gradient indices: charge (col 7), distance (col 10 if present, else last), stemming (col 3)
+            charge_idx = min(7, X_tensor.shape[1] - 1)
+            dist_idx = min(10, X_tensor.shape[1] - 1)
+            stem_idx = min(3, X_tensor.shape[1] - 1)
+
+            # Enable physics loss automatically for airblast if requested or default
+            apply_phys_loss = (use_physics_loss or (self.target_col == "airblast_db")) and X_tensor.shape[1] >= 11
+
+            self.train()
+            for epoch in range(epochs):
+                for xb, yb in loader:
+                    optimizer.zero_grad()
+                    pred = self.forward(xb)
+                    data_loss = loss_fn(pred, yb)
+
+                    if apply_phys_loss:
+                        xb_grad = xb.clone().detach().requires_grad_(True)
+                        pred_g = self.forward(xb_grad)
+                        grads = torch.autograd.grad(outputs=pred_g.sum(), inputs=xb_grad, create_graph=True)[0]
+
+                        # Monotonicity constraints:
+                        # Higher charge -> higher airblast (dAirblast/dCharge > 0) -> penalty if dAirblast/dCharge < 0
+                        penalty_charge = torch.relu(-grads[:, charge_idx]).mean()
+                        # Higher distance -> lower airblast (dAirblast/dDistance < 0) -> penalty if dAirblast/dDistance > 0
+                        penalty_dist = torch.relu(grads[:, dist_idx]).mean()
+                        # Higher stemming -> lower airblast (dAirblast/dStemming < 0) -> penalty if dAirblast/dStemming > 0
+                        penalty_stem = torch.relu(grads[:, stem_idx]).mean()
+
+                        l_physics = penalty_charge + penalty_dist + penalty_stem
+                        total_loss = data_loss + 0.1 * l_physics
+                    else:
+                        total_loss = data_loss
+
+                    total_loss.backward()
+                    optimizer.step()
+
+            self.eval()
+            self._is_trained = True
+            return self
+
+        def predict(self, X: pd.DataFrame) -> pd.DataFrame:
+            """Predict target output using physics baseline + single-output neural residual."""
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            baseline = self._physics_baseline(X_df)[self.target_col].values
 
             if not self._is_trained:
-                return baseline
+                return pd.DataFrame({self.target_col: baseline}, index=X_df.index)
 
             available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
             if available_cols:
@@ -742,162 +846,102 @@ if HAS_TORCH:
             X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
             self.eval()
             with torch.no_grad():
-                residual_norm = self.forward(X_tensor)
+                res_scaled = self.forward(X_tensor).numpy()
 
-            # Undo normalization
-            if hasattr(self, "_residual_std") and hasattr(self, "_residual_mean"):
-                residual = residual_norm * self._residual_std + self._residual_mean
+            if hasattr(self, "scaler_y"):
+                residuals = self.scaler_y.inverse_transform(res_scaled).ravel()
             else:
-                residual = residual_norm
-            residual = residual.numpy()
+                residuals = res_scaled.ravel()
 
-            result = baseline.copy()
-            for i, col in enumerate(self.OUTPUT_COLUMNS):
-                base_values = baseline[col].values
-                pred_values = base_values + residual[:, i]
-                # Clamp to 50%-150% of baseline
-                lower = base_values * 0.5
-                upper = base_values * 1.5
-                result[col] = np.clip(pred_values, lower, upper)
+            pred_values = baseline + residuals
+            # Clamp to 50%-150% of baseline
+            pred_clamped = np.clip(pred_values, baseline * 0.5, baseline * 1.5)
+            if self.target_col in ["fragmentation_d80_cm"]:
+                pred_clamped = np.clip(pred_clamped, 5.0, 150.0)
+            elif self.target_col in ["vibration_ppv_mms"]:
+                pred_clamped = np.clip(pred_clamped, 0.1, 50.0)
+            elif self.target_col in ["airblast_db"]:
+                pred_clamped = np.clip(pred_clamped, 40.0, 140.0)
 
-            return result
+            return pd.DataFrame({self.target_col: pred_clamped}, index=X_df.index)
 
-        def _physics_baseline(self, X: pd.DataFrame) -> pd.DataFrame:
-            """Compute physics-based predictions for each row."""
-            from src.physics_core import (
-                kuznetsov_x50, cunningham_uniformity,
-                rosin_rammler_d80, usbm_ppv, siskind_airblast,
-            )
+    class GAANNModel(nn.Module):
+        """
+        Fix 2: Composite GA-ANN pipeline managing three separate single-output models:
+        - Model A: fragmentation_d80_cm
+        - Model B: vibration_ppv_mms
+        - Model C: airblast_db (with Fix 3 physics-informed loss)
+        """
 
-            results = []
-            for _, row in X.iterrows():
-                b = max(float(row.get("burden_m", 6.0)), 0.1)
-                s = max(float(row.get("spacing_m", 7.0)), 0.1)
-                rf = float(row.get("rock_factor_A", row.get("rock_factor", 8.0)))
-                d_mm = float(row.get("hole_diameter_mm", 250.0))
-                h = max(float(row.get("hole_depth_m", row.get("bench_height_m", 15.0))), 1.0)
-                bh = max(float(row.get("bench_height_m", 15.0)), 1.0)
-                stem = max(float(row.get("stemming_m", 5.0)), 0.1)
-                q_delay = max(float(row.get("max_charge_per_delay_kg", row.get("charge_per_delay_kg", 320.0))), 0.1)
-                q_hole = max(float(row.get("charge_mass_per_hole_kg", q_delay / 2.0)), 1.0)
-                dist = max(float(row.get("monitoring_distance_m", 500.0)), 10.0)
-                rws = max(float(row.get("explosive_rws", 100.0)), 10.0)
+        INPUT_COLUMNS = SingleOutputGAANNModel.INPUT_COLUMNS
+        OUTPUT_COLUMNS = ["fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db"]
 
-                x50_cm = kuznetsov_x50(
-                    rock_factor_a=rf,
-                    burden_m=b,
-                    spacing_m=s,
-                    hole_depth_m=h,
-                    charge_mass_kg=q_hole,
-                    explosive_rws=rws,
-                )
-                n_val = cunningham_uniformity(
-                    burden_m=b,
-                    spacing_m=s,
-                    hole_diameter_mm=d_mm,
-                    bench_height_m=bh,
-                    charge_length_m=max(h - stem, 1.0),
-                )
-                d80_cm = rosin_rammler_d80(x50_cm, n_val)
-                ppv_mms = usbm_ppv(
-                    max_charge_per_delay_kg=q_delay,
-                    distance_m=dist,
-                )
-                airblast_db = siskind_airblast(
-                    max_charge_per_delay_kg=q_delay,
-                    distance_m=dist,
-                )
+        def __init__(self, input_size: int = 11):
+            super().__init__()
+            self.input_size = input_size
+            self.model_a = SingleOutputGAANNModel("fragmentation_d80_cm", input_size=input_size)
+            self.model_b = SingleOutputGAANNModel("vibration_ppv_mms", input_size=input_size)
+            self.model_c = SingleOutputGAANNModel("airblast_db", input_size=input_size)
+            self.models = {
+                "fragmentation_d80_cm": self.model_a,
+                "vibration_ppv_mms": self.model_b,
+                "airblast_db": self.model_c,
+            }
 
-                results.append({
-                    "fragmentation_d80_cm": float(d80_cm),
-                    "vibration_ppv_mms": float(ppv_mms),
-                    "airblast_db": float(airblast_db),
-                })
+        @property
+        def hidden1(self):
+            return self.model_a.hidden1
 
-            return pd.DataFrame(results, index=X.index)
+        @property
+        def output(self):
+            class DummyOutputLayer:
+                out_features = 3
+            return DummyOutputLayer()
 
-        def fit(self, X: Any, y: Any, epochs: int = 300, lr: float = 1e-3, batch_size: int = 32, verbose: bool = False, **kwargs) -> Any:
-            """
-            Train the neural network on residuals from the physics baseline.
+        def forward(self, x):
+            a = self.model_a(x)
+            b = self.model_b(x)
+            c = self.model_c(x)
+            return torch.cat([a, b, c], dim=-1)
 
-            The residuals are normalized to zero mean and unit variance before
-            training, so the network learns a well-conditioned target.
-            """
-            import torch
-            import torch.nn as nn
-            from torch.utils.data import TensorDataset, DataLoader
+        def is_trained(self) -> bool:
+            return all(m.is_trained() for m in self.models.values())
 
+        def eval(self):
+            super().eval()
+            for m in self.models.values():
+                m.eval()
+            return self
+
+        def train(self, mode: bool = True):
+            super().train(mode)
+            for m in self.models.values():
+                m.train(mode)
+            return self
+
+        def fit(self, X: Any, y: Any, epochs: int = 300, lr: float = 1e-3, batch_size: int = 32, verbose: bool = False, **kwargs) -> "GAANNModel":
             X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
             y_df = y if isinstance(y, pd.DataFrame) else pd.DataFrame(y, index=X_df.index)
 
-            # Validate target columns
-            missing = [c for c in self.OUTPUT_COLUMNS if c not in y_df.columns]
-            if missing:
-                for col in missing:
-                    y_df[col] = self._physics_baseline(X_df)[col]
+            for col in self.OUTPUT_COLUMNS:
+                if col in y_df.columns:
+                    y_col = y_df[col]
+                else:
+                    y_col = self.models[col]._physics_baseline(X_df)[col]
 
-            # Physics baseline
-            baseline = self._physics_baseline(X_df)
+                # Train each single-output model
+                use_phys = (col == "airblast_db")
+                self.models[col].fit(X_df, y_col, epochs=epochs, lr=lr, batch_size=batch_size, verbose=verbose, use_physics_loss=use_phys, **kwargs)
 
-            # Residuals
-            residuals = np.zeros((len(y_df), len(self.OUTPUT_COLUMNS)), dtype=np.float32)
-            for i, col in enumerate(self.OUTPUT_COLUMNS):
-                residuals[:, i] = y_df[col].values - baseline[col].values
-
-            # Normalize residuals
-            residual_mean = residuals.mean(axis=0)
-            residual_std = residuals.std(axis=0) + 1e-8
-            residuals_norm = (residuals - residual_mean) / residual_std
-
-            available_cols = [c for c in self.INPUT_COLUMNS if c in X_df.columns]
-            if available_cols:
-                X_mat = X_df[available_cols].select_dtypes(include=[np.number]).fillna(0.0).values
-            else:
-                X_mat = X_df.select_dtypes(include=[np.number]).fillna(0.0).values
-
-            if X_mat.shape[1] < self.input_size:
-                padding = np.zeros((X_mat.shape[0], self.input_size - X_mat.shape[1]))
-                X_mat = np.hstack([X_mat, padding])
-            elif X_mat.shape[1] > self.input_size:
-                X_mat = X_mat[:, :self.input_size]
-
-            self.scaler_x = StandardScaler()
-            X_scaled = self.scaler_x.fit_transform(X_mat)
-
-            # Tensors
-            X_tensor = torch.tensor(X_scaled, dtype=torch.float32)
-            y_tensor = torch.tensor(residuals_norm, dtype=torch.float32)
-
-            # DataLoader
-            dataset = TensorDataset(X_tensor, y_tensor)
-            loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-            # Optimizer
-            optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=1e-5)
-            loss_fn = nn.MSELoss()
-
-            # Training
-            self.train()
-            for epoch in range(epochs):
-                total_loss = 0.0
-                for xb, yb in loader:
-                    optimizer.zero_grad()
-                    pred = self.forward(xb)
-                    loss = loss_fn(pred, yb)
-                    loss.backward()
-                    optimizer.step()
-                    total_loss += loss.item() * len(xb)
-                total_loss /= len(dataset)
-                if verbose and (epoch + 1) % 50 == 0:
-                    print(f"Epoch {epoch + 1}/{epochs} - loss: {total_loss:.6f}")
-
-            # Store normalization stats for predict()
-            self._residual_mean = torch.tensor(residual_mean, dtype=torch.float32)
-            self._residual_std = torch.tensor(residual_std, dtype=torch.float32)
-
-            self.eval()
-            self._is_trained = True
             return self
+
+        def predict(self, X: Any) -> pd.DataFrame:
+            X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+            results = {}
+            for col in self.OUTPUT_COLUMNS:
+                pred_col_df = self.models[col].predict(X_df)
+                results[col] = pred_col_df[col].values
+            return pd.DataFrame(results, index=X_df.index)
 
     class PSOANNModel(nn.Module):
         """

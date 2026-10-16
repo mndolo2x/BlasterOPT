@@ -1054,16 +1054,32 @@ elif active_module == "ml_manager":
             )
 
             eval_rows = []
+            notes = []
             for col, metrics in cv_results.items():
+                r2_m = float(metrics["r2_mean"])
+                status_note = "OK ✅"
+                if r2_m < 0.70:
+                    status_note = "REQUIRES_REVIEW — model performance below threshold (< 0.70)"
+                    notes.append(f"⚠️ **{col}:** {status_note}")
+                elif r2_m > 0.95:
+                    status_note = "WARNING — inflated by synthetic data, real-data validation required (> 0.95)"
+                    notes.append(f"ℹ️ **{col}:** {status_note}")
+
                 eval_rows.append({
                     "Output": col,
-                    "R2_mean": round(metrics["r2_mean"], 4),
+                    "R2_mean": round(r2_m, 4),
                     "R2_std": round(metrics["r2_std"], 4),
                     "RMSE_mean": round(metrics["rmse_mean"], 4),
+                    "Status / Notice": status_note,
                 })
 
             if eval_rows:
                 st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
+                for note in notes:
+                    if "REQUIRES_REVIEW" in note:
+                        st.error(note)
+                    else:
+                        st.warning(note)
                 st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
             else:
                 st.warning("No valid metrics computed.")

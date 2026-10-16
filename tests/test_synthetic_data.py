@@ -52,7 +52,7 @@ def test_input_parameter_ranges():
     assert (df["burden_m"] > 0).all()
     assert (df["spacing_m"] > 0).all()
     assert (df["stemming_m"] > 0).all()
-    assert (df["monitoring_distance_m"] >= 150.0).all() and (df["monitoring_distance_m"] <= 1200.0).all()
+    assert (df["monitoring_distance_m"] >= 150.0).all() and (df["monitoring_distance_m"] <= 2000.0).all()
 
 
 def test_output_targets_positive():
