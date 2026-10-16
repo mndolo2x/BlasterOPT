@@ -65,11 +65,7 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "digital_twin": {
         "display_name": "Digital Twin of Bench",
-        "required_outputs": [
-            "fragmentation_d80_cm",
-            "vibration_ppv_mms",
-            "airblast_db",
-        ],
+        "required_outputs": [],
         "description": "3D what-if scenario analysis",
     },
     "conversational_agent": {
