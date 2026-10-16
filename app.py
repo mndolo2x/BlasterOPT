@@ -224,7 +224,7 @@ if DEMO_MODE:
 # Initialize Session State
 if "df" not in st.session_state:
     # Default initial dataset
-    synth_df = generate_synthetic_blast_data(num_samples=300, seed=42)
+    synth_df = generate_synthetic_blast_data(num_samples=1000, seed=42)
     init_df = engineer_features(synth_df)
     st.session_state["df"] = init_df
     st.session_state["data_ready"] = True
@@ -234,7 +234,7 @@ if "df" not in st.session_state:
     st.session_state["data_fingerprint"] = dataframe_fingerprint(init_df)
     st.session_state["data_generated_at"] = datetime.now().isoformat()
     st.session_state["data_loaded_at"] = datetime.now().isoformat()
-    st.session_state["data_details"] = "Initial synthetic 300 rows, seed=42"
+    st.session_state["data_details"] = "Initial synthetic 1000 rows, seed=42"
 
 if "pipeline" not in st.session_state:
     st.session_state["pipeline"] = None
