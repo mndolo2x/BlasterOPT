@@ -128,25 +128,35 @@ def manual_cv_score(
     X: pd.DataFrame,
     y: pd.DataFrame,
     cv: int = 5,
+    groups: Optional[Any] = None,
     **fit_kwargs: Any,
 ) -> Dict[str, Dict[str, float]]:
     """
     Manual cross-validation for PyTorch-based and multi-output models.
+    Supports GroupKFold cross-validation when groups (e.g. blast_id/bench_id) are provided.
 
     Args:
         model_class: callable that returns a fresh model instance
         X: feature DataFrame
         y: target DataFrame (multi-output)
         cv: number of folds
+        groups: optional group array/series for GroupKFold
         **fit_kwargs: passed to model.fit()
 
     Returns:
-        dict mapping target column name -> {"r2_mean", "r2_std", "rmse_mean"}
+        dict mapping target column name -> {"r2_mean", "r2_std", "rmse_mean", "r2_scores"}
     """
-    kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+    if groups is not None and len(np.unique(groups)) >= cv:
+        from sklearn.model_selection import GroupKFold
+        gkf = GroupKFold(n_splits=cv)
+        split_iter = gkf.split(X, y, groups)
+    else:
+        kf = KFold(n_splits=cv, shuffle=True, random_state=42)
+        split_iter = kf.split(X)
+
     results = {col: {"r2": [], "rmse": []} for col in y.columns}
 
-    for train_idx, test_idx in kf.split(X):
+    for train_idx, test_idx in split_iter:
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
@@ -176,6 +186,7 @@ def manual_cv_score(
             "r2_mean": float(np.mean(v["r2"])),
             "r2_std": float(np.std(v["r2"])),
             "rmse_mean": float(np.mean(v["rmse"])),
+            "r2_scores": [float(r) for r in v["r2"]],
         }
         for col, v in results.items()
     }

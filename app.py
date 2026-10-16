@@ -1050,24 +1050,31 @@ elif active_module == "ml_manager":
             X = training_df[required_features]
             y = training_df[required_outputs]
 
+            group_series = training_df["blast_id"] if "blast_id" in training_df.columns else (training_df["bench_id"] if "bench_id" in training_df.columns else None)
+
             cv_results = manual_cv_score(
                 model_class=factory,
                 X=X,
                 y=y,
                 cv=5,
+                groups=group_series,
             )
 
             eval_rows = []
             notes = []
             for col, metrics in cv_results.items():
                 r2_m = float(metrics["r2_mean"])
-                status_note = "OK ✅"
-                if r2_m < 0.70:
-                    status_note = "REQUIRES_REVIEW — model performance below threshold (< 0.70)"
-                    notes.append(f"⚠️ **{col}:** {status_note}")
-                elif r2_m > 0.95:
+                if r2_m >= 0.95:
                     status_note = "WARNING — inflated by synthetic data, real-data validation required (> 0.95)"
                     notes.append(f"ℹ️ **{col}:** {status_note}")
+                elif r2_m >= 0.85:
+                    status_note = "OK ✅"
+                elif r2_m >= 0.70:
+                    status_note = "WARNING — below expected (0.70 - 0.85)"
+                    notes.append(f"⚠️ **{col}:** {status_note}")
+                else:
+                    status_note = "REQUIRES_REVIEW — model performance below threshold (< 0.70)"
+                    notes.append(f"❌ **{col}:** {status_note}")
 
                 eval_rows.append({
                     "Output": col,
