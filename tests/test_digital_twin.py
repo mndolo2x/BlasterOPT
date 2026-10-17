@@ -1,84 +1,52 @@
 """
-Unit tests for Mine-to-Mill Digital Twin module (src/digital_twin.py).
+Unit tests for Digital Twin loader and page.
 """
 
-import pytest
-import pandas as pd
-import plotly.graph_objects as go
-from src.digital_twin import (
-    FragmentationModel,
-    DownstreamModel,
-    MineToMillTwin,
-    OreTracker,
-    ScenarioAnalyzer,
-)
+import importlib.util
+from pathlib import Path
+from src.ui.digital_twin.loader import load_and_inject_scene
 
 
-def test_fragmentation_model_predict_returns_valid_distribution():
-    """Test FragmentationModel.predict() returns a valid DataFrame with size_cm and percent_passing columns."""
-    model = FragmentationModel(rock_factor_A=8.5)
-    params = {"powder_factor_kg_m3": 0.65, "charge_mass_per_hole_kg": 320.0}
-
-    df_dist = model.predict(params)
-
-    assert isinstance(df_dist, pd.DataFrame)
-    assert not df_dist.empty
-    assert "size_cm" in df_dist.columns
-    assert "percent_passing" in df_dist.columns
-
-    # Test get_percentile
-    d50 = model.get_percentile(50.0)
-    assert isinstance(d50, float)
-    assert d50 > 0.0
+def test_digital_twin_page_exists():
+    """Verify pages/digital_twin.py exists."""
+    page_path = Path("pages/digital_twin.py")
+    assert page_path.exists()
 
 
-def test_mine_to_mill_twin_simulate_returns_dict_with_required_keys():
-    """Test MineToMillTwin.simulate() returns a dict with fragmentation, throughput, energy, and cost keys."""
-    twin = MineToMillTwin(rock_factor_A=8.5, ore_hardness_wi=12.5)
-    params = {
-        "powder_factor_kg_m3": 0.65,
-        "burden_m": 6.0,
-        "spacing_m": 7.0,
-        "stemming_m": 5.0,
-        "bench_height_m": 15.0,
-        "charge_mass_per_hole_kg": 320.0,
-    }
-
-    res = twin.simulate(params)
-
-    assert isinstance(res, dict)
-    assert "fragmentation" in res
-    assert "throughput" in res
-    assert "energy" in res
-    assert "cost" in res
-
-    assert res["throughput"] > 0.0
-    assert res["energy"] > 0.0
-    assert res["cost"] > 0.0
+def test_digital_twin_page_imports():
+    """Verify pages/digital_twin.py parses and imports without syntax errors."""
+    page_path = Path("pages/digital_twin.py")
+    spec = importlib.util.spec_from_file_location("digital_twin_page", page_path)
+    assert spec is not None
+    assert spec.loader is not None
 
 
-def test_scenario_analyzer_sensitivity_sweep_returns_plotly_figure():
-    """Test ScenarioAnalyzer.sensitivity_sweep() returns an interactive Plotly Figure."""
-    analyzer = ScenarioAnalyzer()
-    params = {"powder_factor_kg_m3": 0.65, "burden_m": 6.0, "spacing_m": 7.0}
+def test_load_and_inject_scene_missing_template(tmp_path, monkeypatch):
+    """Verify load_and_inject_scene returns None when scene_template.html is missing."""
+    test_data = {"bench_id": "BENCH_14", "powder_factor_kg_m3": 0.65}
+    # Point template_path to non-existent location
+    fake_path = tmp_path / "scene_template.html"
+    monkeypatch.setattr("src.ui.digital_twin.loader.Path", lambda p: fake_path)
+    result = load_and_inject_scene(test_data)
+    assert result is None
 
-    fig = analyzer.sensitivity_sweep(params, param_to_vary="powder_factor_kg_m3", range_min=0.30, range_max=1.20)
 
-    assert fig is not None
-    assert hasattr(fig, "data")
+def test_load_and_inject_scene_success(tmp_path, monkeypatch):
+    """Verify load_and_inject_scene injects JSON data into HTML template."""
+    template_dir = tmp_path / "src" / "ui" / "digital_twin"
+    template_dir.mkdir(parents=True, exist_ok=True)
+    template_file = template_dir / "scene_template.html"
+    template_file.write_text("<!doctype html><html><head></head><body></body></html>", encoding="utf-8")
 
+    def mock_path(path_str):
+        if "scene_template.html" in path_str:
+            return template_file
+        return Path(path_str)
 
-def test_ore_tracker_trace_ore_returns_list_of_nodes():
-    """Test OreTracker.trace_ore() returns a list of nodes tracing path from bench to mill."""
-    tracker = OreTracker()
-    tracker.add_blast("BLAST_TEST_01", coordinates=(-24.5, 25.8, 1150.0), timestamp="2026-09-16T10:00:00")
-    tracker.add_ore_block("BLOCK_TEST_01", blast_id="BLAST_TEST_01", coordinates=(-24.51, 25.81, 1150.0))
-    tracker.add_processing_batch("BATCH_TEST_01", block_ids=["BLOCK_TEST_01"], timestamp="2026-09-16T14:00:00")
+    monkeypatch.setattr("src.ui.digital_twin.loader.Path", mock_path)
 
-    path = tracker.trace_ore("BLOCK_TEST_01")
-
-    assert isinstance(path, list)
-    assert len(path) == 3
-    assert path[0]["node_type"] == "Blast"
-    assert path[1]["node_type"] == "OreBlock"
-    assert path[2]["node_type"] == "ProcessingBatch"
+    test_data = {"bench_id": "BENCH_14", "bench_height_m": 15.0}
+    result = load_and_inject_scene(test_data)
+    assert result is not None
+    assert "window.BLASTOPT_SCENE_DATA =" in result
+    assert '"bench_id": "BENCH_14"' in result

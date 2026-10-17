@@ -40,11 +40,12 @@ def render_page_model_selector(page_key: str) -> Tuple[Optional[Any], Optional[s
 
     # Case 1: No models trained at all
     if not trained:
-        st.warning(
-            f"⚠️ **{page_name}** requires a trained model.  \n"
-            f"Go to **ML Model Manager**, generate data, and train a model. "
-            f"Then return here."
-        )
+        if required:
+            st.warning(
+                f"⚠️ **{page_name}** requires a trained model.  \n"
+                f"Go to **ML Model Manager**, generate data, and train a model. "
+                f"Then return here."
+            )
         return None, None
 
     # Case 2: Find compatible models

@@ -1,111 +1,76 @@
 import os
 import streamlit as st
-import pandas as pd
-import numpy as np
-from src.components.model_selector import render_page_model_selector
-from src.ui.bench_twin import (
-    make_bench_figure,
-    load_holes_from_design,
-    load_geology_overlays,
-)
+from pathlib import Path
+from src.engine.bench_model import BenchConfig, build_bench_scene, render_preview
 
-st.title("Digital Twin of Bench")
+st.title("3D Digital Twin of Bench")
+st.caption("Parametric blast bench generation. Server-rendered PyVista geometry.")
 
-model, model_key = render_page_model_selector("digital_twin")
-if model is None:
-    st.stop()
+# Use a 2-column layout
+col1, col2 = st.columns([1, 2.5])
 
-# Get active design or default
-active_design = st.session_state.get("current_design", st.session_state.get("last_predict_inputs"))
+with col1:
+    st.header("Bench Parameters")
+    length = st.number_input("Bench Length (m)", min_value=10.0, max_value=200.0, value=60.0, step=5.0)
+    width = st.number_input("Bench Width (m)", min_value=10.0, max_value=200.0, value=40.0, step=5.0)
+    height = st.number_input("Bench Height (m)", min_value=5.0, max_value=50.0, value=15.0, step=1.0)
 
-st.subheader("3D Spatial Digital Twin Viewer")
+    rock = st.selectbox("Rock Type", ["Kimberlite", "Granite", "Limestone", "Dolomite", "Sandstone"])
 
-# 1. Control toggles
-col_t1, col_t2, col_t3 = st.columns(3)
-with col_t1:
-    show_holes = st.toggle("Show drill holes", value=True)
-with col_t2:
-    show_geology = st.toggle("Show geology overlays", value=True)
-with col_t3:
-    show_faults = st.toggle("Show fault planes", value=True)
+    st.header("Blast Pattern")
+    burden = st.number_input("Burden (m)", min_value=1.0, max_value=15.0, value=4.2, step=0.1)
+    spacing = st.number_input("Spacing (m)", min_value=1.0, max_value=15.0, value=5.1, step=0.1)
+    diameter = st.number_input("Hole Diameter (mm)", min_value=50, max_value=400, value=165, step=5)
+    depth = st.number_input("Hole Depth (m)", min_value=1.0, max_value=30.0, value=12.0, step=0.5)
+    rows = st.number_input("Rows", min_value=1, max_value=20, value=8)
+    cols = st.number_input("Holes per Row", min_value=1, max_value=20, value=6)
 
-# 2. Render 3D Bench Scene
-holes = load_holes_from_design(active_design)
-bench_id = getattr(active_design, "bench_id", "B14") if active_design else "B14"
-site_id = getattr(active_design, "site_id", "jwaneng") if active_design else "jwaneng"
-overlays = load_geology_overlays(bench_id, site_id)
+    generate_btn = st.button("Generate 3D Bench", type="primary", use_container_width=True)
 
-fig = make_bench_figure(
-    holes=holes,
-    overlays=overlays,
-    show_holes=show_holes,
-    show_geology=show_geology,
-    show_faults=show_faults,
-    title=f"Digital Twin — {bench_id}",
-)
+with col2:
+    st.header("3D Rendering Space")
 
-st.plotly_chart(fig, use_container_width=True, config={"renderer": "svg"})
+    if generate_btn:
+        with st.spinner("Generating 3D mesh and rendering preview..."):
+            try:
+                cfg = BenchConfig(
+                    bench_length_m=length,
+                    bench_width_m=width,
+                    bench_height_m=height,
+                    rock_type=rock,
+                    burden_m=burden,
+                    spacing_m=spacing,
+                    hole_diameter_mm=diameter,
+                    hole_depth_m=depth,
+                    rows=rows,
+                    holes_per_row=cols,
+                    mesh_resolution_m=0.25,
+                    ai_rock=False
+                )
 
-# 3. Legend and Stats Panel
-st.divider()
-st.subheader("Bench Statistics & Geology Legend")
+                # Build the scene
+                scene, holes, metadata = build_bench_scene(cfg)
 
-col_stat1, col_stat2 = st.columns(2)
+                # Render preview to a temporary file
+                preview_path = "temp_bench_preview.png"
+                render_preview(scene, preview_path)
 
-with col_stat1:
-    st.markdown("### 🏷️ Geology Overlays Legend")
-    for ov in overlays:
-        st.markdown(f"- <span style='color:{ov[\"color\"]}; font-weight:bold;'>■</span> **{ov[\"name\"]}** (Opacity: {ov[\"opacity\"]})", unsafe_allow_html=True)
+                # Display the image
+                st.image(preview_path, use_column_width=True, caption="Parametric 3D Bench (Server Rendered)")
 
-with col_stat2:
-    st.markdown("### 📊 Bench Pattern Stats")
-    num_holes = len(holes)
-    total_charge = sum(h["charge_kg"] for h in holes) if holes else 0.0
-    avg_charge = total_charge / max(num_holes, 1)
+                # Show metrics
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Total Holes", len(holes))
+                total_charge = sum(h.charge_kg for h in holes)
+                m2.metric("Total Charge", f"{total_charge:.0f} kg")
+                m3.metric("Geometry Parts", metadata["geometry_count"])
 
-    st.metric("Total Holes", num_holes)
-    st.metric("Total Explosive Charge", f"{total_charge:,.1f} kg")
-    st.metric("Average Charge per Hole", f"{avg_charge:.1f} kg")
-    st.caption("Bench Dimensions: **60.0 m × 40.0 m × 12.0 m**")
+                # Clean up temp file
+                if os.path.exists(preview_path):
+                    os.remove(preview_path)
 
-# 4. Navigation to Blast Design Engine
-st.divider()
-if st.button("Send to Blast Design Engine →", type="primary"):
-    st.session_state["bench_twin_data"] = {
-        "bench_id": bench_id,
-        "site_id": site_id,
-        "holes": holes,
-        "overlays": overlays,
-    }
-    st.success("Transferred bench twin data to Blast Design Engine!")
-
-# 5. Export options
-st.divider()
-st.subheader("Export Options")
-col_exp1, col_exp2 = st.columns(2)
-
-with col_exp1:
-    if st.button("Export as PNG"):
-        try:
-            img_bytes = fig.to_image(format="png")
-            st.download_button(
-                label="Download PNG Image",
-                data=img_bytes,
-                file_name=f"bench_twin_{bench_id}.png",
-                mime="image/png",
-            )
-        except Exception as e:
-            st.error(f"PNG export failed (requires kaleido): {e}")
-
-with col_exp2:
-    if st.button("Export as HTML"):
-        try:
-            html_bytes = fig.to_html().encode("utf-8")
-            st.download_button(
-                label="Download Standalone HTML",
-                data=html_bytes,
-                file_name=f"bench_twin_{bench_id}.html",
-                mime="text/html",
-            )
-        except Exception as e:
-            st.error(f"HTML export failed: {e}")
+            except Exception as e:
+                st.error(f"An error occurred during 3D generation: {e}")
+                st.exception(e)
+    else:
+        st.info("Configure the parameters on the left and click 'Generate 3D Bench' to render the model.")

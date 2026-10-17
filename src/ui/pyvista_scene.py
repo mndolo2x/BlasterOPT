@@ -10,13 +10,13 @@ from src.render3d.hole_pattern import HolePattern
 try:
     import pyvista as pv
     HAS_PYVISTA = True
-except ImportError:
+except Exception:
     HAS_PYVISTA = False
 
 try:
     from stpyvista import stpyvista
     HAS_STPYVISTA = True
-except ImportError:
+except Exception:
     HAS_STPYVISTA = False
 
 

@@ -147,12 +147,11 @@ def generate_synthetic_blast_data(
     powder_factor_kg_m3 = charge_mass_per_hole / rock_volume_per_hole
     powder_factor_kg_t = charge_mass_per_hole / rock_mass_per_hole
 
-    # Maximum Charge Weight Per Delay (Q in kg) - assuming 1 to 3 holes per delay
-    holes_per_delay = np.random.randint(1, 4, size=num_samples)
-    max_charge_per_delay = charge_mass_per_hole * holes_per_delay
+    # Maximum Charge Weight Per Delay (Q in kg) - 50 to 400 kg range
+    max_charge_per_delay = rng.uniform(50.0, 400.0, size=num_samples)
 
-    # Distance to nearest critical structure / monitor point (m)
-    monitoring_distance = np.random.uniform(200.0, 1200.0, size=num_samples)
+    # Distance to nearest critical structure / monitor point (m) - 200 to 2000 m range
+    monitoring_distance = rng.uniform(200.0, 2000.0, size=num_samples)
 
     # 3. Physics Models for Targets
     from src.physics_core import (
@@ -189,49 +188,28 @@ def generate_synthetic_blast_data(
         fly_list.append(fly_val)
         cost_list.append(cost_val)
 
-    # Calibrated Siskind airblast formula for Botswana conditions
+    # Saubi et al. (2025) airblast model incorporating stemming length sensitivity
     D = np.maximum(monitoring_distance, 10.0)
     W = np.maximum(max_charge_per_delay, 0.1)
 
-    # Siskind base formula
-    airblast_db_arr = 165.0 - 25.0 * np.log10(D / (W ** (1.0 / 3.0)))
+    # Siskind base formula with stemming length sensitivity (1m stemming change -> ~5 dB shift)
+    airblast_base = 165.0 - 25.0 * np.log10(D / (W ** (1.0 / 3.0)))
+    stemming_penalty = 5.0 * (stemming - 3.0)
+    airblast_db_arr = airblast_base - stemming_penalty - 8.0 + rng.normal(0, 2.5, size=num_samples)
+    airblast_db_arr = np.clip(airblast_db_arr, 90.0, 130.0)
 
-    # Site-specific attenuation for Botswana kimberlite
-    airblast_db_arr = airblast_db_arr - 12.0
+    # Add realistic geological and operational noise to target outputs
+    # Fix 4: Increased noise on fragmentation (sigma = 25 mm = 2.5 cm) and PPV (sigma = 0.6 mm/s)
+    frag_noise_cm = rng.normal(0.0, 2.5, num_samples)
+    ppv_noise = rng.normal(0.0, 0.6, num_samples)
+    noise_generic = rng.normal(1.0, 0.05, num_samples)
 
-    # Per-blast noise
-    airblast_db_arr = airblast_db_arr + rng.normal(0, 2.5, size=len(D))
-
-    # Clip to realistic range
-    airblast_db_arr = np.clip(airblast_db_arr, 95.0, 122.0)
-
-    # Force ~90% of values below 120 dB.
-    # The remaining ~10% simulate real non-compliant blasts for training.
-    mask_above = airblast_db_arr > 120.0
-    target_above = int(len(airblast_db_arr) * 0.10)
-
-    if mask_above.sum() > target_above:
-        above_indices = np.where(mask_above)[0]
-        keep_above = rng.choice(above_indices, size=target_above, replace=False)
-        pull_down = mask_above.copy()
-        pull_down[keep_above] = False
-        airblast_db_arr[pull_down] = rng.uniform(95.0, 119.0, size=pull_down.sum())
-    elif mask_above.sum() < target_above:
-        needed = target_above - int(mask_above.sum())
-        below_indices = np.where(~mask_above)[0]
-        if len(below_indices) >= needed:
-            lift_indices = rng.choice(below_indices, size=needed, replace=False)
-            airblast_db_arr[lift_indices] = rng.uniform(120.1, 122.0, size=needed)
-
-    noise_d80 = np.random.normal(1.0, 0.012, num_samples)
-    noise_ppv = np.random.normal(1.0, 0.08, num_samples)
-
-    d80_cm = np.clip(np.array(d80_list) * noise_d80, 5.0, 150.0)
-    d50_mm = np.clip(np.array(x50_list) * 10.0 * noise_d80, 20.0, 800.0)
+    d80_cm = np.clip(np.array(d80_list) + frag_noise_cm, 5.0, 150.0)
+    d50_mm = np.clip(np.array(x50_list) * 10.0 + (frag_noise_cm * 10.0), 20.0, 800.0)
     n_uniformity = np.clip(np.array(n_list), 0.7, 2.2)
-    ppv_mms = np.clip(np.array(ppv_list) * noise_ppv, 0.1, 50.0)
-    flyrock_dist_m = np.clip(np.array(fly_list) * noise_ppv, 5.0, 500.0)
-    cost_per_tonne = np.clip(np.array(cost_list) * noise_ppv, 0.30, 3.00)
+    ppv_mms = np.clip(np.array(ppv_list) + ppv_noise, 0.1, 50.0)
+    flyrock_dist_m = np.clip(np.array(fly_list) * noise_generic, 5.0, 500.0)
+    cost_per_tonne = np.clip(np.array(cost_list) * noise_generic, 0.30, 3.00)
 
     # Assemble DataFrame
     data = pd.DataFrame({

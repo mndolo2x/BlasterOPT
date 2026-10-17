@@ -12,6 +12,7 @@ fpdf2>=2.7.0
 kaleido>=0.2.1
 pytest>=7.4
 torch>=2.0
+torchvision>=0.15
 shap>=0.44
 lime>=0.2
 deap>=1.4

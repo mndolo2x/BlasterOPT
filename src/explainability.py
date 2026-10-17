@@ -287,7 +287,26 @@ def get_shap_explanation(
         try:
             is_torch_model = HAS_TORCH and isinstance(target_model, torch.nn.Module)
 
-            if is_torch_model:
+            if hasattr(target_model, "predict"):
+                def model_predict_fn(x_numpy):
+                    df_in = pd.DataFrame(x_numpy, columns=feature_names)
+                    out = target_model.predict(df_in)
+                    out = np.array(out)
+                    if out.ndim == 1:
+                        return out
+                    elif out.ndim == 2:
+                        return out[:, 0]
+                    return out
+
+                try:
+                    explainer = shap.TreeExplainer(target_model)
+                    shap_vals = explainer.shap_values(X_arr)
+                except Exception:
+                    bg_np = background_data.values if isinstance(background_data, pd.DataFrame) else (background_data if background_data is not None else X_arr)
+                    explainer = shap.KernelExplainer(model_predict_fn, bg_np[:10] if len(bg_np) > 10 else bg_np)
+                    shap_vals = explainer.shap_values(X_arr)
+
+            elif is_torch_model:
                 bg = background_data
                 if bg is None:
                     bg = torch.zeros((10, X_arr.shape[1]), dtype=torch.float32)
@@ -424,7 +443,17 @@ def get_lime_explanation(
     # Predict wrapper function
     is_torch_model = HAS_TORCH and isinstance(model, torch.nn.Module)
 
-    if is_torch_model:
+    if hasattr(model, "predict"):
+        def predict_fn(x_numpy):
+            df_in = pd.DataFrame(x_numpy, columns=feature_names)
+            out = model.predict(df_in)
+            out = np.array(out)
+            if out.ndim == 1:
+                out = out.reshape(-1, 1)
+            elif out.ndim == 2 and out.shape[1] > 1:
+                out = out[:, 0].reshape(-1, 1)
+            return out
+    elif is_torch_model:
         def predict_fn(x_numpy):
             model.eval()
             with torch.no_grad():
@@ -432,14 +461,9 @@ def get_lime_explanation(
                 out = model(tensor_in).detach().cpu().numpy()
                 if out.ndim == 1:
                     out = out.reshape(-1, 1)
+                elif out.ndim == 2 and out.shape[1] > 1:
+                    out = out[:, 0].reshape(-1, 1)
                 return out
-    elif hasattr(model, "predict"):
-        def predict_fn(x_numpy):
-            out = model.predict(x_numpy)
-            out = np.array(out)
-            if out.ndim == 1:
-                out = out.reshape(-1, 1)
-            return out
     else:
         def predict_fn(x_numpy):
             return np.zeros((len(x_numpy), 1))

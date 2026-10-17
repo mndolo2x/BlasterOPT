@@ -160,7 +160,8 @@ Generates realistic Botswana mining datasets incorporating key empirical domain 
 - **Operational Mining Cost Model**: Combined drilling, explosive product, initiation systems, and rock tonnage scaling.
 
 ### Machine Learning Engine (`src/models.py` & `src/predict.py`)
-- **Algorithms**: Multi-output Random Forest, XGBoost Regressor, and Ridge Regression.
+- **Algorithms**: Multi-output Random Forest, XGBoost Regressor, Ridge Regression, and GA-ANN (predicting fragmentation and PPV).
+- **Airblast Note**: The airblast model requires real production data to train properly. Do not use synthetic data for airblast prediction — it produces unreliable results.
 - **Engineered Domain Features**:
   - Spacing-to-Burden Ratio ($S/B$)
   - Stiffness Ratio ($H/B$)
