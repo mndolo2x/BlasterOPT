@@ -24,6 +24,8 @@ class BenchConfig:
     hole_depth_m: float = 12.0
     rows: int = 8
     holes_per_row: int = 6
+    mesh_resolution_m: float = 0.25
+    ai_rock: bool = False
 
 
 @dataclass
@@ -154,3 +156,14 @@ def render_preview(scene: Any, output_path: str) -> str:
         plt.close(fig)
 
     return output_path
+
+
+def main() -> None:
+    """Main entrypoint for standalone test generation."""
+    cfg = BenchConfig()
+    scene, holes, metadata = build_bench_scene(cfg)
+    render_preview(scene, "demo_bench.png")
+
+
+if __name__ == "__main__":
+    main()

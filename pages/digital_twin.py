@@ -43,7 +43,9 @@ with col2:
                     hole_diameter_mm=diameter,
                     hole_depth_m=depth,
                     rows=rows,
-                    holes_per_row=cols
+                    holes_per_row=cols,
+                    mesh_resolution_m=0.25,
+                    ai_rock=False
                 )
 
                 # Build the scene
@@ -68,6 +70,7 @@ with col2:
                     os.remove(preview_path)
 
             except Exception as e:
-                st.error(f"Error generating bench: {e}")
+                st.error(f"An error occurred during 3D generation: {e}")
+                st.exception(e)
     else:
         st.info("Configure the parameters on the left and click 'Generate 3D Bench' to render the model.")
