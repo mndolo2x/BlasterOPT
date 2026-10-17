@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 from src.components.model_selector import render_page_model_selector
@@ -8,6 +9,7 @@ from src.ui.bench_twin import (
     load_holes_from_design,
     load_geology_overlays,
 )
+from src.ui.digital_twin.loader import load_and_inject_scene
 from src.engine.bench_model import BenchConfig, build_bench_scene, render_preview
 
 st.title("3D Digital Twin of Bench")
@@ -44,7 +46,11 @@ with col1:
     show_faults = st.toggle("Show fault planes", value=True)
     vertical_exaggeration = st.slider("Vertical Exaggeration", min_value=1.0, max_value=3.0, value=1.0, step=0.1)
 
-    use_server_pv = st.checkbox("Generate High-Res Server PyVista Rendering", value=False)
+    render_mode = st.radio(
+        "3D View Engine Mode",
+        ["Three.js Interactive Viewer 🎮", "Plotly 3D Surface View 📊", "Server PyVista Render 🖼️"],
+        index=0,
+    )
     generate_btn = st.button("Generate 3D Bench", type="primary", use_container_width=True)
 
 with col2:
@@ -77,7 +83,56 @@ with col2:
             vertical_exaggeration=vertical_exaggeration,
         )
 
-        if use_server_pv or generate_btn:
+        # Prepare scene payload for HTML/Three.js viewer
+        scene_payload = {
+            "bench_length": length,
+            "bench_width": width,
+            "bench_height": height,
+            "holes": [
+                {
+                    "id": h["hole_id"],
+                    "x": h["x"],
+                    "y": h["y"],
+                    "charge": h["charge_kg"],
+                    "ppv_risk": float(np.clip((h["charge_kg"] - 50.0) / 300.0, 0.1, 0.95)),
+                }
+                for h in holes
+            ] if show_holes else [],
+            "faults": [
+                {
+                    "id": ov["name"],
+                    "is_high_risk": True if "JWA_01" in ov["name"] else False,
+                    "start_x": ov["vertices"][0][0],
+                    "start_y": ov["vertices"][0][1],
+                    "end_x": ov["vertices"][1][0],
+                    "end_y": ov["vertices"][1][1],
+                }
+                for ov in overlays
+                if "fault" in ov.get("name", "").lower() or ov.get("type") == "fault"
+            ] if show_faults else [],
+        }
+
+        if render_mode == "Three.js Interactive Viewer 🎮":
+            html_content = load_and_inject_scene(scene_payload)
+            if html_content:
+                components.html(html_content, height=720, scrolling=False)
+            else:
+                st.warning("Scene template not found. Falling back to Plotly 3D view.")
+                fig = make_bench_figure(
+                    holes=holes if show_holes else [],
+                    overlays=overlays,
+                    show_holes=show_holes,
+                    show_geology=show_geology,
+                    show_faults=show_faults,
+                    bench_length=length,
+                    bench_width=width,
+                    bench_height=height,
+                    vertical_exaggeration=vertical_exaggeration,
+                    title=f"3D Bench Twin ({rock})",
+                )
+                st.plotly_chart(fig, use_container_width=True, config={"renderer": "svg"})
+
+        elif render_mode == "Server PyVista Render 🖼️" or generate_btn:
             with st.spinner("Generating 3D mesh and rendering preview..."):
                 cfg = BenchConfig(
                     bench_length_m=length,
@@ -99,21 +154,21 @@ with col2:
                 st.image(preview_path, use_column_width=True, caption="Parametric 3D Bench (Server Rendered PyVista)")
                 if os.path.exists(preview_path):
                     os.remove(preview_path)
-
-        # Always render the interactive 3D Mining Digital Twin
-        fig = make_bench_figure(
-            holes=holes if show_holes else [],
-            overlays=overlays,
-            show_holes=show_holes,
-            show_geology=show_geology,
-            show_faults=show_faults,
-            bench_length=length,
-            bench_width=width,
-            bench_height=height,
-            vertical_exaggeration=vertical_exaggeration,
-            title=f"3D Bench Twin ({rock})",
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"renderer": "svg"})
+        else:
+            # Plotly 3D Surface View Mode
+            fig = make_bench_figure(
+                holes=holes if show_holes else [],
+                overlays=overlays,
+                show_holes=show_holes,
+                show_geology=show_geology,
+                show_faults=show_faults,
+                bench_length=length,
+                bench_width=width,
+                bench_height=height,
+                vertical_exaggeration=vertical_exaggeration,
+                title=f"3D Bench Twin ({rock})",
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"renderer": "svg"})
 
         # Metrics Panel
         st.divider()
@@ -152,7 +207,15 @@ with col2:
 
         with col_act2:
             try:
-                img_bytes = fig.to_image(format="png")
+                fig_exp = make_bench_figure(
+                    holes=holes if show_holes else [],
+                    overlays=overlays,
+                    bench_length=length,
+                    bench_width=width,
+                    bench_height=height,
+                    vertical_exaggeration=vertical_exaggeration,
+                )
+                img_bytes = fig_exp.to_image(format="png")
                 st.download_button(
                     label="Download PNG Image",
                     data=img_bytes,
@@ -165,7 +228,15 @@ with col2:
 
         with col_act3:
             try:
-                html_bytes = fig.to_html().encode("utf-8")
+                fig_exp = make_bench_figure(
+                    holes=holes if show_holes else [],
+                    overlays=overlays,
+                    bench_length=length,
+                    bench_width=width,
+                    bench_height=height,
+                    vertical_exaggeration=vertical_exaggeration,
+                )
+                html_bytes = fig_exp.to_html().encode("utf-8")
                 st.download_button(
                     label="Download Standalone HTML",
                     data=html_bytes,
