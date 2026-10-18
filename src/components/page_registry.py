@@ -68,6 +68,11 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "required_outputs": [],
         "description": "3D what-if scenario analysis",
     },
+    "underground": {
+        "display_name": "Underground Intelligence ⛏️",
+        "required_outputs": [],
+        "description": "Research prototype suite for underground hard-rock stoping operations",
+    },
     "conversational_agent": {
         "display_name": "Conversational Agent",
         "required_outputs": [],  # accepts any model

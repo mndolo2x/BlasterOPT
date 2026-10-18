@@ -355,6 +355,7 @@ page = st.sidebar.radio(
         get_translation("nav_recommender", lang_code),
         get_translation("nav_mwd", lang_code),
         get_translation("nav_digital_twin", lang_code),
+        "Underground Intelligence ⛏️",
         get_translation("nav_connectivity", lang_code),
         get_translation("nav_detonator", lang_code),
         get_translation("nav_sync", lang_code),
@@ -401,6 +402,7 @@ page_keys = {
     get_translation("nav_mwd", "tn"): "mwd",
     get_translation("nav_digital_twin", "en"): "digital_twin",
     get_translation("nav_digital_twin", "tn"): "digital_twin",
+    "Underground Intelligence ⛏️": "underground",
     get_translation("nav_connectivity", "en"): "connectivity",
     get_translation("nav_connectivity", "tn"): "connectivity",
     get_translation("nav_detonator", "en"): "detonator",
@@ -1325,6 +1327,16 @@ elif active_module == "digital_twin":
         exec(open(os.path.join(repo_root, "pages/digital_twin.py")).read())
     except Exception as exc:
         st.error("Error loading Digital Twin of Bench module:")
+        st.exception(exc)
+
+
+# --- MODULE: UNDERGROUND MINING INTELLIGENCE ---
+elif active_module == "underground":
+    try:
+        from pages.underground import render_underground_page
+        render_underground_page()
+    except Exception as exc:
+        st.error("Error loading Underground Intelligence module:")
         st.exception(exc)
 
 
