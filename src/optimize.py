@@ -29,16 +29,24 @@ class BlastOptimizer:
     def __init__(
         self,
         fixed_parameters: Dict[str, float],
-        max_ppv_limit_mms: float = 5.0,
-        max_flyrock_limit_m: float = 100.0,
+        max_ppv_limit_mms: Optional[float] = None,
+        max_flyrock_limit_m: Optional[float] = None,
         target_d50_range_mm: Tuple[float, float] = (100.0, 300.0),
         ml_pipeline: Optional[BlastMLPipeline] = None,
         penalty_weight: float = 1000.0,
         model: Optional[Any] = None,
     ):
+        try:
+            from src.services.config_service import get_limit
+            default_ppv = get_limit("max_ppv_mm_s") if max_ppv_limit_mms is None else max_ppv_limit_mms
+            default_flyrock = get_limit("max_flyrock_distance_m") if max_flyrock_limit_m is None else max_flyrock_limit_m
+        except Exception:
+            default_ppv = max_ppv_limit_mms if max_ppv_limit_mms is not None else 5.0
+            default_flyrock = max_flyrock_limit_m if max_flyrock_limit_m is not None else 50.0
+
         self.fixed_params = fixed_parameters
-        self.max_ppv = max_ppv_limit_mms
-        self.max_flyrock = max_flyrock_limit_m
+        self.max_ppv = default_ppv
+        self.max_flyrock = default_flyrock
         self.target_d50_min, self.target_d50_max = target_d50_range_mm
         self.ml_pipeline = ml_pipeline
         self.model = model if model is not None else ml_pipeline
@@ -250,6 +258,21 @@ class BlastOptimizer:
 
         best_design = top_designs[0]
         best_safety = best_design["outputs"].get("safety_report", {})
+
+        # Task 5 Audit Logging
+        try:
+            from src.services.config_service import load_site_config
+            from src.services.guardrail_audit_service import log_guardrail_audit_event
+            cfg = load_site_config(site_id="jwaneng")
+            log_guardrail_audit_event(
+                site_id=cfg.get("site_id", "jwaneng"),
+                config_version=cfg.get("config_version", "1.0.0"),
+                baseline_design_id=self.fixed_params.get("design_id", "BASELINE_001"),
+                candidate_design_id=best_design["parameters"].get("design_id", "OPTIMIZED_001"),
+                action="RUN_OPTIMIZATION",
+            )
+        except Exception as err:
+            logger.warning(f"Error logging optimization guardrail audit event: {err}")
 
         return {
             "success": bool(result.success),

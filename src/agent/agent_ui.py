@@ -138,6 +138,16 @@ def render_agent_chat(user_role: str = "engineer", bench_id: str = "BENCH_JWA_15
             else:
                 response_text = f"Received your query: '{user_input}'. [Agent running in standalone mode]."
 
+            try:
+                from src.services.config_service import load_site_config
+                cfg = load_site_config()
+                if not cfg.get("is_verified", False):
+                    warning_msg = cfg.get("unverified_warning", "⚠️ WARNING: This design was evaluated against unverified example limits. Do not use for operational decisions.")
+                    if warning_msg not in response_text:
+                        response_text = f"{response_text}\n\n{warning_msg}"
+            except Exception:
+                pass
+
             st.session_state["chat_messages"].append({"role": "assistant", "content": response_text})
             st.rerun()
 

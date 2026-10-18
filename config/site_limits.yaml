@@ -1,0 +1,30 @@
+site_id: "jwaneng"
+config_version: "1.0.0"
+status: "draft"
+
+metadata:
+  description: "Site-specific blast constraint configuration"
+  effective_date: null
+  reviewed_by: null
+  source_documents: []
+
+limits:
+  max_ppv_mm_s:
+    value: 5.0
+    unit: "mm/s"
+    status: "unverified_example"
+    source: null
+
+  max_airblast:
+    value: 120.0
+    unit: "dB"
+    measurement: "linear_peak"
+    status: "unverified_example"
+    source: null
+
+  max_flyrock_distance_m:
+    value: 50.0
+    unit: "m"
+    reference: "blast perimeter"
+    status: "unverified_example"
+    source: null

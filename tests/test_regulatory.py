@@ -21,7 +21,7 @@ def test_load_regulatory_limits_returns_dict():
 def test_check_compliance_compliant_design():
     """Test check_compliance returns True and empty violations for safe design."""
     params = {"stemming_m": 5.0, "powder_factor_kg_m3": 0.65}
-    preds = {"ppv_mms": 4.2, "airblast_dbl": 112.0, "flyrock_m": 110.0}
+    preds = {"ppv_mms": 4.2, "airblast_dbl": 112.0, "flyrock_m": 40.0}
 
     res = check_compliance(params, preds)
 

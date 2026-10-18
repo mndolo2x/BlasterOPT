@@ -333,28 +333,15 @@ def run_nsga2(
 ) -> pd.DataFrame:
     """
     Executes NSGA-II multi-objective genetic algorithm optimization to discover the non-dominated Pareto frontier.
-
-    Parameters:
-    -----------
-    model : Any, optional
-        ML model pipeline or PINN model.
-    n_gen : int, default=200
-        Number of genetic generations.
-    pop_size : int, default=100
-        Population size per generation.
-    constraints_info : Dict[str, float], optional
-        Constraints dictionary (max_ppv, max_airblast). Default PPV < 5 mm/s, Airblast < 120 dB.
-    seed : int, default=42
-        Random seed for reproducibility.
-
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame of Pareto-optimal design configurations and calculated 5-objective outcomes.
     """
     if constraints_info is None:
-        max_ppv = 5.0
-        max_air = 120.0
+        try:
+            from src.services.config_service import get_limit
+            max_ppv = get_limit("max_ppv_mm_s")
+            max_air = get_limit("max_airblast")
+        except Exception:
+            max_ppv = 5.0
+            max_air = 120.0
     else:
         max_ppv = float(constraints_info.get("max_ppv", constraints_info.get("max_ppv_mms", 5.0)))
         max_air = float(constraints_info.get("max_airblast", constraints_info.get("max_airblast_dbl", 120.0)))
