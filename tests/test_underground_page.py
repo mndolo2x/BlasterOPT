@@ -31,12 +31,14 @@ def test_dilution_elos_calculation():
     hr_val = 6.5
     n_prime = 15.0
     bd = 1.0
+    stope_width = 3.0
 
     elos_calc = max(0.05, (hr_val * 0.22) - (n_prime * 0.012) + (bd * 0.35))
-    dilution_pct = min(100.0, (elos_calc / 3.0) * 100.0)
+    dilution_pct = min(100.0, (elos_calc / stope_width) * 100.0)
 
     assert elos_calc > 0.0
     assert 0.0 <= dilution_pct <= 100.0
+    assert abs(dilution_pct - ((elos_calc / stope_width) * 100.0)) < 1e-5
 
 def test_underground_vibration_ppv():
     charge = 45.0

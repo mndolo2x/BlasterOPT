@@ -126,12 +126,13 @@ def render_underground_page():
             hr_val = st.number_input("Hydraulic Radius HR (m)", 2.0, 20.0, 6.5, step=0.5, help="Stope wall surface area divided by perimeter.")
             n_prime = st.number_input("Modified Stability Number (N')", 0.1, 100.0, 15.0, step=1.0, help="N' = Q' * A * B * C")
             blast_damage_factor = st.slider("Blast Damage Factor (BD)", 0.5, 2.0, 1.0, step=0.1, help="1.0 = standard smooth blasting, >1.2 = heavy unconfined blasting.")
+            stope_width = st.number_input("Stope Width (m)", 0.5, 30.0, 3.0, step=0.5, help="Designed stope extraction width.")
             pf_dil = st.number_input("Stope Powder Factor (kg/m³)", 0.20, 2.50, 0.90, step=0.05, key="pf_dil_input")
 
             if st.button("Estimate Stope Dilution (ELOS) 🚀", type="primary"):
-                # Deterministic ELOS equation: ELOS = (HR * 0.25) - (N_prime * 0.015) + (BD * 0.4)
+                # Deterministic ELOS equation: ELOS = (HR * 0.22) - (N_prime * 0.012) + (BD * 0.35)
                 elos_calc = max(0.05, (hr_val * 0.22) - (n_prime * 0.012) + (blast_damage_factor * 0.35))
-                dilution_pct = min(100.0, (elos_calc / 3.0) * 100.0)
+                dilution_pct = min(100.0, (elos_calc / stope_width) * 100.0)
 
                 st.session_state["dil_results"] = {
                     "elos_m": elos_calc,
@@ -139,6 +140,7 @@ def render_underground_page():
                     "hr": hr_val,
                     "n_prime": n_prime,
                     "bd": blast_damage_factor,
+                    "stope_width": stope_width,
                     "pf": pf_dil,
                 }
 
@@ -150,6 +152,7 @@ def render_underground_page():
                 m_d1, m_d2 = st.columns(2)
                 m_d1.metric("Equivalent Linear Overbreak (ELOS)", f"{res_dil['elos_m']:.2f} m")
                 m_d2.metric("Volumetric Dilution %", f"{res_dil['dilution_pct']:.1f}%")
+                st.caption("Powder Factor is collected for context but is not used by this specific ELOS heuristic.")
 
                 if res_dil["pf"] > 1.20:
                     st.warning("⚠️ **HIGH POWDER FACTOR WARNING:** Powder factor > 1.20 kg/m³ increases wall blast damage and hangingwall sloughing risk.")
