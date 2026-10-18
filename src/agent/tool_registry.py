@@ -75,6 +75,9 @@ class BlastDesign(BaseModel):
     burden_m: float = Field(..., description="Burden distance in meters")
     spacing_m: float = Field(..., description="Spacing distance in meters")
     stemming_m: float = Field(..., description="Stemming length in meters")
+    charge_per_hole_kg: Optional[float] = Field(320.0, description="Charge weight per hole in kg")
+    total_holes: Optional[int] = Field(48, description="Total number of holes in pattern")
+    predicted_p80: Optional[float] = Field(352.0, description="Predicted P80 fragmentation in mm")
     timing_sequence: List[Dict[str, Any]] = Field(default_factory=list, description="Electronic initiation delays")
     predicted_fragmentation: FragmentationResult
     predicted_vibration: VibrationResult
@@ -332,11 +335,14 @@ def _design_blast_handler(
     return BlastDesign(
         design_id=f"DESIGN_{bench_id}_001",
         bench_id=bench_id,
-        holes=[{"hole_id": "H1", "depth_m": 15.0}],
+        holes=[{"hole_id": f"H{i+1}", "depth_m": 15.0} for i in range(48)],
         powder_factor=0.65,
         burden_m=6.0,
         spacing_m=7.0,
         stemming_m=5.0,
+        charge_per_hole_kg=320.0,
+        total_holes=48,
+        predicted_p80=352.0,
         timing_sequence=[{"delay_ms": 17}],
         predicted_fragmentation=frag,
         predicted_vibration=vib,
@@ -449,6 +455,9 @@ def _generate_report_handler(
     burden_m: float = 6.0,
     spacing_m: float = 7.0,
     stemming_m: float = 5.0,
+    charge_per_hole_kg: Optional[float] = 320.0,
+    total_holes: Optional[int] = 48,
+    predicted_p80: Optional[float] = 352.0,
     timing_sequence: List[Dict[str, Any]] = [],
     predicted_fragmentation: Dict[str, Any] = {},
     predicted_vibration: Dict[str, Any] = {},
@@ -471,6 +480,9 @@ def _route_for_approval_handler(
     burden_m: float = 6.0,
     spacing_m: float = 7.0,
     stemming_m: float = 5.0,
+    charge_per_hole_kg: Optional[float] = 320.0,
+    total_holes: Optional[int] = 48,
+    predicted_p80: Optional[float] = 352.0,
     timing_sequence: List[Dict[str, Any]] = [],
     predicted_fragmentation: Dict[str, Any] = {},
     predicted_vibration: Dict[str, Any] = {},
