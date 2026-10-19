@@ -348,130 +348,89 @@ with st.sidebar:
             },
         }
 
-        # 1. CORE DASHBOARD & OPTIMIZATION
-        st.caption("CORE & OPTIMIZATION")
-        sel_core = option_menu(
+        selected_page = option_menu(
             menu_title=None,
-            options=["Dashboard", "GA Optimizer", "Pareto Optimizer", "Economic Dashboard"],
-            icons=["grid-1x2", "lightning", "diagram-3", "currency-dollar"],
-            default_index=0 if st.session_state.get("nav_group") == "core" or "nav_group" not in st.session_state else -1,
-            key="menu_core",
+            options=[
+                "Dashboard & Data Explorer",
+                "Digital Twin of Bench",
+                "Underground Intelligence",
+                "3D Blast Design",
+                "2D Blast Pattern & Delays",
+                "Predictor & Kuz-Ram Curve",
+                "Genetic Algorithm Optimizer",
+                "Multi-Objective Pareto Optimizer",
+                "Economic Dashboard",
+                "Advanced Fragmentation",
+                "PINN Prediction & Uncertainty",
+                "ML Model Manager",
+                "Model Comparison",
+                "Data Ingestion & Generator",
+                "MWD Rock Classification (GeoResponse)",
+                "Geology & Geomechanics",
+                "Uncertainty Quantification",
+                "Similar Blasts Recommender",
+                "Real-Time MWD Monitoring",
+                "Drill Connectivity",
+                "Electronic Detonator Integration",
+                "Regulatory Compliance",
+                "Safety & Environmental",
+                "Conversational Agent",
+                "Model Cards & Audit",
+                "Guardrail Log",
+                "Agent Audit Log",
+                "Sync Status & Write-Ahead Log",
+                "Debswana Integrations",
+                "Ollama System Health",
+                "Visualize",
+            ],
+            icons=[
+                "grid-1x2", "box", "hammer", "badge-3d", "layout-three-columns",
+                "graph-up", "lightning", "diagram-3", "currency-dollar",
+                "bar-chart", "shield-check", "cpu", "layers", "database", "gear", "globe", "diagram-2",
+                "search", "activity", "plug", "lightning-charge", "clipboard-check", "shield", "chat-dots",
+                "file-earmark-text", "lock", "journal-text", "arrow-repeat", "link-45deg", "robot", "graph-up-arrow"
+            ],
+            default_index=0,
             styles=menu_styles,
         )
 
-        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
-
-        # 2. 3D & SPATIAL MODELING
-        st.caption("3D & SPATIAL MODELING")
-        sel_spatial = option_menu(
-            menu_title=None,
-            options=["Digital Twin", "Underground Intel", "3D Blast Design", "2D Pattern"],
-            icons=["box", "hammer", "badge-3d", "layout-three-columns"],
-            default_index=0 if st.session_state.get("nav_group") == "spatial" else -1,
-            key="menu_spatial",
-            styles=menu_styles,
-        )
-
-        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
-
-        # 3. PREDICTIVE AI & ML
-        st.caption("PREDICTIVE AI & ML")
-        sel_ml = option_menu(
-            menu_title=None,
-            options=["Predictor", "Fragmentation", "PINN Uncertainty", "ML Manager", "Model Comparison", "Data Ingestion", "GeoResponse MWD", "Geology", "Ensemble UQ"],
-            icons=["graph-up", "bar-chart", "shield-check", "cpu", "layers", "database", "gear", "globe", "diagram-2"],
-            default_index=0 if st.session_state.get("nav_group") == "ml" else -1,
-            key="menu_ml",
-            styles=menu_styles,
-        )
-
-        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
-
-        # 4. FIELD OPERATIONS & CONNECTIVITY
-        st.caption("FIELD OPS & CONNECTIVITY")
-        sel_ops = option_menu(
-            menu_title=None,
-            options=["Similar Blasts", "MWD Monitoring", "Drill Connectivity", "Detonator Integration", "Regulatory Compliance", "Safety & Environmental", "Conversational Agent"],
-            icons=["search", "activity", "plug", "lightning-charge", "clipboard-check", "shield", "chat-dots"],
-            default_index=0 if st.session_state.get("nav_group") == "ops" else -1,
-            key="menu_ops",
-            styles=menu_styles,
-        )
-
-        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
-
-        # 5. GOVERNANCE, AUDIT & SYSTEM
-        st.caption("GOVERNANCE & SYSTEM")
-        sel_system = option_menu(
-            menu_title=None,
-            options=["Model Cards", "Guardrail Log", "Agent Audit Log", "Offline WAL Sync", "Debswana Integrations", "Ollama System Health", "Visualize Curves"],
-            icons=["file-earmark-text", "lock", "journal-text", "arrow-repeat", "link-45deg", "robot", "graph-up-arrow"],
-            default_index=0 if st.session_state.get("nav_group") == "system" else -1,
-            key="menu_system",
-            styles=menu_styles,
-        )
-
-        # Unified option mapping to active_module keys
-        option_module_map = {
-            "Dashboard": "dashboard",
-            "GA Optimizer": "optimizer",
-            "Pareto Optimizer": "pareto",
-            "Economic Dashboard": "economic",
-            "Digital Twin": "digital_twin",
-            "Underground Intel": "underground",
+        PAGE_MAP = {
+            "Dashboard & Data Explorer": "dashboard",
+            "Digital Twin of Bench": "digital_twin",
+            "Underground Intelligence": "underground",
             "3D Blast Design": "blast_3d_design",
-            "2D Pattern": "pattern",
-            "Predictor": "predictor",
-            "Fragmentation": "fragmentation",
-            "PINN Uncertainty": "pinn",
-            "ML Manager": "ml_manager",
+            "2D Blast Pattern & Delays": "pattern",
+            "Predictor & Kuz-Ram Curve": "predictor",
+            "Genetic Algorithm Optimizer": "optimizer",
+            "Multi-Objective Pareto Optimizer": "pareto",
+            "Economic Dashboard": "economic",
+            "Advanced Fragmentation": "fragmentation",
+            "PINN Prediction & Uncertainty": "pinn",
+            "ML Model Manager": "ml_manager",
             "Model Comparison": "comparison",
-            "Data Ingestion": "ingestion",
-            "GeoResponse MWD": "georesponse",
-            "Geology": "geology",
-            "Ensemble UQ": "ensemble_uq",
-            "Similar Blasts": "recommender",
-            "MWD Monitoring": "mwd",
+            "Data Ingestion & Generator": "ingestion",
+            "MWD Rock Classification (GeoResponse)": "georesponse",
+            "Geology & Geomechanics": "geology",
+            "Uncertainty Quantification": "ensemble_uq",
+            "Similar Blasts Recommender": "recommender",
+            "Real-Time MWD Monitoring": "mwd",
             "Drill Connectivity": "connectivity",
-            "Detonator Integration": "detonator",
+            "Electronic Detonator Integration": "detonator",
             "Regulatory Compliance": "regulatory",
             "Safety & Environmental": "safety",
             "Conversational Agent": "agent",
-            "Model Cards": "model_cards",
+            "Model Cards & Audit": "model_cards",
             "Guardrail Log": "guardrail_log",
             "Agent Audit Log": "audit_log",
-            "Offline WAL Sync": "sync",
+            "Sync Status & Write-Ahead Log": "sync",
             "Debswana Integrations": "integrations",
             "Ollama System Health": "system_health",
-            "Visualize Curves": "visualize",
+            "Visualize": "visualize",
         }
 
-        # Determine active selection based on last clicked menu
-        active_module = "dashboard"
-        for label, mod_key in option_module_map.items():
-            if sel_core == label:
-                active_module = mod_key
-                st.session_state["nav_group"] = "core"
-                break
-            elif sel_spatial == label:
-                active_module = mod_key
-                st.session_state["nav_group"] = "spatial"
-                break
-            elif sel_ml == label:
-                active_module = mod_key
-                st.session_state["nav_group"] = "ml"
-                break
-            elif sel_ops == label:
-                active_module = mod_key
-                st.session_state["nav_group"] = "ops"
-                break
-            elif sel_system == label:
-                active_module = mod_key
-                st.session_state["nav_group"] = "system"
-                break
+        active_module = PAGE_MAP.get(selected_page, "dashboard")
     else:
-        # Fallback radio navigation if option_menu is not available
-        page = st.sidebar.radio("Select Module", ["Dashboard", "GA Optimizer", "Pareto Optimizer", "Economic Dashboard", "Digital Twin", "Underground Intel"])
+        page = st.sidebar.radio("Select Module", ["Dashboard & Data Explorer", "Digital Twin of Bench", "Underground Intelligence"])
         active_module = "dashboard"
 
     st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
