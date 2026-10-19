@@ -278,6 +278,8 @@ def guided_design_node(state: AgentState) -> Dict[str, Any]:
     p80_val = design_dict.get("predicted_p80", design_dict["predicted_fragmentation"]["d80_cm"] * 10.0)
     charge_per_hole = design_dict.get("charge_per_hole_kg", 320.0)
     total_holes = design_dict.get("total_holes", 48)
+    airblast_val = design_dict['predicted_airblast'].get('airblast_db')
+    airblast_str = f"{airblast_val:.1f} dB" if isinstance(airblast_val, (int, float)) else "N/A (Requires Real Mine Data)"
 
     summary = (
         f"I've generated a blast design for **{bench_id}**:\n"
@@ -289,7 +291,7 @@ def guided_design_node(state: AgentState) -> Dict[str, Any]:
         f"• **Total Holes:** {total_holes}\n"
         f"• **Predicted P80:** {p80_val:.1f} mm\n"
         f"• **Predicted PPV:** {design_dict['predicted_vibration']['ppv_mm_s']:.2f} mm/s\n"
-        f"• **Predicted Airblast:** {design_dict['predicted_airblast']['airblast_db']:.1f} dB\n"
+        f"• **Predicted Airblast:** {airblast_str}\n"
         f"• **Estimated Cost:** ${design_dict['predicted_downstream']['total_cost_per_tonne']:.2f} per tonne"
     )
 
@@ -314,6 +316,8 @@ def expert_design_node(state: AgentState) -> Dict[str, Any]:
     p80_val = design_dict.get("predicted_p80", design_dict["predicted_fragmentation"]["d80_cm"] * 10.0)
     charge_per_hole = design_dict.get("charge_per_hole_kg", 320.0)
     total_holes = design_dict.get("total_holes", 48)
+    airblast_val = design_dict['predicted_airblast'].get('airblast_db')
+    airblast_str = f"{airblast_val:.1f} dB" if isinstance(airblast_val, (int, float)) else "N/A (Requires Real Mine Data)"
 
     summary = (
         f"I've generated a blast design for **{bench_id}**:\n"
@@ -325,7 +329,7 @@ def expert_design_node(state: AgentState) -> Dict[str, Any]:
         f"• **Total Holes:** {total_holes}\n"
         f"• **Predicted P80:** {p80_val:.1f} mm\n"
         f"• **Predicted PPV:** {design_dict['predicted_vibration']['ppv_mm_s']:.2f} mm/s\n"
-        f"• **Predicted Airblast:** {design_dict['predicted_airblast']['airblast_db']:.1f} dB\n"
+        f"• **Predicted Airblast:** {airblast_str}\n"
         f"• **Estimated Cost:** ${design_dict['predicted_downstream']['total_cost_per_tonne']:.2f} per tonne"
     )
 

@@ -55,7 +55,7 @@ class VibrationResult(BaseModel):
 
 
 class AirblastResult(BaseModel):
-    airblast_db: float = Field(..., description="Predicted airblast noise overpressure in dB")
+    airblast_db: Optional[float] = Field(None, description="Predicted airblast noise overpressure in dB")
     confidence_interval: Optional[Tuple[float, float]] = Field(None, description="95% confidence interval for airblast")
     distance_m: float = Field(450.0, description="Monitoring distance in meters")
 

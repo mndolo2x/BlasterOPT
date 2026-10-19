@@ -1815,15 +1815,27 @@ elif active_module == "integrations":
 
 # --- MODULE: PINN PREDICTION & UNCERTAINTY ---
 elif active_module == "pinn":
-    st.header("🧠 Physics-Informed Neural Network (PINN) & Uncertainty Quantification")
-    selected_model, _ = render_page_model_selector("pinn")
-    st.markdown(
-        "Model 2 (Physics-Informed Neural Network) embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations "
-        "as soft loss terms ($L_{\\text{total}} = L_{\\text{data}} + \\lambda_1 L_{\\text{kuzram}} + \\lambda_2 L_{\\text{usbm}}$). "
-        "Monte Carlo Dropout estimates epistemic uncertainty and alerts blasters to Out-Of-Distribution (OOD) risks."
-    )
+    st.markdown("""
+    <style>
+        /* Force sliders to Gold */
+        .stSlider [data-baseweb="slider"] div[role="slider"] {
+            background-color: #F2A900 !important;
+        }
+        .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+            background-color: transparent !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    c_pinn1, c_pinn2 = st.columns([1, 2])
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Physics-Informed Neural Network (PINN) & Uncertainty Quantification</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations as soft loss terms with Monte Carlo Dropout uncertainty estimation.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
+
+    selected_model, _ = render_page_model_selector("pinn")
+
+    c_pinn1, c_pinn2 = st.columns([1, 1.5])
 
     with c_pinn1:
         st.subheader("⚙️ PINN 12 Input Parameters")
@@ -1880,13 +1892,24 @@ elif active_module == "pinn":
         st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
 
         if is_high_unc:
-            st.error("⚠️ **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
-            st.warning("💡 **RECOMMENDATION:** High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.")
+            st.markdown("""
+            <div style="background: rgba(231, 76, 60, 0.1); border-left: 4px solid #e74c3c; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <strong style="color: #ffffff;">⚠️ HIGH UNCERTAINTY / OOD WARNING</strong><br>
+                <span style="color: #94a3b8;">Input features are Out-Of-Distribution (OOD) relative to training pit data.</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div style="background: rgba(242, 169, 0, 0.1); border-left: 4px solid #F2A900; padding: 16px; border-radius: 8px;">
+                <strong style="color: #ffffff;">💡 RECOMMENDATION</strong><br>
+                <span style="color: #94a3b8;">High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.</span>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
 
         st.markdown("---")
-        st.subheader("🔍 DeepSHAP Feature Contribution Explanation for PINN")
+        st.subheader("🔍 DeepSHAP Feature Contribution Explanation")
 
         pinn_df_input = pd.DataFrame([pinn_feature_vec], columns=PINN_INPUT_COLS)
         pinn_shap = get_shap_explanation(
@@ -1895,18 +1918,36 @@ elif active_module == "pinn":
             feature_names=PINN_INPUT_COLS,
         )
 
-        waterfall_fig = pinn_shap.get("waterfall_plot")
-        if waterfall_fig is not None:
-            st.plotly_chart(waterfall_fig, use_container_width=True)
+        try:
+            import shap
+            import matplotlib.pyplot as plt
 
-        force_fig = pinn_shap.get("force_plot")
-        if force_fig is not None:
-            st.plotly_chart(force_fig, use_container_width=True)
+            shap_obj = pinn_shap.get("shap_values")
+            if shap_obj is not None:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                shap.plots.waterfall(shap_obj[0], max_display=10, show=False)
+
+                fig.patch.set_facecolor('#08101E')
+                ax.set_facecolor('#08101E')
+                ax.tick_params(colors='white')
+                ax.xaxis.label.set_color('white')
+                ax.yaxis.label.set_color('white')
+
+                st.pyplot(fig)
+                plt.close(fig)
+            else:
+                waterfall_fig = pinn_shap.get("waterfall_plot")
+                if waterfall_fig is not None:
+                    st.plotly_chart(waterfall_fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not render SHAP explanation: {e}")
 
         st.markdown("---")
         st.subheader("📐 Physics Soft Loss Terms Embedding")
-        st.info("**Kuz-Ram Soft Penalty ($L_{\\text{kuzram}}$):** Penalizes predictions deviating from $X_{50} = A \\cdot K^{-0.8} \\cdot Q^{1/6} \\cdot (115/E)^{19/30}$.")
-        st.info("**USBM PPV Soft Penalty ($L_{\\text{usbm}}$):** Penalizes predictions deviating from $PPV = 1140 \\cdot (D / \\sqrt{W})^{-1.6}$.")
+        st.write(r"**Kuz-Ram Soft Penalty ($L_{kuzram}$):** Penalizes predictions deviating from:")
+        st.latex(r"X_{50} = A \cdot K^{-0.8} \cdot Q^{1/6} \cdot \left(\frac{115}{E}\right)^{19/30}")
+        st.write(r"**USBM PPV Soft Penalty ($L_{usbm}$):** Penalizes predictions deviating from:")
+        st.latex(r"PPV = 1140 \cdot \left(\frac{D}{\sqrt{W}}\right)^{-1.6}")
 
 
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
