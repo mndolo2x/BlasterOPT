@@ -260,189 +260,245 @@ if "last_predict_results" not in st.session_state:
     )
 
 
+# Custom Dark Theme Styling for Enterprise SaaS Look
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #08101E; /* Dark Navy */
+            border-right: 1px solid #002B5B;
+        }
+        [data-testid="stSidebar"] hr {
+            border-top: 1px solid #002B5B;
+        }
+        [data-testid="stSidebar"] .st-emotion-cache-1wivap2 {
+            color: #94a3b8; /* Muted text for group titles */
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Title and Header Banner
 st.title("🇧🇼 BlastOpt Botswana")
 st.markdown(
     "**AI-Driven Drilling & Blasting Design, Fragmentation Modeling & Genetic Algorithm Optimizer**"
 )
 
-# Language Selector Sidebar
-st.sidebar.image("https://img.icons8.com/color/96/diamond.png", width=64)
-selected_lang_label = st.sidebar.selectbox(
-    "🌐 Language / Puo",
-    ["English 🇬🇧", "Setswana 🇧🇼"],
-    index=0,
-)
-lang_code = "tn" if "Setswana" in selected_lang_label else "en"
+# Sidebar Header & Brand Styling
+try:
+    from streamlit_option_menu import option_menu
+    HAS_OPTION_MENU = True
+except ImportError:
+    HAS_OPTION_MENU = False
 
-# Voice Mode Toggle Sidebar
-st.sidebar.markdown("---")
-voice_mode_active = st.sidebar.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+with st.sidebar:
+    st.image("https://img.icons8.com/color/96/diamond.png", width=48)
+    st.markdown("### **BlastOPT**")
+    st.caption("AI Blast Optimization Platform")
 
-if voice_mode_active:
-    st.sidebar.subheader("🎙️ Voice Agent Assistant")
-    voice_audio_input = st.sidebar.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
-
-    if voice_audio_input is not None:
-        audio_bytes = voice_audio_input.read()
-        st.sidebar.audio(audio_bytes, format="audio/wav")
-
-        if st.sidebar.button("Process Voice Command 🚀", type="primary"):
-            with st.spinner("Processing speech-to-text and agent reasoning..."):
-                voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
-
-                st.sidebar.success(f"**Recognized ({voice_res['language'].upper()}):** {voice_res['transcription']}")
-                st.sidebar.info(f"**Agent Response:** {voice_res['text']}")
-
-                # Play synthesized speech response
-                st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
-
-# Sidebar System Status Indicator
-st.sidebar.markdown("---")
-st.sidebar.markdown("### System Status")
-
-if st.session_state.get("data_ready", False):
-    sys_df = st.session_state["df"]
-    sys_fp = st.session_state.get("data_fingerprint", dataframe_fingerprint(sys_df))
-    st.sidebar.success(
-        f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols  \n"
-        f"Fingerprint: `{sys_fp}`"
+    selected_lang_label = st.selectbox(
+        "🌐 Language / Puo",
+        ["English 🇬🇧", "Setswana 🇧🇼"],
+        index=0,
     )
-else:
-    st.sidebar.warning("📊 No data loaded")
+    lang_code = "tn" if "Setswana" in selected_lang_label else "en"
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Trained Models")
-trained = st.session_state.get("trained_models", {})
-if trained:
-    for key in trained.keys():
-        disp = MODEL_REGISTRY.get(key, {}).get("display_name", key)
-        st.sidebar.caption(f"✅ {disp}")
-else:
-    st.sidebar.caption("⚠️ None trained yet")
+    # Voice Mode Toggle
+    voice_mode_active = st.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+    if voice_mode_active:
+        st.subheader("🎙️ Voice Agent Assistant")
+        voice_audio_input = st.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
+        if voice_audio_input is not None:
+            audio_bytes = voice_audio_input.read()
+            st.audio(audio_bytes, format="audio/wav")
+            if st.button("Process Voice Command 🚀", type="primary"):
+                with st.spinner("Processing speech-to-text and agent reasoning..."):
+                    voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
+                    st.success(f"**Recognized ({voice_res['language'].upper()}):** {voice_res['transcription']}")
+                    st.info(f"**Agent Response:** {voice_res['text']}")
+                    st.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
-st.sidebar.markdown("---")
-if llm_client.is_available():
-    st.sidebar.success("LLM: Fine-tuned Pula-8B loaded")
-else:
-    st.sidebar.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+    st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
 
-if "sidebar_ollama_status" not in st.session_state:
-    st.session_state["sidebar_ollama_status"] = full_health_check()
+    if HAS_OPTION_MENU:
+        menu_styles = {
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"color": "#F2A900", "font-size": "15px"},
+            "nav-link": {
+                "font-size": "13px",
+                "text-align": "left",
+                "margin": "1px",
+                "color": "#FFFFFF",
+                "--hover-color": "#002B5B",
+            },
+            "nav-link-selected": {
+                "background-color": "#002B5B",
+                "color": "#F2A900",
+                "font-weight": "bold",
+            },
+        }
 
-ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
-ollama_icons = {
-    "healthy": "🟢 Ollama: Operational",
-    "cloud_active": "🟢 Ollama: Cloud Active",
-    "degraded": "🟡 Ollama: Degraded",
-    "offline": "🔴 Ollama: Offline",
-    "not_installed": "⚪ Ollama: Not Installed",
-}
-st.sidebar.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
+        # 1. CORE DASHBOARD & OPTIMIZATION
+        st.caption("CORE & OPTIMIZATION")
+        sel_core = option_menu(
+            menu_title=None,
+            options=["Dashboard", "GA Optimizer", "Pareto Optimizer", "Economic Dashboard"],
+            icons=["grid-1x2", "lightning", "diagram-3", "currency-dollar"],
+            default_index=0 if st.session_state.get("nav_group") == "core" or "nav_group" not in st.session_state else -1,
+            key="menu_core",
+            styles=menu_styles,
+        )
 
-st.sidebar.title("Navigation")
-page = st.sidebar.radio(
-    "Select Module",
-    [
-        get_translation("nav_dashboard", lang_code),
-        get_translation("nav_ingestion", lang_code),
-        get_translation("nav_ml_manager", lang_code),
-        get_translation("nav_comparison", lang_code),
-        get_translation("nav_predictor", lang_code),
-        get_translation("nav_optimizer", lang_code),
-        get_translation("nav_pareto", lang_code),
-        get_translation("nav_economic", lang_code),
-        get_translation("nav_recommender", lang_code),
-        get_translation("nav_mwd", lang_code),
-        get_translation("nav_digital_twin", lang_code),
-        "Underground Intelligence ⛏️",
-        get_translation("nav_connectivity", lang_code),
-        get_translation("nav_detonator", lang_code),
-        get_translation("nav_sync", lang_code),
-        get_translation("nav_regulatory", lang_code),
-        get_translation("nav_pinn", lang_code),
-        get_translation("nav_integrations", lang_code),
-        get_translation("nav_model_cards", lang_code),
-        get_translation("nav_ensemble_uq", lang_code),
-        get_translation("nav_agent", lang_code),
-        get_translation("nav_geology", lang_code),
-        get_translation("nav_georesponse", lang_code),
-        get_translation("nav_fragmentation", lang_code),
-        get_translation("nav_safety", lang_code),
-        get_translation("nav_pattern", lang_code),
-        "3D Blast Design 💥",
-        get_translation("nav_guardrail_log", lang_code),
-        get_translation("nav_audit_log", lang_code),
-        get_translation("nav_system_health", lang_code),
-        get_translation("nav_visualize", lang_code),
-    ],
-)
+        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
 
-# Normalize page string matching across languages
-page_keys = {
-    get_translation("nav_dashboard", "en"): "dashboard",
-    get_translation("nav_dashboard", "tn"): "dashboard",
-    get_translation("nav_ingestion", "en"): "ingestion",
-    get_translation("nav_ingestion", "tn"): "ingestion",
-    get_translation("nav_ml_manager", "en"): "ml_manager",
-    get_translation("nav_ml_manager", "tn"): "ml_manager",
-    get_translation("nav_comparison", "en"): "comparison",
-    get_translation("nav_comparison", "tn"): "comparison",
-    get_translation("nav_predictor", "en"): "predictor",
-    get_translation("nav_predictor", "tn"): "predictor",
-    get_translation("nav_optimizer", "en"): "optimizer",
-    get_translation("nav_optimizer", "tn"): "optimizer",
-    get_translation("nav_pareto", "en"): "pareto",
-    get_translation("nav_pareto", "tn"): "pareto",
-    get_translation("nav_economic", "en"): "economic",
-    get_translation("nav_economic", "tn"): "economic",
-    get_translation("nav_recommender", "en"): "recommender",
-    get_translation("nav_recommender", "tn"): "recommender",
-    get_translation("nav_mwd", "en"): "mwd",
-    get_translation("nav_mwd", "tn"): "mwd",
-    get_translation("nav_digital_twin", "en"): "digital_twin",
-    get_translation("nav_digital_twin", "tn"): "digital_twin",
-    "Underground Intelligence ⛏️": "underground",
-    get_translation("nav_connectivity", "en"): "connectivity",
-    get_translation("nav_connectivity", "tn"): "connectivity",
-    get_translation("nav_detonator", "en"): "detonator",
-    get_translation("nav_detonator", "tn"): "detonator",
-    get_translation("nav_sync", "en"): "sync",
-    get_translation("nav_sync", "tn"): "sync",
-    get_translation("nav_regulatory", "en"): "regulatory",
-    get_translation("nav_regulatory", "tn"): "regulatory",
-    get_translation("nav_pinn", "en"): "pinn",
-    get_translation("nav_pinn", "tn"): "pinn",
-    get_translation("nav_integrations", "en"): "integrations",
-    get_translation("nav_integrations", "tn"): "integrations",
-    get_translation("nav_model_cards", "en"): "model_cards",
-    get_translation("nav_model_cards", "tn"): "model_cards",
-    get_translation("nav_ensemble_uq", "en"): "ensemble_uq",
-    get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
-    get_translation("nav_agent", "en"): "agent",
-    get_translation("nav_agent", "tn"): "agent",
-    get_translation("nav_geology", "en"): "geology",
-    get_translation("nav_geology", "tn"): "geology",
-    get_translation("nav_georesponse", "en"): "georesponse",
-    get_translation("nav_georesponse", "tn"): "georesponse",
-    get_translation("nav_fragmentation", "en"): "fragmentation",
-    get_translation("nav_fragmentation", "tn"): "fragmentation",
-    get_translation("nav_safety", "en"): "safety",
-    get_translation("nav_safety", "tn"): "safety",
-    get_translation("nav_pattern", "en"): "pattern",
-    get_translation("nav_pattern", "tn"): "pattern",
-    "3D Blast Design 💥": "blast_3d_design",
-    get_translation("nav_guardrail_log", "en"): "guardrail_log",
-    get_translation("nav_guardrail_log", "tn"): "guardrail_log",
-    get_translation("nav_audit_log", "en"): "audit_log",
-    get_translation("nav_audit_log", "tn"): "audit_log",
-    get_translation("nav_system_health", "en"): "system_health",
-    get_translation("nav_system_health", "tn"): "system_health",
-    get_translation("nav_visualize", "en"): "visualize",
-    get_translation("nav_visualize", "tn"): "visualize",
-}
+        # 2. 3D & SPATIAL MODELING
+        st.caption("3D & SPATIAL MODELING")
+        sel_spatial = option_menu(
+            menu_title=None,
+            options=["Digital Twin", "Underground Intel", "3D Blast Design", "2D Pattern"],
+            icons=["box", "hammer", "badge-3d", "layout-three-columns"],
+            default_index=0 if st.session_state.get("nav_group") == "spatial" else -1,
+            key="menu_spatial",
+            styles=menu_styles,
+        )
 
-active_module = page_keys.get(page, "dashboard")
+        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
+
+        # 3. PREDICTIVE AI & ML
+        st.caption("PREDICTIVE AI & ML")
+        sel_ml = option_menu(
+            menu_title=None,
+            options=["Predictor", "Fragmentation", "PINN Uncertainty", "ML Manager", "Model Comparison", "Data Ingestion", "GeoResponse MWD", "Geology", "Ensemble UQ"],
+            icons=["graph-up", "bar-chart", "shield-check", "cpu", "layers", "database", "gear", "globe", "diagram-2"],
+            default_index=0 if st.session_state.get("nav_group") == "ml" else -1,
+            key="menu_ml",
+            styles=menu_styles,
+        )
+
+        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
+
+        # 4. FIELD OPERATIONS & CONNECTIVITY
+        st.caption("FIELD OPS & CONNECTIVITY")
+        sel_ops = option_menu(
+            menu_title=None,
+            options=["Similar Blasts", "MWD Monitoring", "Drill Connectivity", "Detonator Integration", "Regulatory Compliance", "Safety & Environmental", "Conversational Agent"],
+            icons=["search", "activity", "plug", "lightning-charge", "clipboard-check", "shield", "chat-dots"],
+            default_index=0 if st.session_state.get("nav_group") == "ops" else -1,
+            key="menu_ops",
+            styles=menu_styles,
+        )
+
+        st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
+
+        # 5. GOVERNANCE, AUDIT & SYSTEM
+        st.caption("GOVERNANCE & SYSTEM")
+        sel_system = option_menu(
+            menu_title=None,
+            options=["Model Cards", "Guardrail Log", "Agent Audit Log", "Offline WAL Sync", "Debswana Integrations", "Ollama System Health", "Visualize Curves"],
+            icons=["file-earmark-text", "lock", "journal-text", "arrow-repeat", "link-45deg", "robot", "graph-up-arrow"],
+            default_index=0 if st.session_state.get("nav_group") == "system" else -1,
+            key="menu_system",
+            styles=menu_styles,
+        )
+
+        # Unified option mapping to active_module keys
+        option_module_map = {
+            "Dashboard": "dashboard",
+            "GA Optimizer": "optimizer",
+            "Pareto Optimizer": "pareto",
+            "Economic Dashboard": "economic",
+            "Digital Twin": "digital_twin",
+            "Underground Intel": "underground",
+            "3D Blast Design": "blast_3d_design",
+            "2D Pattern": "pattern",
+            "Predictor": "predictor",
+            "Fragmentation": "fragmentation",
+            "PINN Uncertainty": "pinn",
+            "ML Manager": "ml_manager",
+            "Model Comparison": "comparison",
+            "Data Ingestion": "ingestion",
+            "GeoResponse MWD": "georesponse",
+            "Geology": "geology",
+            "Ensemble UQ": "ensemble_uq",
+            "Similar Blasts": "recommender",
+            "MWD Monitoring": "mwd",
+            "Drill Connectivity": "connectivity",
+            "Detonator Integration": "detonator",
+            "Regulatory Compliance": "regulatory",
+            "Safety & Environmental": "safety",
+            "Conversational Agent": "agent",
+            "Model Cards": "model_cards",
+            "Guardrail Log": "guardrail_log",
+            "Agent Audit Log": "audit_log",
+            "Offline WAL Sync": "sync",
+            "Debswana Integrations": "integrations",
+            "Ollama System Health": "system_health",
+            "Visualize Curves": "visualize",
+        }
+
+        # Determine active selection based on last clicked menu
+        active_module = "dashboard"
+        for label, mod_key in option_module_map.items():
+            if sel_core == label:
+                active_module = mod_key
+                st.session_state["nav_group"] = "core"
+                break
+            elif sel_spatial == label:
+                active_module = mod_key
+                st.session_state["nav_group"] = "spatial"
+                break
+            elif sel_ml == label:
+                active_module = mod_key
+                st.session_state["nav_group"] = "ml"
+                break
+            elif sel_ops == label:
+                active_module = mod_key
+                st.session_state["nav_group"] = "ops"
+                break
+            elif sel_system == label:
+                active_module = mod_key
+                st.session_state["nav_group"] = "system"
+                break
+    else:
+        # Fallback radio navigation if option_menu is not available
+        page = st.sidebar.radio("Select Module", ["Dashboard", "GA Optimizer", "Pareto Optimizer", "Economic Dashboard", "Digital Twin", "Underground Intel"])
+        active_module = "dashboard"
+
+    st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
+    st.markdown("### System Status")
+    if st.session_state.get("data_ready", False):
+        sys_df = st.session_state["df"]
+        sys_fp = st.session_state.get("data_fingerprint", dataframe_fingerprint(sys_df))
+        st.success(f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols\nFingerprint: `{sys_fp}`")
+    else:
+        st.warning("📊 No data loaded")
+
+    st.markdown("---")
+    st.markdown("### Trained Models")
+    trained = st.session_state.get("trained_models", {})
+    if trained:
+        for key in trained.keys():
+            disp = MODEL_REGISTRY.get(key, {}).get("display_name", key)
+            st.caption(f"✅ {disp}")
+    else:
+        st.caption("⚠️ None trained yet")
+
+    st.markdown("---")
+    if llm_client.is_available():
+        st.success("LLM: Fine-tuned Pula-8B loaded")
+    else:
+        st.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+
+    if "sidebar_ollama_status" not in st.session_state:
+        st.session_state["sidebar_ollama_status"] = full_health_check()
+
+    ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
+    ollama_icons = {
+        "healthy": "🟢 Ollama: Operational",
+        "cloud_active": "🟢 Ollama: Cloud Active",
+        "degraded": "🟡 Ollama: Degraded",
+        "offline": "🔴 Ollama: Offline",
+        "not_installed": "⚪ Ollama: Not Installed",
+    }
+    st.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
 
 # --- MODULE 1: DASHBOARD & DATA EXPLORER ---
 if active_module == "dashboard":

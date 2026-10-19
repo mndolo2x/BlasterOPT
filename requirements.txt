@@ -33,3 +33,4 @@ transformers>=4.36.0
 peft>=0.10
 bitsandbytes>=0.43
 accelerate>=0.30
+streamlit-option-menu>=0.3.12
