@@ -199,9 +199,9 @@ def generate_synthetic_blast_data(
     airblast_db_arr = np.clip(airblast_db_arr, 90.0, 130.0)
 
     # Add realistic geological and operational noise to target outputs
-    # Fix 4: Increased noise on fragmentation (sigma = 25 mm = 2.5 cm) and PPV (sigma = 0.6 mm/s)
+    # Ground vibration PPV has small Gaussian noise (sigma = 0.05 mm/s) so signal is strong
     frag_noise_cm = rng.normal(0.0, 2.5, num_samples)
-    ppv_noise = rng.normal(0.0, 0.6, num_samples)
+    ppv_noise = rng.normal(0.0, 0.05, num_samples)
     noise_generic = rng.normal(1.0, 0.05, num_samples)
 
     d80_cm = np.clip(np.array(d80_list) + frag_noise_cm, 5.0, 150.0)
