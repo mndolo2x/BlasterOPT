@@ -219,7 +219,14 @@ except Exception as exc:
     ) from exc
 
 if DEMO_MODE:
-    st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
+    st.markdown(
+        """
+        <div style="background-color: rgba(243, 156, 18, 0.1); border-left: 4px solid #f39c12; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; color: #f39c12; font-weight: 500;">
+            ⚠️ <b>DEMO MODE</b> — Operating with simulated physics data streams (Set <code>DEMO_MODE=false</code> in environment for live hardware telemetry).
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # Initialize Session State
 if "df" not in st.session_state:
@@ -272,6 +279,11 @@ st.markdown("""
         }
         [data-testid="stSidebar"] .st-emotion-cache-1wivap2 {
             color: #94a3b8; /* Muted text for group titles */
+        }
+        [data-testid="stDataFrame"] {
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 """, unsafe_allow_html=True)
@@ -502,26 +514,74 @@ with st.sidebar:
 
 # --- MODULE 1: DASHBOARD & DATA EXPLORER ---
 if active_module == "dashboard":
-    st.header("📊 Mining & Blasting Data Dashboard")
+    st.markdown("<h1 style='color: #ffffff; font-size: 32px; font-weight: 700; margin-bottom: 4px;'>Data Explorer & Command Center</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8; font-size: 15px; margin-bottom: 24px;'>Monitor blast records, KPIs, and historical performance across all sites.</p>", unsafe_allow_html=True)
 
     df = st.session_state["df"]
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Blast Records", len(df))
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #00B4D8; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Total Blast Records</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{len(df):,}</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col2:
-        st.metric("Avg d50 Fragmentation", f"{df['d50_mm'].mean():.1f} mm")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #2962FF; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg d50 Fragmentation</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{df['d50_mm'].mean():.1f} mm</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col3:
-        st.metric("Avg Ground Vibration (PPV)", f"{df['ppv_mms'].mean():.2f} mm/s")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #7B2CBF; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg Ground PPV</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{df['ppv_mms'].mean():.2f} mm/s</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col4:
-        st.metric("Avg D&B Cost", f"${df['cost_per_tonne_usd'].mean():.2f} / t")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #2A9D8F; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg D&B Cost</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">${df['cost_per_tonne_usd'].mean():.2f} / t</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("---")
-    st.subheader("Historical Blast Logs")
-    st.dataframe(df.head(50), use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_left, col_right = st.columns([1.6, 1])
 
-    st.subheader("Summary Statistics")
-    st.dataframe(df.describe().T, use_container_width=True)
+    with col_left:
+        st.subheader("Historical Blast Logs")
+        st.dataframe(
+            df.head(50),
+            hide_index=True,
+            height=420,
+            use_container_width=True,
+        )
+
+    with col_right:
+        st.subheader("Summary Statistics")
+        desc_df = df.describe().T
+        st.dataframe(
+            desc_df.style.format("{:.2f}"),
+            hide_index=False,
+            height=420,
+            use_container_width=True,
+        )
 
 
 # --- MODULE 2: DATA INGESTION & GENERATOR ---
