@@ -2085,12 +2085,30 @@ elif active_module == "ensemble_uq":
 
         b_uq = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2, key="uq_b")
         s_uq = st.slider("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2, key="uq_s")
-        stem_uq = st.slider("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="uq_stem")
         pf_uq = st.slider("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05, key="uq_pf")
+        stem_uq = st.slider("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="uq_stem")
+        rf_uq = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, float(last_in.get("rock_factor_A", 8.0)), step=0.5, key="uq_rf")
+        depth_uq = st.slider("Hole Depth (m)", 5.0, 35.0, float(last_in.get("hole_depth_m", 15.0)), step=0.5, key="uq_depth")
+        diam_uq = st.slider("Hole Diameter (mm)", 80.0, 380.0, float(last_in.get("hole_diameter_mm", 250.0)), step=10.0, key="uq_diam")
         charge_uq = st.slider("Max Charge per Delay (kg)", 10.0, 2000.0, float(last_in.get("max_charge_per_delay_kg", 640.0)), step=20.0, key="uq_w")
+        rws_uq = st.slider("Explosive RWS", 80.0, 140.0, float(last_in.get("explosive_rws", 115.0)), step=5.0, key="uq_rws")
+        bench_uq = st.slider("Bench Height (m)", 5.0, 30.0, float(last_in.get("bench_height_m", 15.0)), step=0.5, key="uq_bench")
         dist_uq = st.slider("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0, key="uq_dist")
 
-        uq_input_vec = [b_uq, s_uq, 250.0, 15.0, stem_uq, 1.5, pf_uq, charge_uq, 120.0, 65.0, dist_uq, 55.0]
+        # Dynamically build feature vector matching FEATURE_COLS order (11 features)
+        uq_input_vec = [
+            b_uq,         # burden_m
+            s_uq,         # spacing_m
+            pf_uq,        # powder_factor_kg_m3
+            stem_uq,      # stemming_m
+            rf_uq,        # rock_factor_A
+            depth_uq,     # hole_depth_m
+            diam_uq,      # hole_diameter_mm
+            charge_uq,    # max_charge_per_delay_kg
+            rws_uq,       # explosive_rws
+            bench_uq,     # bench_height_m
+            dist_uq,      # monitoring_distance_m
+        ]
 
         n_members = st.slider("Bagging Ensemble Members per Family", 3, 20, 5, step=1)
 
@@ -2109,54 +2127,64 @@ elif active_module == "ensemble_uq":
         st.subheader("📊 Ensemble Predictions & 95% Confidence Intervals")
 
         ens_obj = st.session_state.get("active_ensemble_uq", EnsembleUQ(n_models=5))
-        uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
 
-        means = uq_res["mean"]
-        cis = uq_res["ci_95"]
-        al_dict = uq_res["aleatoric"]
-        ep_dict = uq_res["epistemic"]
+        try:
+            uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
 
-        m_u1, m_u2, m_u3 = st.columns(3)
-        m_u1.metric(
-            "Fragmentation (D80)",
-            f"{means['fragmentation']:.1f} mm",
-            f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
-        )
-        m_u2.metric(
-            "Ground Vibration (PPV)",
-            f"{means['ppv']:.2f} mm/s",
-            f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
-        )
-        m_u3.metric(
-            "Airblast Overpressure",
-            f"{means['airblast']:.1f} dB",
-            f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
-        )
+            means = uq_res["mean"]
+            cis = uq_res["ci_95"]
+            al_dict = uq_res["aleatoric"]
+            ep_dict = uq_res["epistemic"]
 
-        st.markdown("---")
-        st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
+            m_u1, m_u2, m_u3 = st.columns(3)
+            m_u1.metric(
+                "Fragmentation (D80)",
+                f"{means['fragmentation']:.1f} mm",
+                f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
+            )
+            m_u2.metric(
+                "Ground Vibration (PPV)",
+                f"{means['ppv']:.2f} mm/s",
+                f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
+            )
+            m_u3.metric(
+                "Airblast Overpressure",
+                f"{means['airblast']:.1f} dB",
+                f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
+            )
 
-        if uq_res.get("high_uncertainty", False):
-            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
-            st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
-        else:
-            st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
+            st.markdown("---")
+            st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
 
-        st.markdown("---")
-        st.subheader("📉 Stacked Uncertainty Decomposition Chart")
-        fig_uq = plot_uncertainty_decomposition(uq_res)
-        st.plotly_chart(fig_uq, use_container_width=True)
+            if uq_res.get("high_uncertainty", False):
+                st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
+                st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
+            else:
+                st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
 
-        st.markdown("---")
-        st.subheader("📋 Detailed Variance Score Table")
-        df_var = pd.DataFrame({
-            "Target Metric": ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"],
-            "Mean Prediction": [means["fragmentation"], means["ppv"], means["airblast"]],
-            "Aleatoric Variance (Data Noise)": [al_dict["fragmentation"], al_dict["ppv"], al_dict["airblast"]],
-            "Epistemic Variance (Model Knowledge)": [ep_dict["fragmentation"], ep_dict["ppv"], ep_dict["airblast"]],
-            "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
-        })
-        st.dataframe(df_var, use_container_width=True)
+            st.markdown("---")
+            st.subheader("📉 Stacked Uncertainty Decomposition Chart")
+            fig_uq = plot_uncertainty_decomposition(uq_res)
+            st.plotly_chart(fig_uq, use_container_width=True)
+
+            st.markdown("---")
+            st.subheader("📋 Detailed Variance Score Table")
+            df_var = pd.DataFrame({
+                "Target Metric": ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"],
+                "Mean Prediction": [means["fragmentation"], means["ppv"], means["airblast"]],
+                "Aleatoric Variance (Data Noise)": [al_dict["fragmentation"], al_dict["ppv"], al_dict["airblast"]],
+                "Epistemic Variance (Model Knowledge)": [ep_dict["fragmentation"], ep_dict["ppv"], ep_dict["airblast"]],
+                "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
+            })
+            st.dataframe(df_var, use_container_width=True)
+        except ValueError as e:
+            if "X has" in str(e) or "features" in str(e):
+                st.error("⚠️ Model Mismatch Error: The inputs on this page do not match the features the model was trained on.")
+                st.info(f"Model expects features matching training dataset, but the UI provided {len(uq_input_vec)} features.")
+            else:
+                st.error(f"An error occurred: {e}")
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {e}")
 
 
 # --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---

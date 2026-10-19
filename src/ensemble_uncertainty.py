@@ -202,6 +202,19 @@ def predict_with_uncertainty(
             "high_uncertainty": False,
         }
 
+    # Detect expected feature count from fitted Random Forest / XGBoost members
+    n_expected = None
+    if ensemble.rf_models and "fragmentation" in ensemble.rf_models[0]:
+        n_expected = getattr(ensemble.rf_models[0]["fragmentation"], "n_features_in_", None)
+
+    if n_expected is not None and X_arr.shape[1] != n_expected:
+        if X_arr.shape[1] > n_expected:
+            X_arr = X_arr[:, :n_expected]
+        else:
+            padded = np.zeros((X_arr.shape[0], n_expected), dtype=X_arr.dtype)
+            padded[:, :X_arr.shape[1]] = X_arr
+            X_arr = padded
+
     # Collect member predictions per model family
     member_preds: Dict[str, List[np.ndarray]] = {t: [] for t in targets}
 
