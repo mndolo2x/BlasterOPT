@@ -697,7 +697,58 @@ elif active_module == "ingestion":
 
 # --- MODULE 3: ML MODEL MANAGER ---
 elif active_module == "ml_manager":
-    st.header("🤖 Machine Learning Model Training & Evaluation")
+    st.markdown("""
+    <style>
+        /* FORCE GOLD TABS */
+        [data-baseweb="tab-highlight"] {
+            background-color: #F2A900 !important;
+        }
+        [data-baseweb="tab"] {
+            color: #94a3b8 !important;
+        }
+        [aria-selected="true"] {
+            color: #ffffff !important;
+        }
+
+        /* FORCE GOLD RADIO BUTTONS */
+        div[role="radiogroup"] > label > div:first-child {
+            border-color: #F2A900 !important;
+        }
+        div[role="radiogroup"] > label > div:first-child > div {
+            background-color: #F2A900 !important;
+        }
+
+        /* FORCE NAVY BUTTONS */
+        .stButton > button {
+            background-color: #002B5B !important;
+            color: #F2A900 !important;
+            border: 1px solid #F2A900 !important;
+            border-radius: 8px !important;
+        }
+        .stButton > button:hover {
+            background-color: #F2A900 !important;
+            color: #002B5B !important;
+        }
+
+        /* FORCE DARK TABLES */
+        [data-testid="stDataFrame"] {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 8px !important;
+        }
+
+        /* HEADERS */
+        h1, h2, h3 {
+            color: #ffffff !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Machine Learning Model Manager</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Train, evaluate, and deploy AI models for blast prediction.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
 
     tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
 
@@ -842,7 +893,7 @@ elif active_module == "ml_manager":
             f"{training_df.shape[0]} rows × {training_df.shape[1]} columns. "
             f"Preview shows first 10 rows."
         )
-        st.dataframe(training_df.head(10), use_container_width=True)
+        st.dataframe(training_df.head(10), hide_index=True, use_container_width=True, height=350)
 
         st.divider()
         st.subheader("2. Select Algorithm")
