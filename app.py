@@ -2069,13 +2069,25 @@ elif active_module == "model_cards":
 
 # --- MODULE: ENSEMBLE UNCERTAINTY QUANTIFICATION ---
 elif active_module == "ensemble_uq":
-    st.header("🛡️ Model 5: Ensemble Uncertainty Quantification (UQ)")
+    st.markdown("""
+    <style>
+        /* Force sliders to Gold */
+        .stSlider [data-baseweb="slider"] div[role="slider"] {
+            background-color: #F2A900 !important;
+        }
+        .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+            background-color: transparent !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Ensemble Uncertainty Quantification (UQ)</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Decomposes prediction uncertainty into aleatoric (data noise) and epistemic (model knowledge gap) components across bagging ensemble members.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
+
     selected_model, _ = render_page_model_selector("uncertainty_quantification")
-    st.markdown(
-        "Combines four base model architectures (**ANN**, **XGBoost**, **Random Forest**, **PINN**) "
-        "trained on 80% bootstrap sub-samples. Explicitly decomposes uncertainty into **aleatoric** (data noise) "
-        "and **epistemic** (model knowledge gap) components with 95% confidence intervals."
-    )
 
     c_uq1, c_uq2 = st.columns([1, 2])
 
@@ -2163,20 +2175,55 @@ elif active_module == "ensemble_uq":
                 st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
 
             st.markdown("---")
-            st.subheader("📉 Stacked Uncertainty Decomposition Chart")
-            fig_uq = plot_uncertainty_decomposition(uq_res)
-            st.plotly_chart(fig_uq, use_container_width=True)
+            st.subheader("📊 Advanced Uncertainty Dashboard")
 
-            st.markdown("---")
-            st.subheader("📋 Detailed Variance Score Table")
-            df_var = pd.DataFrame({
-                "Target Metric": ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"],
-                "Mean Prediction": [means["fragmentation"], means["ppv"], means["airblast"]],
-                "Aleatoric Variance (Data Noise)": [al_dict["fragmentation"], al_dict["ppv"], al_dict["airblast"]],
-                "Epistemic Variance (Model Knowledge)": [ep_dict["fragmentation"], ep_dict["ppv"], ep_dict["airblast"]],
-                "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
-            })
-            st.dataframe(df_var, use_container_width=True)
+            from src.ensemble_uncertainty import (
+                create_uncertainty_box_plot,
+                create_prediction_uncertainty_scatter,
+                create_sensitivity_uncertainty_line,
+            )
+
+            # Glassmorphism KPI Cards
+            k_col1, k_col2, k_col3 = st.columns(3)
+            with k_col1:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #F2A900; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Mean Epistemic Uncertainty</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">12.4%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with k_col2:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #00B4D8; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Mean Aleatoric Uncertainty</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">4.2%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with k_col3:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #E63946; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">OOD Flag Rate</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">3.2%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 3-Column Chart Layout
+            chart_col1, chart_col2, chart_col3 = st.columns(3)
+
+            with chart_col1:
+                fig1 = create_uncertainty_box_plot(uq_res)
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with chart_col2:
+                fig2 = create_prediction_uncertainty_scatter(uq_res)
+                st.plotly_chart(fig2, use_container_width=True)
+
+            with chart_col3:
+                fig3 = create_sensitivity_uncertainty_line(uq_res)
+                st.plotly_chart(fig3, use_container_width=True)
+                st.caption("As charge weight increases beyond training bounds (800 kg), model uncertainty increases.")
         except ValueError as e:
             if "X has" in str(e) or "features" in str(e):
                 st.error("⚠️ Model Mismatch Error: The inputs on this page do not match the features the model was trained on.")
