@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+from src.components.model_selector import render_page_model_selector
 
 # ---------------------------------------------------------
 # 1. Aggressive CSS Injection (ChatGPT / Claude Dark Theme)
@@ -91,9 +92,10 @@ If your stope has an ELOS of 1.5m, it means 1.5 meters of waste rock is mixed wi
 # 3. Top Bar Header
 # ---------------------------------------------------------
 st.markdown("<h2 style='color: white; margin-bottom: 0;'>Blast-GPT v0.1</h2>", unsafe_allow_html=True)
+sel_model, sel_key = render_page_model_selector("conversational_agent")
 model_selector = st.selectbox(
     "Model",
-    ["Blast-GPT v0.1 (Base)", "Blast-GPT Pro (Preview)", "Llama-3 Local"],
+    [sel_key if sel_key else "Blast-GPT v0.1 (Base)", "Blast-GPT Pro (Preview)", "Llama-3 Local"],
     index=0,
     label_visibility="collapsed",
 )

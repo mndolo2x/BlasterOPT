@@ -225,7 +225,12 @@ with col_p2:
 
             top5_rows = []
             for fn, sv in sorted_feats:
-                direction = "Pushes Higher ⬆️" if sv >= 0 else "Pushes Lower ⬇️"
+                if sv > 0.01:
+                    direction = "Pushes Higher 🔺"
+                elif sv < -0.01:
+                    direction = "Pushes Lower 🔻"
+                else:
+                    direction = "Neutral"
                 top5_rows.append({
                     "Feature Name": fn,
                     "SHAP Impact Value": f"{sv:+.2f}",

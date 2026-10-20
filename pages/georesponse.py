@@ -252,10 +252,13 @@ with tab2:
                 st.subheader("Validation Results")
                 st.info(f"**Validation Strategy:** `{res['validation_strategy']}` | **Samples:** {res['n_samples']}")
 
+                delta_val = res['f1_improvement_over_baseline']
+                delta_str = f"+{delta_val:.4f}" if delta_val >= 0 else f"{delta_val:.4f}"
+
                 col_m1, col_m2, col_m3 = st.columns(3)
                 col_m1.metric("Random Forest Macro-F1", f"{res['random_forest']['macro_f1']:.4f}")
                 col_m2.metric("Majority Baseline Macro-F1", f"{res['majority_baseline']['macro_f1']:.4f}")
-                col_m3.metric("F1 Delta vs Baseline", f"+{res['f1_improvement_over_baseline']:.4f}")
+                col_m3.metric("F1 Delta vs Baseline", delta_str)
 
                 st.write("**Per-Class Performance Breakdown:**")
                 st.dataframe(pd.DataFrame(res["random_forest"]["per_class"]).T, use_container_width=True)
@@ -267,6 +270,18 @@ with tab2:
                     columns=[f"Pred: {c}" for c in res["class_labels"]],
                 )
                 st.dataframe(cm_df, use_container_width=True)
+
+                if "diagnostics" in res:
+                    with st.expander("🔍 Show Evaluation Pipeline Diagnostics"):
+                        diag = res["diagnostics"]
+                        st.write(f"• **Input Rows:** {diag['input_rows']} | **Evaluated Rows:** {diag['evaluated_rows']}")
+                        st.write(f"• **Target Column:** `{diag['target_column']}`")
+                        st.write(f"• **Feature Columns:** `{diag['feature_columns']}`")
+                        st.write(f"• **Total Correct Predictions:** {diag['total_correct_predictions']} / {diag['confusion_matrix_total']}")
+                        st.write("• **True Class Support:**", diag['class_support_true'])
+                        st.write("• **Predicted Class Support:**", diag['class_support_pred'])
+                        st.write("• **Fold-Level Scores:**")
+                        st.dataframe(pd.DataFrame(diag['fold_level_scores']), use_container_width=True)
 
 
 # --- TAB 3: PREDICTION REVIEW ---
