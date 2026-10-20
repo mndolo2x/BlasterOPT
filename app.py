@@ -2236,59 +2236,11 @@ elif active_module == "ensemble_uq":
 
 # --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
 elif active_module == "agent":
-    st.header("🤖 BlasterOPT Conversational Agent Assistant")
-    selected_model, _ = render_page_model_selector("conversational_agent")
-    st.markdown(
-        "Interactive AI decision support agent for open-pit diamond mining operations. "
-        "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "
-        "and presents recommendations in plain English or Setswana."
-    )
-
-    c_ag1, c_ag2 = st.columns([1, 3])
-
-    with c_ag1:
-        st.subheader("⚙️ Agent Controls & Context")
-
-        user_role_sel = st.selectbox(
-            "User Operating Role",
-            ["engineer", "blaster", "supervisor", "operator"],
-            index=0,
-            help="Adapts explanation complexity and available UI controls."
-        )
-
-        bench_ctx_sel = st.selectbox(
-            "Active Mine Bench Context",
-            ["BENCH_JWA_15S", "BENCH_JWA_12N", "BENCH_ORA_15S", "BENCH_KAR_08W"],
-            index=0,
-        )
-
-        mode_sel = st.radio(
-            "Interface Mode",
-            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)", "Knowledge Q&A (Lyntas/Pula)"],
-            index=0,
-        )
-
-        st.markdown("---")
-        demo_mode = st.toggle("🧪 Demo Mode (Pre-load Sample Conversation)", value=False)
-
-        if demo_mode:
-            st.session_state["chat_messages"] = [
-                {"role": "user", "content": "Help me design an optimal blast for bench BENCH_JWA_15S with 10000 tonnes target."},
-                {"role": "assistant", "content": "📋 **Blast Design Summary for BENCH_JWA_15S:**\n- **Powder Factor:** 0.65 kg/m³\n- **Burden x Spacing:** 6.0m x 7.0m\n- **Predicted D50:** 220 mm\n- **Predicted PPV:** 4.20 mm/s (Compliant <= 5.0 mm/s)\n- **Cost:** $4.80 / t\n\n👉 **Next Step:** Would you like me to route this design to your certified blaster for review?"},
-            ]
-            st.info("Sample conversation pre-loaded!")
-
-    with c_ag2:
-        if mode_sel == "Interactive Chat":
-            render_agent_chat(user_role=user_role_sel, bench_id=bench_ctx_sel)
-        elif mode_sel == "Guided Workflow (Non-Expert)":
-            render_guided_mode(bench_id=bench_ctx_sel)
-        elif mode_sel == "Expert Technical Deep-Dive":
-            render_expert_mode(bench_id=bench_ctx_sel)
-        elif mode_sel == "Voice Assistant (Offline)":
-            render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
-        elif mode_sel == "Knowledge Q&A (Lyntas/Pula)":
-            render_knowledge_qa(user_role=user_role_sel)
+    try:
+        exec(open(os.path.join(repo_root, "pages/conversational_agent.py")).read())
+    except Exception as exc:
+        st.error("Error loading Conversational Agent module:")
+        st.exception(exc)
 
 
 # --- MODULE: AGENT AUDIT LOG ---

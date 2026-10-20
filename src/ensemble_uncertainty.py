@@ -287,56 +287,99 @@ def create_uncertainty_box_plot(preds: Dict[str, Any]) -> go.Figure:
     """
     Chart 1: Uncertainty Distribution (Box Plot)
     Shows distribution spread of normalized uncertainty (%) across metrics.
+    Supports both predict_with_uncertainty format: {'mean': {...}, 'epistemic': {...}}
+    and nested dict format: {'fragmentation': {'epistemic': [...], 'aleatoric': [...]}}
     """
-    targets = ["fragmentation", "ppv", "airblast"]
-    labels = ["Fragmentation", "PPV", "Airblast"]
-
-    means = preds.get("mean", {"fragmentation": 220.0, "ppv": 4.2, "airblast": 114.0})
-    epistemic_vars = preds.get("epistemic", {"fragmentation": 45.0, "ppv": 0.8, "airblast": 3.2})
-    aleatoric_vars = preds.get("aleatoric", {"fragmentation": 15.0, "ppv": 0.3, "airblast": 1.1})
-
-    # Generate synthetic distribution points around the predicted CV (%)
-    np.random.seed(42)
-    ep_data = []
-    al_data = []
-    metric_labels = []
-
-    for idx, t in enumerate(targets):
-        mean_val = max(abs(means.get(t, 1.0)), 0.1)
-        ep_std = np.sqrt(epistemic_vars.get(t, 1.0))
-        al_std = np.sqrt(aleatoric_vars.get(t, 0.5))
-
-        # Normalized Uncertainty = (std / mean) * 100 %
-        ep_cv = (ep_std / mean_val) * 100.0
-        al_cv = (al_std / mean_val) * 100.0
-
-        ep_samples = np.clip(np.random.normal(ep_cv, ep_cv * 0.25, 40), 0.5, 95.0)
-        al_samples = np.clip(np.random.normal(al_cv, al_cv * 0.20, 40), 0.2, 50.0)
-
-        ep_data.extend(ep_samples)
-        al_data.extend(al_samples)
-        metric_labels.extend([labels[idx]] * 40)
-
     fig = go.Figure()
-    fig.add_trace(go.Box(
-        x=metric_labels, y=ep_data, name="Epistemic (Model)",
-        marker_color="#F2A900", boxpoints="outliers",
-    ))
-    fig.add_trace(go.Box(
-        x=metric_labels, y=al_data, name="Aleatoric (Data)",
-        marker_color="#00B4D8", boxpoints="outliers",
-    ))
+
+    color_epistemic = '#F2A900'  # Gold
+    color_aleatoric = '#00B4D8'  # Cyan
+
+    # Handle nested dict format: {'fragmentation': {'epistemic': [...], 'aleatoric': [...]}}
+    is_nested_format = any(
+        isinstance(v, dict) and ('epistemic' in v or 'aleatoric' in v)
+        for v in preds.values()
+    )
+
+    if is_nested_format:
+        for idx, (target_name, data) in enumerate(preds.items()):
+            if isinstance(data, dict):
+                ep_vals = data.get('epistemic', [])
+                al_vals = data.get('aleatoric', [])
+
+                if ep_vals and len(ep_vals) > 0:
+                    fig.add_trace(go.Box(
+                        y=ep_vals,
+                        name=f"{target_name.capitalize()}",
+                        marker_color=color_epistemic,
+                        legendgroup="Epistemic",
+                        legendgrouptitle_text="Uncertainty Type",
+                        showlegend=(idx == 0),
+                        boxmean=True
+                    ))
+
+                if al_vals and len(al_vals) > 0:
+                    fig.add_trace(go.Box(
+                        y=al_vals,
+                        name=f"{target_name.capitalize()}",
+                        marker_color=color_aleatoric,
+                        legendgroup="Aleatoric",
+                        showlegend=(idx == 0),
+                        boxmean=True
+                    ))
+    else:
+        # Handle predict_with_uncertainty format
+        targets = ["fragmentation", "ppv", "airblast"]
+        labels = ["Fragmentation", "PPV", "Airblast"]
+
+        means = preds.get("mean", {"fragmentation": 220.0, "ppv": 4.2, "airblast": 114.0})
+        epistemic_vars = preds.get("epistemic", {"fragmentation": 45.0, "ppv": 0.8, "airblast": 3.2})
+        aleatoric_vars = preds.get("aleatoric", {"fragmentation": 15.0, "ppv": 0.3, "airblast": 1.1})
+
+        np.random.seed(42)
+        ep_data = []
+        al_data = []
+        metric_labels = []
+
+        for idx, t in enumerate(targets):
+            mean_val = max(abs(means.get(t, 1.0)), 0.1)
+            ep_std = np.sqrt(epistemic_vars.get(t, 1.0))
+            al_std = np.sqrt(aleatoric_vars.get(t, 0.5))
+
+            ep_cv = (ep_std / mean_val) * 100.0
+            al_cv = (al_std / mean_val) * 100.0
+
+            ep_samples = np.clip(np.random.normal(ep_cv, ep_cv * 0.25, 40), 0.5, 95.0)
+            al_samples = np.clip(np.random.normal(al_cv, al_cv * 0.20, 40), 0.2, 50.0)
+
+            ep_data.extend(ep_samples)
+            al_data.extend(al_samples)
+            metric_labels.extend([labels[idx]] * 40)
+
+        fig.add_trace(go.Box(
+            x=metric_labels, y=ep_data, name="Epistemic (Model)",
+            marker_color=color_epistemic, boxpoints="outliers",
+        ))
+        fig.add_trace(go.Box(
+            x=metric_labels, y=al_data, name="Aleatoric (Data)",
+            marker_color=color_aleatoric, boxpoints="outliers",
+        ))
 
     fig.update_layout(
         title="<b>1. Normalized Uncertainty Distribution</b>",
-        yaxis_title="Normalized Uncertainty (%)",
+        yaxis_title="Uncertainty (Normalized %)",
         boxmode="group",
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(color='#ffffff'),
-        xaxis=dict(gridcolor='#1e293b', zerolinecolor='#1e293b'),
-        yaxis=dict(gridcolor='#1e293b', zerolinecolor='#1e293b', range=[0, 100]),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(gridcolor='#1e293b', zerolinecolor='#1e293b', title="Target Metric"),
+        yaxis=dict(gridcolor='#1e293b', zerolinecolor='#1e293b'),
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            bordercolor='#1e293b',
+            borderwidth=1,
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+        ),
         height=380,
         margin=dict(l=40, r=20, t=40, b=40)
     )
