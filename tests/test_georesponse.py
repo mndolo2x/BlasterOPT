@@ -10,6 +10,59 @@ from src.georesponse.models import GeoResponseClassifier, MajorityClassBaseline
 from models.custom.geo_response_model import GeoResponseModel
 
 
+def test_mwd_headers_with_spaces_and_hyphens():
+    df = pd.DataFrame({
+        " Penetration Rate M Hr ": [30.0, 45.0],
+        "ROCK-TYPE-LABEL": ["Granite", "Gneiss"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is True
+    assert "penetration_rate_m_hr" in df_norm.columns
+    assert "rock_type_label" in df_norm.columns
+    assert df_norm["penetration_rate_m_hr"].iloc[0] == 30.0
+
+
+def test_mwd_ambiguous_semantic_aliases_require_confirmation():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "Rock Type": ["Granite", "Gneiss"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    # Ambiguous "Rock Type" should be suggested, not mapped silently
+    assert "rock_type_label" not in df_norm.columns
+    assert report["suggested_mappings"]["Rock Type"] == "rock_type_label"
+    assert report["is_eligible_for_training"] is False
+
+    # Confirmed mapping
+    df_confirmed, report_confirmed = normalize_mwd_schema(df, user_confirmed_mappings={"Rock Type": "rock_type_label"})
+    assert "rock_type_label" in df_confirmed.columns
+    assert report_confirmed["is_eligible_for_training"] is True
+
+
+def test_mwd_duplicate_conflicting_mappings_detected():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "rock_type_label": ["Granite", "Gneiss"],
+        "Rock Type Label": ["Gneiss", "Granite"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is False
+    assert len(report["duplicate_mappings"]) > 0
+    assert report["duplicate_mappings"][0]["is_identical"] is False
+
+
+def test_mwd_unknown_columns_preserved_and_reported():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "rock_type_label": ["Granite", "Gneiss"],
+        "random_extra_sensor": [1.23, 4.56]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is True
+    assert "random_extra_sensor" in df_norm.columns
+    assert "random_extra_sensor" in report["unknown_columns"]
+
+
 def test_mwd_penetration_rate_m_hr_ingestion():
     df = pd.DataFrame({
         "penetration_rate_m_hr": [30.0, 45.0],

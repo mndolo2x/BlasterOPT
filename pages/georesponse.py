@@ -75,9 +75,14 @@ with tab1:
 
     if uploaded is not None:
         try:
-            df_mwd, report = load_and_validate_csv(uploaded)
+            raw_upload_df = pd.read_csv(uploaded)
+            st.session_state["georesponse_raw_upload_df"] = raw_upload_df
+
+            confirmed_maps = st.session_state.get("georesponse_confirmed_mappings", {})
+            df_mwd, report = normalize_mwd_schema(raw_upload_df, user_confirmed_mappings=confirmed_maps)
             df_mwd, feat_report = compute_mwd_features(df_mwd)
             report["feature_engineering"] = feat_report
+            report["license_notice"] = DATASET_LICENSE_NOTICE
 
             st.session_state["georesponse_mwd_df"] = df_mwd
             st.session_state["georesponse_report"] = report
@@ -103,6 +108,58 @@ with tab1:
         col_r2.metric("Training Eligible", "YES ✅" if report["is_eligible_for_training"] else "NO ❌")
         col_r3.metric("Distinct Rock Classes", len(report["class_distribution"]))
 
+        # Column Mapping Confirmation Interface
+        sug_maps = report.get("suggested_mappings", {})
+        missing_reqs = report.get("missing_required_columns", [])
+
+        if sug_maps or missing_reqs or report.get("duplicate_mappings"):
+            st.warning("⚠️ **Column Mapping Attention Required**")
+            st.markdown("Some columns require explicit confirmation or user mapping to fulfill GeoResponse canonical requirements.")
+
+            confirmed_mappings = st.session_state.get("georesponse_confirmed_mappings", {})
+            user_mapping_edits = {}
+
+            if sug_maps:
+                st.write("**Suggested Unambiguous/Ambiguous Mappings:**")
+                for orig_c, sug_c in sug_maps.items():
+                    opt_choice = st.selectbox(
+                        f"Map original column `{orig_c}` to:",
+                        options=["-- Do Not Map --", sug_c] + [c for c in MINIMAL_REQUIRED_MWD_COLUMNS + OPTIONAL_MWD_COLUMNS if c != sug_c],
+                        index=1,
+                        key=f"mapping_select_{orig_c}"
+                    )
+                    if opt_choice != "-- Do Not Map --":
+                        user_mapping_edits[orig_c] = opt_choice
+
+            if missing_reqs and not sug_maps:
+                st.write("**Missing Required Canonical Fields:**", missing_reqs)
+                unmapped_cols = report.get("unknown_columns", [])
+                if unmapped_cols:
+                    for req_field in missing_reqs:
+                        opt_c = st.selectbox(
+                            f"Select unmapped column for required field `{req_field}`:",
+                            options=["-- None --"] + unmapped_cols,
+                            key=f"map_missing_{req_field}"
+                        )
+                        if opt_c != "-- None --":
+                            user_mapping_edits[opt_c] = req_field
+
+            if st.button("Apply & Re-validate Column Mappings", type="primary"):
+                try:
+                    raw_df = st.session_state.get("georesponse_raw_upload_df")
+                    if raw_df is not None:
+                        re_df, re_report = normalize_mwd_schema(raw_df, user_confirmed_mappings=user_mapping_edits)
+                        re_df, feat_report = compute_mwd_features(re_df)
+                        re_report["feature_engineering"] = feat_report
+
+                        st.session_state["georesponse_mwd_df"] = re_df
+                        st.session_state["georesponse_report"] = re_report
+                        st.session_state["georesponse_confirmed_mappings"] = user_mapping_edits
+                        st.success("Updated column mappings and re-validated dataset successfully!")
+                        st.rerun()
+                except Exception as ex:
+                    st.error(f"Re-validation error: {ex}")
+
         st.write("**Accepted Column & Unit Schema:**")
         col_s1, col_s2 = st.columns(2)
         with col_s1:
@@ -112,8 +169,14 @@ with tab1:
             st.write("• **Available Optional Telemetry:**", report["available_optional_columns"])
             st.write("• **Missing Optional Telemetry:**", report["missing_optional_columns"])
 
+        if report.get("mapped_columns"):
+            st.info("ℹ️ **Automatic Header Mappings:**\n" + "\n".join([f"- `{k}` → `{v}`" for k, v in report["mapped_columns"].items()]))
+
+        if report.get("unknown_columns"):
+            st.caption(f"Unmapped / Preserved Original Columns ({len(report['unknown_columns'])}): `{report['unknown_columns']}`")
+
         if report.get("unit_conversions"):
-            st.info("ℹ️ **Unit Conversions & Column Mapping:**\n" + "\n".join([f"- {uc}" for uc in report["unit_conversions"]]))
+            st.info("ℹ️ **Unit Conversions & Operations:**\n" + "\n".join([f"- {uc}" for uc in report["unit_conversions"]]))
 
         feat_rep = report.get("feature_engineering", {})
         if feat_rep:
