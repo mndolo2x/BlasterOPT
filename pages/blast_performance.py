@@ -153,14 +153,14 @@ with tab_reg:
         with st.expander("➕ Manual Blast Execution Entry", expanded=False):
             c_r1, c_r2 = st.columns(2)
             with c_r1:
-                new_blast_id = st.text_input("Unique Blast ID", value=f"BLAST_JWA_2026_{int(datetime.now(timezone.utc).timestamp()) % 1000:03d}")
-                new_site = st.selectbox("Site", ["Jwaneng", "Orapa", "Morupule", "Karowe"])
-                new_op = st.selectbox("Operation Type", ["open_pit", "underground"])
-                new_location = st.text_input("Location / Bench / Stope ID", value="BENCH_JWA_15S")
+                new_blast_id = st.text_input("Unique Blast ID", value=f"BLAST_JWA_2026_{int(datetime.now(timezone.utc).timestamp()) % 1000:03d}", key="manual_blast_id_input")
+                new_site = st.selectbox("Site", ["Jwaneng", "Orapa", "Morupule", "Karowe"], key="manual_site_select")
+                new_op = st.selectbox("Operation Type", ["open_pit", "underground"], key="manual_op_select")
+                new_location = st.text_input("Location / Bench / Stope ID", value="BENCH_JWA_15S", key="manual_location_input")
             with c_r2:
-                new_date = st.date_input("Blast Execution Date", value=datetime.now(timezone.utc))
-                new_engineer = st.text_input("Engineer ID", value="ENGINEER_BOTSWANA_01")
-                new_notes = st.text_area("Operational Notes", value="Standard production blast in medium Kimberlite.")
+                new_date = st.date_input("Blast Execution Date", value=datetime.now(timezone.utc), key="manual_date_input")
+                new_engineer = st.text_input("Engineer ID", value="ENGINEER_BOTSWANA_01", key="manual_engineer_input")
+                new_notes = st.text_area("Operational Notes", value="Standard production blast in medium Kimberlite.", key="manual_notes_input")
 
             if st.button("Save Blast Record", type="primary", key="btn_save_blast"):
                 rec_obj = pf.BlastRecord(
@@ -178,33 +178,6 @@ with tab_reg:
                 pf.save_blast_record(rec_obj)
                 st.success(f"✅ Blast record `{new_blast_id}` created and persisted!")
                 st.rerun()
-        c_r1, c_r2 = st.columns(2)
-        with c_r1:
-            new_blast_id = st.text_input("Unique Blast ID", value=f"BLAST_JWA_2026_{int(datetime.now(timezone.utc).timestamp()) % 1000:03d}")
-            new_site = st.selectbox("Site", ["Jwaneng", "Orapa", "Morupule", "Karowe"])
-            new_op = st.selectbox("Operation Type", ["open_pit", "underground"])
-            new_location = st.text_input("Location / Bench / Stope ID", value="BENCH_JWA_15S")
-        with c_r2:
-            new_date = st.date_input("Blast Execution Date", value=datetime.now(timezone.utc))
-            new_engineer = st.text_input("Engineer ID", value="ENGINEER_BOTSWANA_01")
-            new_notes = st.text_area("Operational Notes", value="Standard production blast in medium Kimberlite.")
-
-        if st.button("Save Blast Record", type="primary", key="btn_save_blast"):
-            rec_obj = pf.BlastRecord(
-                blast_id=new_blast_id,
-                site_id=new_site,
-                operation_type=new_op,
-                location_identifier=new_location,
-                blast_date=new_date.isoformat(),
-                engineer_id=new_engineer,
-                status="PLANNED",
-                planned_params=st.session_state.get("last_predict_inputs", {}),
-                geological_context={"rock_type": "Kimberlite", "rock_factor_A": 8.0, "RMR": 65},
-                notes=new_notes,
-            )
-            pf.save_blast_record(rec_obj)
-            st.success(f"✅ Blast record `{new_blast_id}` created and persisted!")
-            st.rerun()
 
 
 # ==============================================================================
@@ -238,7 +211,7 @@ with tab_upload:
 
     with col_u2:
         st.subheader("2. Upload & Map Actual Results File")
-        uploaded_actuals_file = st.file_uploader("Upload CSV or Excel File", type=["csv", "xlsx"])
+        uploaded_actuals_file = st.file_uploader("Upload CSV or Excel File", type=["csv", "xlsx"], key="up_actuals_file")
 
         if uploaded_actuals_file is not None:
             try:
@@ -532,9 +505,9 @@ with tab_review:
             selected_rev = next((r for r in reviews if r.review_id == selected_rev_id), None)
 
             if selected_rev:
-                decision_action = st.radio("Review Decision", ["Approved", "Rejected"], index=0)
-                excl_reason = st.text_input("Exclusion Reason (if Rejected)", value="")
-                rev_comments = st.text_area("Review Comments", value="Verified data quality and field log.")
+                decision_action = st.radio("Review Decision", ["Approved", "Rejected"], index=0, key="rev_decision_radio")
+                excl_reason = st.text_input("Exclusion Reason (if Rejected)", value="", key="rev_excl_reason_input")
+                rev_comments = st.text_area("Review Comments", value="Verified data quality and field log.", key="rev_comments_input")
 
                 if st.button("Record Review Decision", type="primary", key="btn_save_review"):
                     updated_rev = pf.DatasetReviewRecord(
