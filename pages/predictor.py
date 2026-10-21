@@ -250,7 +250,32 @@ with col_p2:
 
             st.subheader("🍋 LIME Local Explanation Weights")
             lime_weights = exp_panel.get("lime", {}).get("feature_weights", {})
-            st.json(lime_weights)
+            if lime_weights:
+                sorted_lime = sorted(lime_weights.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+                lime_rows = []
+                for fn, w in sorted_lime:
+                    if w > 0.01:
+                        direction = f"+{w:.2f} (Pushes Higher 🔺)"
+                    elif w < -0.01:
+                        direction = f"{w:.2f} (Pushes Lower 🔻)"
+                    else:
+                        direction = f"{w:.2f} (Neutral)"
+                    lime_rows.append({
+                        "Feature": fn,
+                        "LIME Weight": f"{w:+.2f}",
+                        "Direction": direction,
+                    })
+                lime_df = pd.DataFrame(lime_rows)
+                st.dataframe(lime_df, use_container_width=True)
+
+                # Horizontal bar chart for LIME weights
+                chart_df = pd.DataFrame({
+                    "Feature": [r["Feature"] for r in lime_rows],
+                    "Weight": [lime_weights[r["Feature"]] for r in lime_rows]
+                }).set_index("Feature")
+                st.bar_chart(chart_df, horizontal=True)
+            else:
+                st.info("No LIME weights calculated.")
 
         st.markdown("---")
         fig_kuz = plot_kuz_ram_curve(d50_mm, n_uniformity=1.2)
