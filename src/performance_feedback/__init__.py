@@ -39,8 +39,14 @@ from src.performance_feedback.export_retrain import (
     export_approved_dataset,
     prepare_group_split_dataset,
 )
+from src.performance_feedback.import_workflows import (
+    import_blast_records,
+    import_prediction_records,
+)
 
 __all__ = [
+    "import_blast_records",
+    "import_prediction_records",
     "BlastRecord",
     "PredictionSnapshot",
     "ActualMeasurement",

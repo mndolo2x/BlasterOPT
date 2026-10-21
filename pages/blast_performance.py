@@ -112,7 +112,72 @@ with tab_reg:
         st.info("No blast records found matching criteria. Use the form below to create a new record.")
 
     st.markdown("---")
-    with st.expander("➕ Register New Blast Execution Record", expanded=False):
+    col_reg_act1, col_reg_act2 = st.columns(2)
+
+    with col_reg_act1:
+        with st.expander("📥 Import Blast Records (CSV/Excel)", expanded=False):
+            tmpl_br_df = pf.generate_sample_template(target_metric="blast_register")
+            csv_br_buf = io.StringIO()
+            tmpl_br_df.to_csv(csv_br_buf, index=False)
+            st.download_button(
+                label="📄 Download Blank Blast Register CSV Template",
+                data=csv_br_buf.getvalue(),
+                file_name="blast_register_template.csv",
+                mime="text/csv",
+            )
+
+            up_br_file = st.file_uploader("Upload Blast Register CSV or Excel", type=["csv", "xlsx"], key="up_br_file")
+            conflict_mode = st.selectbox("Conflict Resolution (Existing Blast IDs)", ["skip", "update", "cancel"], index=0, key="br_conflict_mode")
+
+            if up_br_file is not None:
+                try:
+                    if up_br_file.name.endswith(".xlsx"):
+                        df_br_up = pd.read_excel(up_br_file)
+                    else:
+                        df_br_up = pd.read_csv(up_br_file)
+
+                    st.write("**File Preview:**")
+                    st.dataframe(df_br_up.head(5), use_container_width=True, hide_index=True)
+
+                    if st.button("Confirm Import Blast Records 🚀", type="primary", key="btn_imp_br"):
+                        res_imp = pf.import_blast_records(df_br_up, conflict_mode=conflict_mode)
+                        if res_imp["status"] == "cancelled":
+                            st.error(f"Import Cancelled: {res_imp['errors'][-1]}")
+                        else:
+                            st.success(f"✅ Created: {res_imp['created']} | Updated: {res_imp['updated']} | Skipped: {res_imp['skipped']} | Rejected: {res_imp['rejected']}")
+                            st.rerun()
+                except Exception as exc:
+                    st.error(f"Error parsing blast register file: {exc}")
+
+    with col_reg_act2:
+        with st.expander("➕ Manual Blast Execution Entry", expanded=False):
+            c_r1, c_r2 = st.columns(2)
+            with c_r1:
+                new_blast_id = st.text_input("Unique Blast ID", value=f"BLAST_JWA_2026_{int(datetime.now(timezone.utc).timestamp()) % 1000:03d}")
+                new_site = st.selectbox("Site", ["Jwaneng", "Orapa", "Morupule", "Karowe"])
+                new_op = st.selectbox("Operation Type", ["open_pit", "underground"])
+                new_location = st.text_input("Location / Bench / Stope ID", value="BENCH_JWA_15S")
+            with c_r2:
+                new_date = st.date_input("Blast Execution Date", value=datetime.now(timezone.utc))
+                new_engineer = st.text_input("Engineer ID", value="ENGINEER_BOTSWANA_01")
+                new_notes = st.text_area("Operational Notes", value="Standard production blast in medium Kimberlite.")
+
+            if st.button("Save Blast Record", type="primary", key="btn_save_blast"):
+                rec_obj = pf.BlastRecord(
+                    blast_id=new_blast_id,
+                    site_id=new_site,
+                    operation_type=new_op,
+                    location_identifier=new_location,
+                    blast_date=new_date.isoformat(),
+                    engineer_id=new_engineer,
+                    status="PLANNED",
+                    planned_params=st.session_state.get("last_predict_inputs", {}),
+                    geological_context={"rock_type": "Kimberlite", "rock_factor_A": 8.0, "RMR": 65},
+                    notes=new_notes,
+                )
+                pf.save_blast_record(rec_obj)
+                st.success(f"✅ Blast record `{new_blast_id}` created and persisted!")
+                st.rerun()
         c_r1, c_r2 = st.columns(2)
         with c_r1:
             new_blast_id = st.text_input("Unique Blast ID", value=f"BLAST_JWA_2026_{int(datetime.now(timezone.utc).timestamp()) % 1000:03d}")
@@ -153,15 +218,21 @@ with tab_upload:
 
     with col_u1:
         st.subheader("1. Download Templates")
-        template_target = st.selectbox("Select Target Metric Template", ["d50_mm", "fragmentation_d80_cm", "ppv_mms", "airblast_db", "cost_per_tonne_usd"])
-        sample_tmpl_df = pf.generate_sample_template(target_metric=template_target)
+        tmpl_format_type = st.radio("Template Structure Format", ["Wide Format (One Row per Blast)", "Long Format (One Row per Measurement)"], index=0, key="tmpl_format_type")
+
+        if "Wide" in tmpl_format_type:
+            sample_tmpl_df = pf.generate_sample_template(format_type="wide")
+            file_lbl = "Actual_Results_Template_Wide.csv"
+        else:
+            sample_tmpl_df = pf.generate_sample_template(format_type="long")
+            file_lbl = "Actual_Results_Template_Long.csv"
 
         csv_tmpl_buf = io.StringIO()
         sample_tmpl_df.to_csv(csv_tmpl_buf, index=False)
         st.download_button(
-            label=f"📄 Download {template_target} CSV Template",
+            label=f"📄 Download CSV Template ({file_lbl})",
             data=csv_tmpl_buf.getvalue(),
-            file_name=f"Actual_Results_Template_{template_target}.csv",
+            file_name=file_lbl,
             mime="text/csv",
         )
 
@@ -283,6 +354,39 @@ with tab_comp:
         comp_site = st.selectbox("Site Filter", ["ALL", "Jwaneng", "Orapa", "Morupule"], index=0, key="comp_site_s")
     with col_c3:
         comp_model = st.selectbox("Model Filter", ["ALL", "GA-ANN Model", "ANN-RF Ensemble", "PINN Model"], index=0, key="comp_model_s")
+
+    with st.expander("📥 Import Prediction Reference Records (CSV/Excel)", expanded=False):
+        tmpl_pred_df = pf.generate_sample_template(target_metric="prediction_records")
+        csv_pred_buf = io.StringIO()
+        tmpl_pred_df.to_csv(csv_pred_buf, index=False)
+        st.download_button(
+            label="📄 Download Prediction Records CSV Template",
+            data=csv_pred_buf.getvalue(),
+            file_name="original_predictions_template.csv",
+            mime="text/csv",
+        )
+
+        up_pred_file = st.file_uploader("Upload Prediction Records CSV or Excel", type=["csv", "xlsx"], key="up_pred_file")
+        pred_provenance = st.selectbox("Prediction Source Provenance Classification", ["synthetic_test", "external_import", "model_generated"], index=0, key="pred_prov_sel")
+
+        if up_pred_file is not None:
+            try:
+                if up_pred_file.name.endswith(".xlsx"):
+                    df_pred_up = pd.read_excel(up_pred_file)
+                else:
+                    df_pred_up = pd.read_csv(up_pred_file)
+
+                st.write("**File Preview:**")
+                st.dataframe(df_pred_up.head(5), use_container_width=True, hide_index=True)
+
+                if st.button("Confirm Import Prediction Reference Records 🚀", type="primary", key="btn_imp_pred"):
+                    res_pred = pf.import_prediction_records(df_pred_up, provenance_label=pred_provenance)
+                    st.success(f"✅ Imported {res_pred['created']} prediction snapshots! Rejected: {res_pred['rejected']}")
+                    st.rerun()
+            except Exception as exc:
+                st.error(f"Error importing prediction records: {exc}")
+
+    st.markdown("---")
 
     comparisons = pf.list_comparison_results(
         site_id=comp_site,
