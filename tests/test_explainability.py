@@ -10,6 +10,8 @@ from src.explainability import (
     get_lime_explanation,
     generate_natural_language_explanation,
     create_explanation_panel,
+    format_lime_dataframe,
+    render_lime_explanation_table,
     HAS_SHAP,
     HAS_LIME,
 )
@@ -238,3 +240,51 @@ def test_plot_feature_contributions_waterfall():
     fig = plot_feature_contributions_waterfall(res)
     assert fig is not None
     assert hasattr(fig, "data")
+
+
+def test_format_lime_dataframe_structure_and_sorting():
+    """Test format_lime_dataframe formatting, sorting, direction indicators, and top 5 truncation."""
+    lime_weights = {
+        "powder_factor_kg_m3": 0.17,
+        "burden_m": -0.12,
+        "spacing_m": -0.05,
+        "stemming_m": 0.22,
+        "max_charge_per_delay_kg": -0.31,
+        "hole_diameter_mm": 0.01,
+    }
+
+    df, sorted_items = format_lime_dataframe(lime_weights, top_n=5)
+
+    assert list(df.columns) == ["Feature", "LIME Weight", "Direction"]
+    assert len(df) == 5
+    assert len(sorted_items) == 5
+
+    # Check that items are sorted by absolute value of weight descending
+    # Expected order: max_charge_per_delay_kg (0.31), stemming_m (0.22), powder_factor_kg_m3 (0.17), burden_m (0.12), spacing_m (0.05)
+    assert df.iloc[0]["Feature"] == "max_charge_per_delay_kg"
+    assert df.iloc[0]["LIME Weight"] == "-0.31"
+    assert "Pushes Lower 🔻" in df.iloc[0]["Direction"]
+
+    assert df.iloc[1]["Feature"] == "stemming_m"
+    assert df.iloc[1]["LIME Weight"] == "+0.22"
+    assert "Pushes Higher 🔺" in df.iloc[1]["Direction"]
+
+    assert df.iloc[2]["Feature"] == "powder_factor_kg_m3"
+    assert df.iloc[2]["LIME Weight"] == "+0.17"
+    assert "Pushes Higher 🔺" in df.iloc[2]["Direction"]
+
+
+def test_format_lime_dataframe_empty_input():
+    """Test format_lime_dataframe with None, empty dict, and invalid types."""
+    df_none, items_none = format_lime_dataframe(None)
+    assert df_none.empty
+    assert list(df_none.columns) == ["Feature", "LIME Weight", "Direction"]
+    assert items_none == []
+
+    df_empty, items_empty = format_lime_dataframe({})
+    assert df_empty.empty
+    assert items_empty == []
+
+    df_invalid, items_invalid = format_lime_dataframe("not a dict")
+    assert df_invalid.empty
+    assert items_invalid == []

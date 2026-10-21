@@ -752,3 +752,124 @@ def explain_prediction(model, input_data, feature_names=None, background_data=No
     - Vibration: burden, charge per delay, distance
     """
     return get_shap_explanation(model, input_data, feature_names=feature_names, background_data=background_data)
+
+
+def format_lime_dataframe(
+    lime_weights: Optional[Dict[str, float]],
+    top_n: int = 5,
+) -> tuple[pd.DataFrame, list[tuple[str, float]]]:
+    """
+    Converts a dictionary of LIME feature weights into a sorted Pandas DataFrame.
+
+    Columns: Feature, LIME Weight, Direction
+    Sorted by abs(weight) descending, truncated to top_n.
+
+    Direction formatting:
+    - weight > 0: "+0.17 (Pushes Higher 🔺)"
+    - weight < 0: "-0.17 (Pushes Lower 🔻)"
+    - weight == 0: "0.00 (Neutral)"
+    """
+    if not lime_weights or not isinstance(lime_weights, dict):
+        return pd.DataFrame(columns=["Feature", "LIME Weight", "Direction"]), []
+
+    clean_items = []
+    for k, v in lime_weights.items():
+        try:
+            clean_items.append((str(k), float(v)))
+        except (ValueError, TypeError):
+            continue
+
+    if not clean_items:
+        return pd.DataFrame(columns=["Feature", "LIME Weight", "Direction"]), []
+
+    sorted_items = sorted(clean_items, key=lambda x: abs(x[1]), reverse=True)[:top_n]
+
+    rows = []
+    for feat, weight in sorted_items:
+        if weight > 0:
+            dir_str = f"{weight:+.2f} (Pushes Higher 🔺)"
+        elif weight < 0:
+            dir_str = f"{weight:+.2f} (Pushes Lower 🔻)"
+        else:
+            dir_str = f"{weight:+.2f} (Neutral)"
+
+        rows.append({
+            "Feature": feat,
+            "LIME Weight": f"{weight:+.2f}",
+            "Direction": dir_str,
+        })
+
+    df = pd.DataFrame(rows, columns=["Feature", "LIME Weight", "Direction"])
+    return df, sorted_items
+
+
+def render_lime_explanation_table(
+    lime_weights: Optional[Dict[str, float]],
+    top_n: int = 5,
+    show_chart: bool = True,
+) -> None:
+    """
+    Renders LIME local feature weights as a clean, professional Streamlit UI table and horizontal bar chart.
+
+    Parameters
+    ----------
+    lime_weights : dict or None
+        Dictionary of LIME feature weights {feature_name: weight}.
+    top_n : int, default=5
+        Number of top features to display, sorted by absolute weight descending.
+    show_chart : bool, default=True
+        Whether to display a horizontal bar chart below the table using Altair.
+    """
+    import streamlit as st
+
+    df, sorted_items = format_lime_dataframe(lime_weights, top_n=top_n)
+
+    if df.empty:
+        st.info("No LIME local feature weights available for this prediction.")
+        return
+
+    def style_direction(val: Any) -> str:
+        val_str = str(val)
+        if "Pushes Higher" in val_str or "🔺" in val_str:
+            return "color: #2ea043; font-weight: bold;"
+        elif "Pushes Lower" in val_str or "🔻" in val_str:
+            return "color: #f85149; font-weight: bold;"
+        return ""
+
+    if hasattr(df.style, "map"):
+        styled_df = df.style.map(style_direction, subset=["Direction"])
+    else:
+        styled_df = df.style.applymap(style_direction, subset=["Direction"])
+
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+    if show_chart and sorted_items:
+        try:
+            import altair as alt
+
+            chart_data = pd.DataFrame([
+                {"Feature": feat, "Weight": weight} for feat, weight in reversed(sorted_items)
+            ])
+
+            chart = (
+                alt.Chart(chart_data)
+                .mark_bar()
+                .encode(
+                    x=alt.X("Weight:Q", title="LIME Weight"),
+                    y=alt.Y("Feature:N", sort=None, title="Feature"),
+                    color=alt.condition(
+                        alt.datum.Weight > 0,
+                        alt.value("#2ea043"),  # green for positive
+                        alt.value("#f85149"),  # red for negative
+                    ),
+                    tooltip=["Feature", "Weight"],
+                )
+                .properties(height=180, title="Top 5 Local LIME Feature Weights")
+            )
+
+            st.altair_chart(chart, use_container_width=True)
+        except Exception:
+            chart_data = pd.DataFrame([
+                {"Feature": feat, "Weight": weight} for feat, weight in sorted_items
+            ]).set_index("Feature")
+            st.bar_chart(chart_data)

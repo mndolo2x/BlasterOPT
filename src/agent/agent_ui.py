@@ -53,6 +53,12 @@ except Exception as e:
     logger.warning(f"Could not import pareto_optimizer: {e}")
     run_nsga2, plot_pareto_front = None, None
 
+try:
+    from src.explainability import render_lime_explanation_table
+except Exception as e:
+    logger.warning(f"Could not import explainability: {e}")
+    render_lime_explanation_table = None
+
 # Global compiled agent app
 _AGENT_GRAPH_APP = None
 
@@ -328,13 +334,17 @@ def render_expert_mode(bench_id: str = "BENCH_JWA_15S"):
 
         with col_e2:
             st.write("**LIME Local Feature Weights:**")
-            st.json({
+            lime_demo_weights = {
+                "max_charge_per_delay_kg": +0.45,
                 "powder_factor_kg_m3": +0.32,
+                "stemming_m": -0.22,
                 "burden_m": -0.18,
                 "spacing_m": -0.15,
-                "stemming_m": -0.22,
-                "max_charge_per_delay_kg": +0.45,
-            })
+            }
+            if render_lime_explanation_table is not None:
+                render_lime_explanation_table(lime_demo_weights)
+            else:
+                st.json(lime_demo_weights)
 
     with tab2:
         st.markdown("### 5-Objective NSGA-II Pareto Frontier")

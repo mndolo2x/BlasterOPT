@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from src.components.model_selector import render_page_model_selector
 from src.visualize import plot_kuz_ram_curve, plot_ppv_attenuation
-from src.explainability import create_explanation_panel
+from src.explainability import create_explanation_panel, render_lime_explanation_table
 from src.domain.safety_checks import evaluate_safety, SafetyReport
 from src.domain.blast_design import BlastDesignVersion
 from src.services.approval_service import submit_for_approval
@@ -250,7 +250,7 @@ with col_p2:
 
             st.subheader("🍋 LIME Local Explanation Weights")
             lime_weights = exp_panel.get("lime", {}).get("feature_weights", {})
-            st.json(lime_weights)
+            render_lime_explanation_table(lime_weights)
 
         st.markdown("---")
         fig_kuz = plot_kuz_ram_curve(d50_mm, n_uniformity=1.2)
