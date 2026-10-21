@@ -230,7 +230,52 @@ def test_11_export_observation_records_to_csv():
     assert "total_carats" in df_exp.columns
 
 
-def test_12_existing_blastopt_features_regression():
+def test_12_specific_charge_and_engineering_calculations():
+    sc_res = dp.calculate_specific_charge(total_explosive_kg=320.0, blasted_tonnage=1200.0)
+    assert sc_res["value"] == 0.2667
+    assert sc_res["unit"] == "kg/t"
+
+    dev_res = dp.calculate_drilling_deviation(planned_depth_m=15.0, actual_depth_m=16.2)
+    assert dev_res["depth_delta_m"] == 1.2
+    assert dev_res["percentage_deviation"] == 8.0
+
+
+def test_13_diamond_breakage_predictor_interface_fallback():
+    predictor = dp.DiamondBreakagePredictorInterface()
+    assert predictor.is_trained() is False
+
+    pred_res = predictor.predict({"burden_m": 6.0})
+    assert pred_res["status"] == "unavailable"
+    assert "no validated model is configured" in pred_res["message"]
+
+
+def test_14_grouped_training_split_prevents_leakage():
+    df_data = pd.DataFrame([
+        {"blast_id": "BLAST_01", "powder_factor_kg_m3": 0.65, "damage_type": "chipping"},
+        {"blast_id": "BLAST_01", "powder_factor_kg_m3": 0.68, "damage_type": "none"},
+        {"blast_id": "BLAST_02", "powder_factor_kg_m3": 0.70, "damage_type": "cracking"},
+        {"blast_id": "BLAST_03", "powder_factor_kg_m3": 0.60, "damage_type": "none"},
+    ])
+
+    train_df, test_df = dp.prepare_grouped_training_split(df_data, group_col="blast_id", test_size=0.33)
+    train_blasts = set(train_df["blast_id"].unique())
+    test_blasts = set(test_df["blast_id"].unique())
+
+    # Ensure zero overlap of blast_ids between train and test
+    assert len(train_blasts.intersection(test_blasts)) == 0
+
+
+def test_15_constrained_scenario_evaluator_deltas():
+    base_p = {"burden_m": 6.0, "spacing_m": 7.0, "powder_factor_kg_m3": 0.65}
+    cand_p = {"burden_m": 6.0, "spacing_m": 7.5, "powder_factor_kg_m3": 0.55}
+
+    eval_res = dp.evaluate_scenario_deltas(base_p, cand_p)
+    assert "spacing_m" in eval_res["deltas"]
+    assert eval_res["deltas"]["spacing_m"]["delta"] == 0.5
+    assert eval_res["deltas"]["powder_factor_kg_m3"]["delta"] == -0.1
+
+
+def test_16_existing_blastopt_features_regression():
     from src.synthetic_data import generate_synthetic_blast_data
     from src.physics_core import usbm_ppv
 

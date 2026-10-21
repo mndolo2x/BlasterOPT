@@ -351,17 +351,35 @@ with tab_lab:
         c_charge = st.number_input("Candidate Max Charge / Delay (kg)", 10.0, 2000.0, round(b_charge * 0.85, 1), step=20.0, key="cand_ch_inp")
 
     st.markdown("---")
-    st.subheader("📊 Scenario Parameter Deltas")
+    st.subheader("📊 Scenario Parameter Deltas & Constraint Validation")
 
-    delta_df = pd.DataFrame([
-        {"Parameter": "Burden (m)", "Baseline": b_burden, "Candidate": c_burden, "Delta": round(c_burden - b_burden, 2)},
-        {"Parameter": "Spacing (m)", "Baseline": b_spacing, "Candidate": c_spacing, "Delta": round(c_spacing - b_spacing, 2)},
-        {"Parameter": "Powder Factor (kg/m³)", "Baseline": b_pf, "Candidate": c_pf, "Delta": round(c_pf - b_pf, 3)},
-        {"Parameter": "Max Charge / Delay (kg)", "Baseline": b_charge, "Candidate": c_charge, "Delta": round(c_charge - b_charge, 1)},
-    ])
-    st.dataframe(delta_df, use_container_width=True, hide_index=True)
+    scen_eval = dp.evaluate_scenario_deltas(
+        baseline_params={"burden_m": b_burden, "spacing_m": b_spacing, "powder_factor_kg_m3": b_pf, "max_charge_per_delay_kg": b_charge},
+        candidate_params={"burden_m": c_burden, "spacing_m": c_spacing, "powder_factor_kg_m3": c_pf, "max_charge_per_delay_kg": c_charge},
+    )
 
-    st.warning("⚠️ **Feasibility Unverified:** Approved diamond-breakage safety threshold data is unverified. Candidate scenario is NOT an automated blast recommendation.")
+    deltas_map = scen_eval["deltas"]
+    delta_rows = []
+    for k, v in deltas_map.items():
+        delta_rows.append({
+            "Parameter": k.replace("_", " ").title(),
+            "Baseline Value": v["baseline"],
+            "Candidate Value": v["candidate"],
+            "Delta (Change)": f"{v['delta']:+} ({v['percentage_change']:+_.1f}%)",
+        })
+
+    st.dataframe(pd.DataFrame(delta_rows), use_container_width=True, hide_index=True)
+
+    feas_status = scen_eval["feasibility_status"]
+    if feas_status == "Rejected":
+        st.error("🚨 **SCENARIO REJECTED:** Candidate parameters violate physical or geometric blast constraints.")
+    else:
+        st.warning("⚠️ **Feasibility Unverified:** Approved diamond-breakage safety threshold data is unverified. Candidate scenario is NOT an automated blast recommendation.")
+
+    if scen_eval["warnings"]:
+        st.subheader("Validation Warnings & Rejection Reasons")
+        for w in scen_eval["warnings"]:
+            st.write(f"- ⚠️ {w}")
 
     if st.button("Save Scenario Comparison 🚀", type="primary", key="btn_save_scen"):
         scen_obj = dp.DiamondScenario(

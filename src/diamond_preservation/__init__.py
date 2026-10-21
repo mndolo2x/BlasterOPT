@@ -30,8 +30,30 @@ from src.diamond_preservation.economics import (
 from src.diamond_preservation.model_foundation import (
     evaluate_dataset_readiness,
 )
+from src.diamond_preservation.calculations import (
+    calculate_specific_charge,
+    calculate_drilling_deviation,
+    calculate_charge_density,
+    calculate_scaled_distance,
+)
+from src.diamond_preservation.model_pipeline import (
+    DiamondBreakagePredictorInterface,
+    validate_training_contract,
+    prepare_grouped_training_split,
+)
+from src.diamond_preservation.optimization import (
+    evaluate_scenario_deltas,
+)
 
 __all__ = [
+    "calculate_specific_charge",
+    "calculate_drilling_deviation",
+    "calculate_charge_density",
+    "calculate_scaled_distance",
+    "DiamondBreakagePredictorInterface",
+    "validate_training_contract",
+    "prepare_grouped_training_split",
+    "evaluate_scenario_deltas",
     "DiamondObservation",
     "DiamondAssessment",
     "DiamondScenario",
