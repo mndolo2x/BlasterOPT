@@ -92,6 +92,11 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "required_outputs": [],
         "description": "Research-only MWD data ingestion and rock-type classification benchmark",
     },
+    "diamond_preservation": {
+        "display_name": "Diamond Preservation 💎",
+        "required_outputs": [],
+        "description": "Investigate diamond breakage, preserve value, and evaluate scenario lab outcomes",
+    },
 }
 
 

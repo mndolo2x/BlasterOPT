@@ -353,6 +353,7 @@ with st.sidebar:
             options=[
                 "Dashboard & Data Explorer",
                 "Blast Performance",
+                "Diamond Preservation",
                 "Digital Twin of Bench",
                 "Underground Intelligence",
                 "3D Blast Design",
@@ -385,7 +386,7 @@ with st.sidebar:
                 "Visualize",
             ],
             icons=[
-                "grid-1x2", "arrow-counterclockwise", "box", "hammer", "badge-3d", "layout-three-columns",
+                "grid-1x2", "arrow-counterclockwise", "gem", "box", "hammer", "badge-3d", "layout-three-columns",
                 "graph-up", "lightning", "diagram-3", "currency-dollar",
                 "bar-chart", "shield-check", "cpu", "layers", "database", "gear", "globe", "diagram-2",
                 "search", "activity", "plug", "lightning-charge", "clipboard-check", "shield", "chat-dots",
@@ -398,6 +399,7 @@ with st.sidebar:
         PAGE_MAP = {
             "Dashboard & Data Explorer": "dashboard",
             "Blast Performance": "blast_performance",
+            "Diamond Preservation": "diamond_preservation",
             "Digital Twin of Bench": "digital_twin",
             "Underground Intelligence": "underground",
             "3D Blast Design": "blast_3d_design",
@@ -1464,6 +1466,15 @@ elif active_module == "digital_twin":
         exec(open(os.path.join(repo_root, "pages/digital_twin.py")).read())
     except Exception as exc:
         st.error("Error loading Digital Twin of Bench module:")
+        st.exception(exc)
+
+
+# --- MODULE: DIAMOND PRESERVATION ---
+elif active_module == "diamond_preservation":
+    try:
+        exec(open(os.path.join(repo_root, "pages/diamond_preservation.py")).read())
+    except Exception as exc:
+        st.error("Error loading Diamond Preservation module:")
         st.exception(exc)
 
 
