@@ -275,7 +275,34 @@ def test_15_constrained_scenario_evaluator_deltas():
     assert eval_res["deltas"]["powder_factor_kg_m3"]["delta"] == -0.1
 
 
-def test_16_existing_blastopt_features_regression():
+def test_16_observation_stages_and_constants_exported():
+    assert hasattr(dp, "OBSERVATION_STAGES")
+    assert hasattr(dp, "DAMAGE_TYPES")
+    assert hasattr(dp, "DAMAGE_ATTRIBUTIONS")
+
+    stages = dp.OBSERVATION_STAGES
+    assert isinstance(stages, list)
+    assert "post_blast" in stages
+    assert "before_blasting" in stages
+
+    # Test processing all selectable stages in validation & persistence
+    for stg in stages:
+        obs = dp.DiamondObservation(
+            observation_id=f"OBS_STG_{stg}",
+            blast_id="BLASTOPT-TEST-001",
+            sample_lot_id=f"LOT_{stg}",
+            stage=stg,
+            stone_size_class="+11 DTC",
+            stone_count=1,
+            total_carats=2.5,
+        )
+        dp.save_diamond_observation(obs, db_path=TEST_DB)
+
+    fetched = dp.list_diamond_observations("BLASTOPT-TEST-001", db_path=TEST_DB)
+    assert len(fetched) == len(stages)
+
+
+def test_17_existing_blastopt_features_regression():
     from src.synthetic_data import generate_synthetic_blast_data
     from src.physics_core import usbm_ppv
 

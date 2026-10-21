@@ -23,6 +23,9 @@ from src.diamond_preservation.db import (
 from src.diamond_preservation.ingestion import (
     generate_observation_template,
     validate_diamond_observations_df,
+    OBSERVATION_STAGES,
+    DAMAGE_TYPES,
+    DAMAGE_ATTRIBUTIONS,
 )
 from src.diamond_preservation.economics import (
     calculate_population_valuation,
@@ -70,6 +73,9 @@ __all__ = [
     "get_latest_valuation_schedule",
     "generate_observation_template",
     "validate_diamond_observations_df",
+    "OBSERVATION_STAGES",
+    "DAMAGE_TYPES",
+    "DAMAGE_ATTRIBUTIONS",
     "calculate_population_valuation",
     "evaluate_dataset_readiness",
 ]
