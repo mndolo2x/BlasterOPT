@@ -175,10 +175,25 @@ def plot_feature_contributions_waterfall(
         )
     )
 
+    # Calculate cumulative bounds for y-axis zoom
+    all_points = [baseline]
+    running_total = baseline
+    for v in contributions.values():
+        running_total += v
+        all_points.append(running_total)
+    all_points.append(predicted)
+
+    min_val = min(all_points)
+    max_val = max(all_points)
+    margin = (max_val - min_val) * 0.1
+    if margin == 0:
+        margin = 1.0
+
     fig.update_layout(
         title=f"<b>{title}</b>",
         xaxis_title="Blast Parameter / Feature",
         yaxis_title=f"Impact on {contribution_data.get('target', 'Target')}",
+        yaxis=dict(range=[min_val - margin, max_val + margin]),
         template="plotly_white",
         height=450,
     )

@@ -261,6 +261,7 @@ with col_p2:
             max_ppv=saved_input.get("max_ppv", 5.0),
             receptor_distance=saved_input.get("monitoring_distance_m", 450.0),
             receptor_label="Village",
+            ppv_value=ppv,
         )
         st.plotly_chart(fig_ppv, use_container_width=True)
     else:
