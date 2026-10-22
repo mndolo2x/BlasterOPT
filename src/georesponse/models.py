@@ -73,12 +73,15 @@ class GeoResponseClassifier:
         else:
             self.model = RandomForestClassifier(n_estimators=100, max_depth=12, random_state=random_state)
 
-    def fit(self, X: pd.DataFrame, y: Any) -> "GeoResponseClassifier":
+    def fit(self, X: Any, y: Any) -> "GeoResponseClassifier":
         # Record fitted feature schema
         if isinstance(X, pd.DataFrame):
-            # Exclude target leakage columns if present
-            leakage_cols = ["rock_type_label", "rock_class", "target"]
-            feat_cols = [c for c in X.columns if c not in leakage_cols]
+            # Exclude target leakage or non-numeric metadata columns
+            non_feat_cols = ["rock_type_label", "rock_class", "target", "tunnel_id", "hole_id", "blast_id", "timestamp"]
+            feat_cols = [
+                c for c in X.columns
+                if c not in non_feat_cols and pd.api.types.is_numeric_dtype(X[c])
+            ]
             self.feature_names_ = list(feat_cols)
             X_mat = X[self.feature_names_].fillna(X[self.feature_names_].median())
         else:
@@ -90,7 +93,7 @@ class GeoResponseClassifier:
             self.classes_ = self.model.classes_
         return self
 
-    def _validate_input_schema(self, X: pd.DataFrame) -> pd.DataFrame:
+    def _validate_input_schema(self, X: Any) -> pd.DataFrame:
         if isinstance(X, pd.DataFrame):
             missing_cols = [c for c in self.feature_names_ if c not in X.columns]
             if missing_cols:

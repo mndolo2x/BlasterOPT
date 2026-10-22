@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlastOPT 3D Bench Viewer</title>
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0f18;
+  --panel: #131c2e;
+  --text: #ffffff;
+  --muted: #a8b6ca;
+  --accent: #00b4d8;
+  --border: rgba(255,255,255,.08);
+}
+* { box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+#app {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 300px;
+  gap: 8px;
+  width: 100vw;
+  height: 100vh;
+  padding: 8px;
+  overflow: hidden;
+}
+.sidebar {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #34445c transparent;
+}
+.panel {
+  padding: 13px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+.section-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #f2f7ff;
+}
+label {
+  display: block;
+  margin-bottom: 7px;
+  color: #c3cede;
+}
+select, button {
+  font: inherit;
+  color: var(--text);
+  background: #18243a;
+  border: 1px solid #35435a;
+  border-radius: 7px;
+  padding: 8px 9px;
+  outline: none;
+}
+select { width: 100%; }
+button { cursor: pointer; transition: border-color .15s, background .15s; }
+button:hover, button.active {
+  border-color: var(--accent);
+  background: rgba(0,180,216,.12);
+}
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 7px;
+}
+.check-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+  color: #dbe5f2;
+}
+.check-row input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+.subtle {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.stat-line:last-child { border-bottom: 0; }
+.stat-label { color: var(--muted); }
+.stat-value {
+  color: #f6f9ff;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.value-large {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.badge {
+  display: inline-block;
+  border: 1px solid rgba(0,180,216,.35);
+  background: rgba(0,180,216,.1);
+  color: #75e8ff;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+#viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a0f18;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.065);
+}
+#viewport canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+#fallbackCanvas { display: none; }
+.view-badge {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 2;
+  pointer-events: none;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(8,15,27,.65);
+  border-radius: 6px;
+  color: #d7e5f6;
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+#fallbackNotice {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: none;
+  z-index: 2;
+  max-width: calc(100% - 24px);
+  color: #cad5e5;
+  font-size: 10px;
+  background: rgba(8,15,27,.75);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 6px;
+  padding: 7px 9px;
+  pointer-events: none;
+}
+.colorbar {
+  height: 9px;
+  border-radius: 8px;
+  background: linear-gradient(90deg,#2878ff,#12c8ef,#27d886,#f2e63b,#ff982e,#f43c43);
+  margin: 8px 0 5px;
+}
+.colorbar-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 10px;
+}
+.small-divider {
+  height: 1px;
+  margin: 11px 0;
+  background: rgba(255,255,255,.07);
+}
+#selectedEmpty { color: var(--muted); line-height: 1.6; }
+@media (max-width: 900px) {
+  #app { grid-template-columns: 205px minmax(0,1fr) 230px; gap: 5px; padding: 5px; }
+  .panel { padding: 10px; }
+}
+@media (max-width: 650px) {
+  #app { grid-template-columns: 175px minmax(0,1fr); }
+  #rightSidebar { display: none; }
+}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+
+<body>
+<div id="app">
+  <aside class="sidebar" id="leftSidebar">
+    <section class="panel">
+      <div class="section-title">Scene Controls</div>
+
+      <label for="viewMode">View Mode</label>
+      <select id="viewMode">
+        <option value="Geometry">Geometry</option>
+        <option value="PPV Heatmap">PPV Heatmap</option>
+      </select>
+
+      <div class="small-divider"></div>
+
+      <label class="check-row">
+        <input type="checkbox" id="showHoles" checked>
+        Show Holes
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="showFaults" checked>
+        Show Faults
+      </label>
+
+      <div class="small-divider"></div>
+
+      <div class="button-row">
+        <button type="button" id="isoButton" class="active">Isometric View</button>
+        <button type="button" id="topButton">Top View</button>
+      </div>
+      <div class="subtle" style="margin-top:10px">
+        Drag to orbit · Scroll to zoom · Click a hole to inspect it
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">Bench Scene</div>
+      <div class="stat-line">
+        <span class="stat-label">Bench length</span>
+        <span class="stat-value" id="benchLength">60 m</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Bench width</span>
+        <span class="stat-value" id="benchWidth">40 m</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Steps</span>
+        <span class="stat-value">3</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Drill holes</span>
+        <span class="stat-value" id="holeCount">48</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Fault planes</span>
+        <span class="stat-value" id="faultCount">2</span>
+      </div>
+      <div class="small-divider"></div>
+      <div class="subtle">
+        Geometry is illustrative unless supplied by the connected mine data.
+      </div>
+    </section>
+  </aside>
+
+  <main id="viewport" aria-label="Interactive 3D bench rendering space">
+    <div class="view-badge" id="viewBadge">ISOMETRIC · 3D VIEW</div>
+    <div id="fallbackNotice">WebGL unavailable — showing the compatible 2D canvas projection.</div>
+    <canvas id="fallbackCanvas"></canvas>
+  </main>
+
+  <aside class="sidebar" id="rightSidebar">
+    <section class="panel">
+      <div class="section-title">Selected Hole Data</div>
+      <div id="selectedEmpty">Click a drill-hole cylinder in the scene to inspect its properties.</div>
+      <div id="selectedDetails" hidden>
+        <div class="value-large" id="selectedId">—</div>
+        <div class="stat-line">
+          <span class="stat-label">Charge</span>
+          <span class="stat-value" id="selectedCharge">—</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">PPV Risk</span>
+          <span class="stat-value" id="selectedRisk">—</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Easting / X</span>
+          <span class="stat-value" id="selectedX">—</span>
+        </div>
+        <div class="stat-line">
+          <span class="stat-label">Northing / Y</span>
+          <span class="stat-value" id="selectedY">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">Charge / Risk Legend</div>
+      <div class="subtle" id="legendTitle">Geometry — solid cyan</div>
+      <div class="colorbar" id="holeColorbar" style="background:#00b4d8"></div>
+      <div class="colorbar-labels" id="legendLabels">
+        <span>Low charge</span><span>High charge</span>
+      </div>
+      <div class="small-divider"></div>
+      <div class="stat-line">
+        <span class="stat-label">PPV risk range</span>
+        <span class="stat-value">0–1</span>
+      </div>
+      <div class="subtle" style="margin-top:8px">
+        PPV risk colours are illustrative input values, not calculated vibration predictions.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">Data Status</div>
+      <div class="stat-line">
+        <span class="stat-label">Data source</span>
+        <span class="stat-value" id="dataSource">Demo</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Selected mode</span>
+        <span class="stat-value" id="activeMode">Geometry</span>
+      </div>
+      <div class="stat-line">
+        <span class="stat-label">Renderer</span>
+        <span class="stat-value" id="rendererStatus">Starting…</span>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const viewport = $("viewport");
+  const fallbackCanvas = $("fallbackCanvas");
+  const fallbackCtx = fallbackCanvas.getContext("2d");
+
+  const config = {
+    length: 60,
+    width: 40,
+    stepHeight: 3.5,
+    steps: 3,
+    baseY: -15,
+    holeRows: 8,
+    holesPerRow: 6
+  };
+
+  const state = {
+    view: "iso",
+    mode: "Geometry",
+    holesVisible: true,
+    faultsVisible: true,
+    selectedHole: null,
+    dataSource: "Demo"
+  };
+
+  let scene, camera, renderer, controls, raycaster;
+  let terrainGroup, zoneGroup, holesGroup, faultsGroup;
+  let holeMeshes = [];
+  let holeRecords = [];
+  let faultMeshes = [];
+  let rendererReady = false;
+  let fallbackActive = false;
+  let clickStart = null;
+  let lastFallbackZoom = 1;
+  let fallbackAzimuth = -115;
+  let customData = null;
+
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  function hash(x, z) {
+    const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
+
+  function terrainNoise(x, z) {
+    return (
+      0.45 * Math.sin(x / 7.8) * Math.cos(z / 6.2) +
+      0.24 * Math.sin(x / 3.1 + z / 4.5) +
+      0.13 * Math.cos(x * 1.5 - z * 1.15) +
+      0.07 * Math.sin(x * 3.9 + z * 2.8)
+    );
+  }
+
+  function stepIndex(x) {
+    return clamp(Math.floor(Math.min(x, config.length - 0.00001) /
+      (config.length / (config.steps + 1))), 0, config.steps);
+  }
+
+  function surfaceY(x, z, tierOverride = null) {
+    const tier = tierOverride === null ? stepIndex(x) : tierOverride;
+    return -tier * config.stepHeight + terrainNoise(x, z) * 0.72;
+  }
+
+  function hexColorAtRisk(risk) {
+    const t = clamp(Number(risk) || 0, 0, 1);
+    return new THREE.Color("#2878ff").lerp(new THREE.Color("#f43c43"), t);
+  }
+
+  function chargeColor(charge) {
+    const stops = [
+      "#2878ff", "#12c8ef", "#27d886",
+      "#f2e63b", "#ff982e", "#f43c43"
+    ];
+    const t = clamp(((Number(charge) || 50) - 50) / 200, 0, 1);
+    const p = t * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(p));
+    return new THREE.Color(stops[i]).lerp(
+      new THREE.Color(stops[i + 1]), p - i
+    );
+  }
+
+  function holeColor(hole) {
+    return state.mode === "PPV Heatmap"
+      ? hexColorAtRisk(hole.ppv_risk)
+      : new THREE.Color("#00b4d8");
+  }
+
+  function defaultData() {
+    const holes = [];
+    for (let r = 0; r < config.holeRows; r++) {
+      for (let c = 0; c < config.holesPerRow; c++) {
+        const x = 4.5 + c * 10.1 + (r % 2 ? 1.0 : 0);
+        const y = 3.7 + r * 4.65;
+        holes.push({
+          id: `H${r + 1}-${c + 1}`,
+          x,
+          y,
+          charge: Math.round(50 + 200 * c / 5),
+          ppv_risk: clamp(0.12 + r * 0.065 + c * 0.018, 0, 1)
+        });
+      }
+    }
+    return {
+      holes,
+      faults: [
+        { id: "FAULT_JWA_01", is_high_risk: true },
+        { id: "FAULT_JWA_02", is_high_risk: false }
+      ]
+    };
+  }
+
+  function parseInput(raw) {
+    if (raw == null) return null;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return null; }
+    }
+    if (raw && typeof raw === "object") return raw;
+    return null;
+  }
+
+  function getDataCoordinates(holes) {
+    if (!holes.length) return [];
+    const xs = holes.map(h => Number(h.x) || 0);
+    const ys = holes.map(h => Number(h.y) || 0);
+
+    const allLocal = holes.every(h =>
+      Number.isFinite(Number(h.x)) &&
+      Number.isFinite(Number(h.y)) &&
+      Number(h.x) >= 0 && Number(h.x) <= config.length &&
+      Number(h.y) >= 0 && Number(h.y) <= config.width
+    );
+
+    if (allLocal) {
+      return holes.map(h => ({
+        ...h,
+        localX: Number(h.x),
+        localY: Number(h.y)
+      }));
+    }
+
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    return holes.map(h => ({
+      ...h,
+      localX: maxX === minX
+        ? config.length / 2
+        : 3 + ((Number(h.x) - minX) / (maxX - minX)) *
+          (config.length - 6),
+      localY: maxY === minY
+        ? config.width / 2
+        : 3 + ((Number(h.y) - minY) / (maxY - minY)) *
+          (config.width - 6)
+    }));
+  }
+
+  function makeVertexColor(x, y, z, baseA = "#8a7a65", baseB = "#c4ad85") {
+    const c = new THREE.Color(baseA).lerp(
+      new THREE.Color(baseB),
+      clamp(0.45 + terrainNoise(x, z) * 0.45 + (hash(x, z) - 0.5) * 0.16, 0, 1)
+    );
+    return c;
+  }
+
+  function makeTopMesh(tier) {
+    const nx = 52;
+    const nz = 34;
+    const positions = [];
+    const colors = [];
+    const indices = [];
+
+    const span = config.length / (config.steps + 1);
+    const x0 = tier * span;
+    const x1 = (tier + 1) * span;
+
+    for (let i = 0; i <= nx; i++) {
+      const lx = lerp(x0, x1, i / nx);
+      for (let j = 0; j <= nz; j++) {
+        const ly = config.width * j / nz;
+        const y = surfaceY(lx, ly, tier);
+        positions.push(lx - config.length / 2, y, ly - config.width / 2);
+
+        const c = makeVertexColor(lx, y, ly);
+        colors.push(c.r, c.g, c.b);
+      }
+    }
+
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < nz; j++) {
+        const a = i * (nz + 1) + j;
+        const b = (i + 1) * (nz + 1) + j;
+        const c = b + 1;
+        const d = a + 1;
+        indices.push(a, d, b, b, d, c);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+
+    const m = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.97,
+      metalness: 0,
+      side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(g, m);
+    mesh.receiveShadow = true;
+    mesh.castShadow = true;
+    mesh.userData.kind = "terrain";
+    return mesh;
+  }
+
+  function makeStepWall(tier) {
+    const segments = 48;
+    const layers = 7;
+    const positions = [];
+    const colors = [];
+    const indices = [];
+    const xLocal = (tier + 1) * config.length / (config.steps + 1);
+    const strata = [
+      "#6c6257", "#927c64", "#5f5a52", "#a18b70",
+      "#736b60", "#8c735b", "#625951"
+    ];
+
+    for (let j = 0; j <= segments; j++) {
+      const zLocal = config.width * j / segments;
+      const upper = surfaceY(xLocal - 0.001, zLocal, tier);
+      const lower = surfaceY(xLocal + 0.001, zLocal, tier + 1);
+
+      for (let k = 0; k <= layers; k++) {
+        const f = k / layers;
+        const y = lerp(upper, lower, f);
+        positions.push(
+          xLocal - config.length / 2,
+          y,
+          zLocal - config.width / 2
+        );
+
+        const band = Math.min(layers - 1, Math.floor(f * layers));
+        const col = new THREE.Color(strata[band]).multiplyScalar(
+          0.84 + hash(j, k) * 0.28
+        );
+        colors.push(col.r, col.g, col.b);
+      }
+    }
+
+    const stride = layers + 1;
+    for (let j = 0; j < segments; j++) {
+      for (let k = 0; k < layers; k++) {
+        const a = j * stride + k;
+        const b = (j + 1) * stride + k;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+
+    const m = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 1,
+      side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(g, m);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = "bench-face";
+    return mesh;
+  }
+
+  function makeBoundaryWall(axis, fixedLocal, tierStart, tierEnd) {
+    const lengthSegments = 60;
+    const verticalSegments = 16;
+    const positions = [];
+    const colors = [];
+    const indices = [];
+
+    const layerColors = [
+      "#6b5b4c", "#85735f", "#574f48", "#9b8267",
+      "#73675a", "#8c7b67", "#514b46", "#8e755c"
+    ];
+
+    const alongLength = axis === "z" ? config.length : config.width;
+
+    for (let i = 0; i <= lengthSegments; i++) {
+      const along = alongLength * i / lengthSegments;
+
+      let xLocal, zLocal, tier, top;
+      if (axis === "z") {
+        xLocal = along;
+        zLocal = fixedLocal;
+        tier = stepIndex(xLocal);
+        top = surfaceY(xLocal, zLocal, tier);
+      } else {
+        xLocal = fixedLocal;
+        zLocal = along;
+        tier = tierStart;
+        top = surfaceY(xLocal, zLocal, tier);
+      }
+
+      for (let j = 0; j <= verticalSegments; j++) {
+        const f = j / verticalSegments;
+        const y = lerp(top, config.baseY, f);
+        positions.push(
+          xLocal - config.length / 2,
+          y,
+          zLocal - config.width / 2
+        );
+
+        const band = Math.min(layerColors.length - 1,
+          Math.floor(f * layerColors.length));
+        const col = new THREE.Color(layerColors[band]).multiplyScalar(
+          0.83 + hash(i, j) * 0.23
+        );
+        colors.push(col.r, col.g, col.b);
+      }
+    }
+
+    const stride = verticalSegments + 1;
+    for (let i = 0; i < lengthSegments; i++) {
+      for (let j = 0; j < verticalSegments; j++) {
+        const a = i * stride + j;
+        const b = (i + 1) * stride + j;
+        indices.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+
+    const m = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 1,
+      side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(g, m);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function makeContourLines() {
+    const group = new THREE.Group();
+    const material = new THREE.LineBasicMaterial({
+      color: "#e6d4b2",
+      transparent: true,
+      opacity: 0.16
+    });
+
+    for (let x = 2.5; x < config.length; x += 2.5) {
+      const pts = [];
+      for (let j = 0; j <= 80; j++) {
+        const z = config.width * j / 80;
+        pts.push(new THREE.Vector3(
+          x - config.length / 2,
+          surfaceY(x, z) + 0.035,
+          z - config.width / 2
+        ));
+      }
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      group.add(new THREE.Line(g, material));
+    }
+
+    for (let z = 2.5; z < config.width; z += 2.5) {
+      const pts = [];
+      for (let i = 0; i <= 100; i++) {
+        const x = config.length * i / 100;
+        pts.push(new THREE.Vector3(
+          x - config.length / 2,
+          surfaceY(x, z) + 0.035,
+          z - config.width / 2
+        ));
+      }
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      group.add(new THREE.Line(g, material));
+    }
+    return group;
+  }
+
+  function makeZone(x0, x1, z0, z1, color, opacity) {
+    const nx = 24, nz = 18;
+    const positions = [];
+    const indices = [];
+
+    for (let i = 0; i <= nx; i++) {
+      const x = lerp(x0, x1, i / nx);
+      for (let j = 0; j <= nz; j++) {
+        const z = lerp(z0, z1, j / nz);
+        positions.push(
+          x - config.length / 2,
+          surfaceY(x, z) + 0.10,
+          z - config.width / 2
+        );
+      }
+    }
+
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < nz; j++) {
+        const a = i * (nz + 1) + j;
+        const b = (i + 1) * (nz + 1) + j;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    g.setIndex(indices);
+    g.computeVertexNormals();
+
+    const m = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity,
+      roughness: 1,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2
+    });
+
+    const mesh = new THREE.Mesh(g, m);
+    mesh.renderOrder = 2;
+    mesh.userData.kind = "geology";
+    return mesh;
+  }
+
+  function buildTerrain() {
+    terrainGroup = new THREE.Group();
+
+    const segWidth = config.length / (config.steps + 1);
+    for (let tier = 0; tier <= config.steps; tier++) {
+      terrainGroup.add(makeTopMesh(tier));
+      if (tier < config.steps) terrainGroup.add(makeStepWall(tier));
+    }
+
+    // Exposed front and rear walls.
+    terrainGroup.add(makeBoundaryWall("z", 0, 0, config.steps));
+    terrainGroup.add(makeBoundaryWall("z", config.width, 0, config.steps));
+
+    // End walls.
+    terrainGroup.add(makeBoundaryWall("x", 0, 0, 0));
+    terrainGroup.add(makeBoundaryWall("x", config.length, config.steps, config.steps));
+
+    // Ground plane below the model.
+    const floorGeometry = new THREE.PlaneGeometry(
+      config.length + 80, config.width + 80
+    );
+    floorGeometry.rotateX(-Math.PI / 2);
+    const floor = new THREE.Mesh(
+      floorGeometry,
+      new THREE.MeshStandardMaterial({
+        color: "#252a2d",
+        roughness: 1,
+        metalness: 0
+      })
+    );
+    floor.position.y = config.baseY - 0.1;
+    floor.receiveShadow = true;
+    terrainGroup.add(floor);
+
+    terrainGroup.add(makeContourLines());
+    scene.add(terrainGroup);
+
+    zoneGroup = new THREE.Group();
+    zoneGroup.add(makeZone(2, 24, 5, 34, "#965ac1", 0.60));
+    zoneGroup.add(makeZone(18, 43, 4, 35, "#aab6c4", 0.45));
+    zoneGroup.add(makeZone(40, 59, 4, 35, "#e28a43", 0.55));
+    scene.add(zoneGroup);
+  }
+
+  function clearGroup(group) {
+    if (!group) return;
+    while (group.children.length) {
+      const obj = group.children.pop();
+      if (obj.parent) obj.parent.remove(obj);
+      obj.traverse?.(child => {
+        child.geometry?.dispose?.();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose?.());
+        } else {
+          child.material?.dispose?.();
+        }
+      });
+    }
+  }
+
+  function buildHoleGroup(rawHoles) {
+    if (holesGroup) {
+      scene.remove(holesGroup);
+      holesGroup.traverse(obj => {
+        obj.geometry?.dispose?.();
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material?.dispose?.();
+      });
+    }
+
+    holesGroup = new THREE.Group();
+    holeMeshes = [];
+
+    const normalized = getDataCoordinates(rawHoles);
+
+    for (let i = 0; i < normalized.length; i++) {
+      const h = normalized[i];
+      const xLocal = clamp(h.localX, 0.2, config.length - 0.2);
+      const zLocal = clamp(h.localY, 0.2, config.width - 0.2);
+      const surface = surfaceY(xLocal, zLocal);
+      const x = xLocal - config.length / 2;
+      const z = zLocal - config.width / 2;
+
+      const shaftMaterial = new THREE.MeshStandardMaterial({
+        color: holeColor(h),
+        roughness: 0.45,
+        metalness: 0.2
+      });
+
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.29, 1.55, 16, 1),
+        shaftMaterial
+      );
+      shaft.position.set(x, surface + 0.78, z);
+      shaft.castShadow = true;
+      shaft.userData.holeData = h;
+      shaft.userData.kind = "hole";
+      holesGroup.add(shaft);
+      holeMeshes.push(shaft);
+
+      // Dark collar aperture and bevelled rim.
+      const opening = new THREE.Mesh(
+        new THREE.CircleGeometry(0.205, 20),
+        new THREE.MeshBasicMaterial({
+          color: "#07090d",
+          side: THREE.DoubleSide
+        })
+      );
+      opening.rotation.x = -Math.PI / 2;
+      opening.position.set(x, surface + 0.045, z);
+      holesGroup.add(opening);
+
+      const rim = new THREE.Mesh(
+        new THREE.RingGeometry(0.205, 0.34, 24),
+        new THREE.MeshStandardMaterial({
+          color: holeColor(h),
+          metalness: 0.2,
+          roughness: 0.5,
+          side: THREE.DoubleSide
+        })
+      );
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.set(x, surface + 0.055, z);
+      rim.userData.kind = "collar";
+      holesGroup.add(rim);
+
+      const collarData = h;
+      opening.userData.holeData = collarData;
+      rim.userData.holeData = collarData;
+      holeMeshes.push(opening, rim);
+    }
+
+    holesGroup.visible = state.holesVisible;
+    scene.add(holesGroup);
+    $("holeCount").textContent = String(normalized.length);
+  }
+
+  function buildFaultGroup(rawFaults) {
+    if (faultsGroup) {
+      scene.remove(faultsGroup);
+      faultsGroup.traverse(obj => {
+        obj.geometry?.dispose?.();
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material?.dispose?.();
+      });
+    }
+
+    faultsGroup = new THREE.Group();
+    faultMeshes = [];
+
+    rawFaults.forEach((fault, i) => {
+      const sx = Number.isFinite(Number(fault.start_x))
+        ? Number(fault.start_x)
+        : 4 + i * 12;
+      const sy = Number.isFinite(Number(fault.start_y))
+        ? Number(fault.start_y)
+        : config.width * (0.82 - i * 0.22);
+      const ex = Number.isFinite(Number(fault.end_x))
+        ? Number(fault.end_x)
+        : config.length - 4;
+      const ey = Number.isFinite(Number(fault.end_y))
+        ? Number(fault.end_y)
+        : config.width * (0.18 + i * 0.28);
+
+      const x0 = clamp(sx, 0, config.length);
+      const z0 = clamp(sy, 0, config.width);
+      const x1 = clamp(ex, 0, config.length);
+      const z1 = clamp(ey, 0, config.width);
+
+      const top0 = surfaceY(x0, z0) + 0.05;
+      const top1 = surfaceY(x1, z1) + 0.05;
+      const bottom = config.baseY + 0.3;
+
+      const p = [
+        new THREE.Vector3(x0 - config.length / 2, top0, z0 - config.width / 2),
+        new THREE.Vector3(x1 - config.length / 2, top1, z1 - config.width / 2),
+        new THREE.Vector3(x1 - config.length / 2, bottom, z1 - config.width / 2),
+        new THREE.Vector3(x0 - config.length / 2, bottom, z0 - config.width / 2)
+      ];
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(
+        p.flatMap(v => [v.x, v.y, v.z]), 3
+      ));
+      geometry.setIndex([0, 1, 2, 0, 2, 3]);
+      geometry.computeVertexNormals();
+
+      const highRisk = Boolean(fault.is_high_risk);
+      const material = new THREE.MeshBasicMaterial({
+        color: highRisk ? "#ff3b49" : "#d85b4f",
+        transparent: true,
+        opacity: highRisk ? 0.31 : 0.22,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.faultData = fault;
+      mesh.renderOrder = 3;
+      faultsGroup.add(mesh);
+      faultMeshes.push(mesh);
+
+      const edge = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(p),
+        new THREE.LineBasicMaterial({
+          color: highRisk ? "#ff5d66" : "#cc6d62",
+          transparent: true,
+          opacity: 0.7
+        })
+      );
+      edge.renderOrder = 4;
+      faultsGroup.add(edge);
+    });
+
+    faultsGroup.visible = state.faultsVisible;
+    scene.add(faultsGroup);
+    $("faultCount").textContent = String(rawFaults.length);
+  }
+
+  function selectHole(hole) {
+    state.selectedHole = hole || null;
+    $("selectedEmpty").hidden = Boolean(hole);
+    $("selectedDetails").hidden = !hole;
+
+    if (!hole) return;
+
+    $("selectedId").textContent = hole.id ?? "Unknown";
+    $("selectedCharge").textContent =
+      hole.charge == null ? "N/A" : `${hole.charge} kg`;
+    $("selectedRisk").textContent =
+      hole.ppv_risk == null ? "N/A" : Number(hole.ppv_risk).toFixed(2);
+    $("selectedX").textContent = hole.x == null ? "N/A" : Number(hole.x).toFixed(2);
+    $("selectedY").textContent = hole.y == null ? "N/A" : Number(hole.y).toFixed(2);
+  }
+
+  function updateHoleColors() {
+    const seen = new Set();
+
+    for (const obj of holeMeshes) {
+      const h = obj.userData.holeData;
+      if (!h || !obj.material?.color) continue;
+      const key = `${h.id}-${obj.uuid}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      obj.material.color.copy(holeColor(h));
+    }
+
+    $("activeMode").textContent = state.mode;
+    $("legendTitle").textContent = state.mode === "PPV Heatmap"
+      ? "PPV Heatmap — blue low to red high"
+      : "Geometry — solid cyan";
+    $("holeColorbar").style.background = state.mode === "PPV Heatmap"
+      ? "linear-gradient(90deg,#2878ff,#845cff,#f43c43)"
+      : "#00b4d8";
+    $("legendLabels").innerHTML = state.mode === "PPV Heatmap"
+      ? "<span>Low risk</span><span>High risk</span>"
+      : "<span>Holes</span><span>Cyan</span>";
+  }
+
+  function updateSceneData(raw) {
+    const data = parseInput(raw);
+    if (!data) return;
+
+    customData = data;
+    state.dataSource = "Python";
+    $("dataSource").textContent = "Python";
+
+    const holes = Array.isArray(data.holes) ? data.holes : [];
+    const faults = Array.isArray(data.faults) ? data.faults : [];
+
+    buildHoleGroup(holes);
+    buildFaultGroup(faults);
+    selectHole(null);
+    updateHoleColors();
+    if (fallbackActive) drawFallback();
+  }
+
+  // Public data-injection hook.
+  window.setBlastoptSceneData = updateSceneData;
+  window.addEventListener("blastopt-scene-data", event => {
+    updateSceneData(event.detail);
+  });
+  window.addEventListener("message", event => {
+    const message = event.data;
+    if (!message || typeof message !== "object") return;
+
+    if (message.type === "BLASTOPT_SCENE_DATA") {
+      updateSceneData(message.data ?? message.payload);
+    } else if (Array.isArray(message.holes) || Array.isArray(message.faults)) {
+      updateSceneData(message);
+    }
+  });
+
+  function setupThree() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color("#0a0f18");
+    scene.fog = new THREE.Fog("#0a0f18", 95, 220);
+
+    const initialAspect = Math.max(
+      1, viewport.clientWidth / Math.max(1, viewport.clientHeight)
+    );
+    camera = new THREE.PerspectiveCamera(43, initialAspect, 0.1, 1500);
+
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.setAttribute("aria-label", "Three.js 3D bench");
+    viewport.appendChild(renderer.domElement);
+
+    const ambient = new THREE.HemisphereLight("#dceaff", "#463a2d", 2.0);
+    scene.add(ambient);
+
+    const key = new THREE.DirectionalLight("#ffe3b5", 3.2);
+    key.position.set(-35, 55, -30);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.left = -70;
+    key.shadow.camera.right = 70;
+    key.shadow.camera.top = 70;
+    key.shadow.camera.bottom = -70;
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight("#75b7ff", 1.25);
+    fill.position.set(32, 24, 40);
+    scene.add(fill);
+
+    terrainGroup = new THREE.Group();
+    zoneGroup = new THREE.Group();
+    holesGroup = new THREE.Group();
+    faultsGroup = new THREE.Group();
+
+    buildTerrain();
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.075;
+    controls.minDistance = 18;
+    controls.maxDistance = 180;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.target.set(0, -6.5, 0);
+
+    raycaster = new THREE.Raycaster();
+    raycaster.params.Line.threshold = 0.2;
+
+    rendererReady = true;
+    $("rendererStatus").textContent = "Three.js";
+    setView("iso");
+  }
+
+  function setView(view) {
+    state.view = view;
+    $("isoButton").classList.toggle("active", view === "iso");
+    $("topButton").classList.toggle("active", view === "top");
+
+    $("viewBadge").textContent = view === "top"
+      ? "TOP VIEW · PLAN"
+      : "ISOMETRIC · 3D VIEW";
+
+    if (fallbackActive) {
+      fallbackAzimuth = view === "top" ? 0 : -115;
+      drawFallback();
+      return;
+    }
+
+    const target = new THREE.Vector3(0, -6.8, 0);
+    const distance = 82;
+
+    controls.target.copy(target);
+
+    if (view === "top") {
+      camera.up.set(0, 0, -1);
+      camera.position.set(target.x, target.y + distance, target.z + 0.01);
+    } else {
+      camera.up.set(0, 1, 0);
+      const elev = THREE.MathUtils.degToRad(28);
+      const azim = THREE.MathUtils.degToRad(-115);
+      camera.position.set(
+        target.x + distance * Math.cos(elev) * Math.sin(azim),
+        target.y + distance * Math.sin(elev),
+        target.z + distance * Math.cos(elev) * Math.cos(azim)
+      );
+    }
+
+    camera.lookAt(target);
+    controls.update();
+    controls.saveState();
+  }
+
+  function onResize() {
+    const width = viewport.clientWidth;
+    const height = viewport.clientHeight;
+    if (!width || !height) return;
+
+    if (rendererReady && renderer && camera) {
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+    if (fallbackActive) drawFallback();
+  }
+
+  function onCanvasClick(event) {
+    if (!rendererReady || !camera || !renderer) return;
+    if (clickStart && Math.hypot(
+      event.clientX - clickStart.x,
+      event.clientY - clickStart.y
+    ) > 5) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(holeMeshes, false);
+    const hit = hits.find(h => h.object.userData.holeData);
+
+    if (hit) selectHole(hit.object.userData.holeData);
+  }
+
+  // ---------------------------------------------------------------
+  // Canvas 2D compatibility rendering, used only if WebGL fails.
+  // ---------------------------------------------------------------
+
+  function drawFallback() {
+    if (!fallbackCtx) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, rect.width);
+    const h = Math.max(1, rect.height);
+
+    fallbackCanvas.style.display = "block";
+    fallbackCanvas.width = Math.round(w * dpr);
+    fallbackCanvas.height = Math.round(h * dpr);
+
+    const c = fallbackCtx;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+
+    const gradient = c.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, "#121f31");
+    gradient.addColorStop(1, "#070c13");
+    c.fillStyle = gradient;
+    c.fillRect(0, 0, w, h);
+
+    const topView = state.view === "top";
+    const zoom = lastFallbackZoom;
+    const scale = topView
+      ? Math.min((w - 40) / config.length, (h - 40) / config.width) * zoom
+      : Math.min((w - 45) / (config.length + config.width * 0.9),
+                 (h - 45) / (config.length * 0.35 + config.width * 0.65 + 22)) * zoom;
+
+    const az = fallbackAzimuth * Math.PI / 180;
+
+    function p(x, z, y) {
+      if (topView) {
+        return {
+          x: w / 2 + x * scale,
+          y: h / 2 + z * scale
+        };
+      }
+
+      const rotatedX = x * Math.cos(az) - z * Math.sin(az);
+      const rotatedZ = x * Math.sin(az) + z * Math.cos(az);
+      return {
+        x: w / 2 + rotatedX * scale,
+        y: h * 0.48 + rotatedZ * scale * 0.52 - y * scale * 0.65
+      };
+    }
+
+    function poly(points, fill, stroke = null, alpha = 1) {
+      c.globalAlpha = alpha;
+      c.beginPath();
+      points.forEach((v, i) => {
+        if (i === 0) c.moveTo(v.x, v.y);
+        else c.lineTo(v.x, v.y);
+      });
+      c.closePath();
+      c.fillStyle = fill;
+      c.fill();
+      if (stroke) {
+        c.strokeStyle = stroke;
+        c.lineWidth = 0.65;
+        c.stroke();
+      }
+      c.globalAlpha = 1;
+    }
+
+    const segWidth = config.length / (config.steps + 1);
+
+    // Front rock walls first.
+    if (!topView) {
+      for (let tier = config.steps; tier >= 0; tier--) {
+        const x0 = tier * segWidth;
+        const x1 = (tier + 1) * segWidth;
+        const yTop = -tier * config.stepHeight;
+        const yBottom = config.baseY;
+        poly([
+          p(x0 - config.length / 2, config.width / 2, yTop),
+          p(x1 - config.length / 2, config.width / 2, yTop),
+          p(x1 - config.length / 2, config.width / 2, yBottom),
+          p(x0 - config.length / 2, config.width / 2, yBottom)
+        ], ["#665648","#795f49","#594f43","#8b6a4b"][tier], "#302c29");
+      }
+    }
+
+    // Terrace top polygons.
+    for (let tier = config.steps; tier >= 0; tier--) {
+      const x0 = tier * segWidth - config.length / 2;
+      const x1 = (tier + 1) * segWidth - config.length / 2;
+      const y = -tier * config.stepHeight;
+
+      const corners = [
+        p(x0, -config.width / 2, y),
+        p(x1, -config.width / 2, y),
+        p(x1, config.width / 2, y),
+        p(x0, config.width / 2, y)
+      ];
+
+      poly(corners, ["#b9a17b","#a18a6a","#c6b08a","#a78b68"][tier], "#75614a");
+
+      if (!topView) {
+        c.strokeStyle = "rgba(255,238,204,.15)";
+        c.lineWidth = 0.7;
+        for (let x = x0 + 2.5; x < x1; x += 2.5) {
+          const a = p(x, -config.width / 2, y + .05);
+          const b = p(x, config.width / 2, y + .05);
+          c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+        }
+      }
+    }
+
+    // Geological patches.
+    const zones = [
+      {x0: -config.length/2+2, x1: -config.length/2+24,
+       z0: -14, z1: 14, color: "#965ac1", alpha: .60},
+      {x0: -config.length/2+18, x1: -config.length/2+43,
+       z0: -13, z1: 14, color: "#aab6c4", alpha: .45},
+      {x0: -config.length/2+40, x1: config.length/2-1,
+       z0: -14, z1: 14, color: "#e28a43", alpha: .55}
+    ];
+
+    for (const zone of zones) {
+      const pts = [
+        p(zone.x0, zone.z0, 0),
+        p(zone.x1, zone.z0, -3),
+        p(zone.x1, zone.z1, -3),
+        p(zone.x0, zone.z1, 0)
+      ];
+      poly(pts, zone.color, null, zone.alpha);
+    }
+
+    // Fault planes.
+    if (state.faultsVisible) {
+      const faults = customData && Array.isArray(customData.faults)
+        ? customData.faults
+        : defaultData().faults;
+
+      faults.forEach((fault, i) => {
+        const x0 = -config.length * .42 + i * 7;
+        const x1 = config.length * .42;
+        const z0 = config.width * .36 - i * 6;
+        const z1 = -config.width * .36 + i * 4;
+        poly([
+          p(x0, z0, 1),
+          p(x1, z1, 1),
+          p(x1, z1, config.baseY),
+          p(x0, z0, config.baseY)
+        ], fault.is_high_risk ? "#ff3545" : "#d85b4f", null,
+        fault.is_high_risk ? .38 : .24);
+      });
+    }
+
+    // Drill-hole cylinders projected as three-dimensional pins.
+    if (state.holesVisible) {
+      for (const hole of holeRecords) {
+        const x = hole.localX - config.length / 2;
+        const z = hole.localY - config.width / 2;
+        const y = surfaceY(hole.localX, hole.localY);
+        const color = state.mode === "PPV Heatmap"
+          ? riskColorHex(hole.ppv_risk)
+          : "#00b4d8";
+
+        const a = p(x, z, y);
+        const b = p(x, z, y + 1.55);
+        const radius = topView ? 3 : 4;
+
+        c.strokeStyle = "#080b10";
+        c.lineWidth = radius + 2;
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+
+        c.strokeStyle = color;
+        c.lineWidth = radius;
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+
+        c.fillStyle = "#090d14";
+        c.beginPath(); c.arc(a.x, a.y, radius + 1.5, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = color;
+        c.lineWidth = 2;
+        c.beginPath(); c.arc(a.x, a.y, radius + 1, 0, Math.PI * 2); c.stroke();
+      }
+    }
+
+    c.globalAlpha = 1;
+  }
+
+  function riskColorHex(risk) {
+    const t = clamp(Number(risk) || 0, 0, 1);
+    return new THREE.Color("#2878ff").lerp(
+      new THREE.Color("#f43c43"), t
+    ).getStyle();
+  }
+
+  function fallbackPointerDown(event) {
+    clickStart = {x: event.clientX, y: event.clientY};
+  }
+
+  function fallbackPointerUp(event) {
+    if (!clickStart) return;
+    const dx = event.clientX - clickStart.x;
+    const dy = event.clientY - clickStart.y;
+
+    if (Math.hypot(dx, dy) < 5) {
+      selectHole(null);
+    }
+    clickStart = null;
+  }
+
+  function enableFallback(reason) {
+    fallbackActive = true;
+    rendererReady = false;
+    $("fallbackNotice").style.display = "block";
+    $("rendererStatus").textContent = "Canvas 2D";
+    $("viewBadge").textContent = "COMPATIBILITY VIEW";
+    $("fallbackCanvas").style.display = "block";
+
+    if (renderer?.domElement?.parentNode) {
+      renderer.domElement.parentNode.removeChild(renderer.domElement);
+    }
+
+    drawFallback();
+  }
+
+  // Controls affect the scene regardless of renderer type.
+  $("viewMode").addEventListener("change", event => {
+    state.mode = event.target.value;
+    updateHoleColors();
+    if (fallbackActive) drawFallback();
+  });
+
+  $("showHoles").addEventListener("change", event => {
+    state.holesVisible = event.target.checked;
+    if (holesGroup) holesGroup.visible = state.holesVisible;
+    if (fallbackActive) drawFallback();
+  });
+
+  $("showFaults").addEventListener("change", event => {
+    state.faultsVisible = event.target.checked;
+    if (faultsGroup) faultsGroup.visible = state.faultsVisible;
+    if (fallbackActive) drawFallback();
+  });
+
+  $("isoButton").addEventListener("click", () => setView("iso"));
+  $("topButton").addEventListener("click", () => setView("top"));
+
+  fallbackCanvas.addEventListener("pointerdown", fallbackPointerDown);
+  fallbackCanvas.addEventListener("pointerup", fallbackPointerUp);
+  fallbackCanvas.addEventListener("wheel", event => {
+    event.preventDefault();
+    lastFallbackZoom = clamp(
+      lastFallbackZoom * Math.exp(-event.deltaY * 0.001),
+      .45, 2.5
+    );
+    drawFallback();
+  }, { passive: false });
+
+  let activeData = parseInput(window.BLASTOPT_SCENE_DATA);
+  if (!activeData) activeData = defaultData();
+
+  holeRecords = getDataCoordinates(
+    Array.isArray(activeData.holes) ? activeData.holes : []
+  );
+
+  $("holeCount").textContent = String(holeRecords.length);
+  $("faultCount").textContent = String(
+    Array.isArray(activeData.faults) ? activeData.faults.length : 0
+  );
+  $("dataSource").textContent = window.BLASTOPT_SCENE_DATA ? "Python" : "Demo";
+
+  try {
+    setupThree();
+    buildHoleGroup(Array.isArray(activeData.holes) ? activeData.holes : []);
+    buildFaultGroup(Array.isArray(activeData.faults) ? activeData.faults : []);
+    updateHoleColors();
+
+    renderer.domElement.addEventListener("pointerdown", event => {
+      clickStart = {x: event.clientX, y: event.clientY};
+    });
+    renderer.domElement.addEventListener("pointerup", onCanvasClick);
+
+    const resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(viewport);
+    window.addEventListener("resize", onResize);
+
+    function animate() {
+      if (fallbackActive) return;
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  } catch (error) {
+    console.error("BlastOPT WebGL initialisation failed:", error);
+    enableFallback(error);
+    window.addEventListener("resize", drawFallback);
+  }
+})();
+</script>
+</body>
+</html>

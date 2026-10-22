@@ -4,7 +4,23 @@ import pandas as pd
 
 from src.components.model_selector import render_page_model_selector
 
-st.title("PINN Prediction & Uncertainty")
+st.markdown("""
+<style>
+    /* Force sliders to Gold */
+    .stSlider [data-baseweb="slider"] div[role="slider"] {
+        background-color: #F2A900 !important;
+    }
+    .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+        background-color: transparent !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">PINN Prediction & Uncertainty</h1>
+<p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Physics-Informed Neural Network prediction engine with 95% uncertainty bounds.</p>
+<hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+""", unsafe_allow_html=True)
 
 PINN_MODEL_KEY = "pinn"
 
@@ -30,7 +46,7 @@ if model is None:
 
 st.subheader("Input Parameters")
 
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([1, 1.5])
 
 with col1:
     burden_m = st.slider("Burden (m)", 2.0, 8.0, 6.0, 0.1, key="pinn_burden")
@@ -39,8 +55,6 @@ with col1:
     hole_depth_m = st.slider("Hole Depth (m)", 5.0, 30.0, 12.0, 0.5, key="pinn_hole_depth")
     stemming_m = st.slider("Stemming (m)", 1.0, 6.0, 5.0, 0.1, key="pinn_stemming")
     sub_drill_m = st.slider("Sub-drill (m)", 0.3, 2.0, 1.5, 0.1, key="pinn_subdrill")
-
-with col2:
     powder_factor = st.slider("Powder Factor (kg/m³)", 0.2, 1.5, 0.65, 0.05, key="pinn_pf")
     max_charge_per_delay = st.slider("Max Charge per Delay (kg)", 10.0, 500.0, 320.0, 10.0, key="pinn_charge")
     rock_strength_ucs = st.slider("Rock Strength UCS (MPa)", 20.0, 300.0, 120.0, 5.0, key="pinn_ucs")
@@ -94,10 +108,17 @@ if not (95.0 <= airblast <= 125.0):
     st.error(f"❌ Airblast = {airblast:.1f} dB is outside the physical range [95, 125]. Model may be untrained.")
     st.stop()
 
-st.divider()
-st.subheader("Predictions & Uncertainty Bounds")
+with col2:
+    st.subheader("Predictions & Uncertainty Bounds")
 
-col_d80, col_ppv, col_air = st.columns(3)
-col_d80.metric("Fragmentation D80", f"{d80:.1f} cm")
-col_ppv.metric("Vibration PPV", f"{ppv:.2f} mm/s")
-col_air.metric("Airblast Overpressure", f"{airblast:.1f} dB")
+    col_d80, col_ppv, col_air = st.columns(3)
+    col_d80.metric("Fragmentation D80", f"{d80:.1f} cm")
+    col_ppv.metric("Vibration PPV", f"{ppv:.2f} mm/s")
+    col_air.metric("Airblast Overpressure", f"{airblast:.1f} dB")
+
+    st.markdown("---")
+    st.subheader("📐 Physics Soft Loss Terms Embedding")
+    st.write(r"**Kuz-Ram Soft Penalty ($L_{kuzram}$):** Penalizes predictions deviating from:")
+    st.latex(r"X_{50} = A \cdot K^{-0.8} \cdot Q^{1/6} \cdot \left(\frac{115}{E}\right)^{19/30}")
+    st.write(r"**USBM PPV Soft Penalty ($L_{usbm}$):** Penalizes predictions deviating from:")
+    st.latex(r"PPV = 1140 \cdot \left(\frac{D}{\sqrt{W}}\right)^{-1.6}")

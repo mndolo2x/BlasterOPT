@@ -219,12 +219,19 @@ except Exception as exc:
     ) from exc
 
 if DEMO_MODE:
-    st.warning("⚠️ DEMO MODE — Simulated Data (Set DEMO_MODE=false in environment for live hardware streams)")
+    st.markdown(
+        """
+        <div style="background-color: rgba(243, 156, 18, 0.1); border-left: 4px solid #f39c12; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; color: #f39c12; font-weight: 500;">
+            ⚠️ <b>DEMO MODE</b> — Operating with simulated physics data streams (Set <code>DEMO_MODE=false</code> in environment for live hardware telemetry).
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # Initialize Session State
 if "df" not in st.session_state:
     # Default initial dataset
-    synth_df = generate_synthetic_blast_data(num_samples=300, seed=42)
+    synth_df = generate_synthetic_blast_data(num_samples=1000, seed=42)
     init_df = engineer_features(synth_df)
     st.session_state["df"] = init_df
     st.session_state["data_ready"] = True
@@ -234,7 +241,7 @@ if "df" not in st.session_state:
     st.session_state["data_fingerprint"] = dataframe_fingerprint(init_df)
     st.session_state["data_generated_at"] = datetime.now().isoformat()
     st.session_state["data_loaded_at"] = datetime.now().isoformat()
-    st.session_state["data_details"] = "Initial synthetic 300 rows, seed=42"
+    st.session_state["data_details"] = "Initial synthetic 1000 rows, seed=42"
 
 if "pipeline" not in st.session_state:
     st.session_state["pipeline"] = None
@@ -260,210 +267,284 @@ if "last_predict_results" not in st.session_state:
     )
 
 
+# Custom Dark Theme Styling for Enterprise SaaS Look
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #08101E; /* Dark Navy */
+            border-right: 1px solid #002B5B;
+        }
+        [data-testid="stSidebar"] hr {
+            border-top: 1px solid #002B5B;
+        }
+        [data-testid="stSidebar"] .st-emotion-cache-1wivap2 {
+            color: #94a3b8; /* Muted text for group titles */
+        }
+        [data-testid="stDataFrame"] {
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Title and Header Banner
 st.title("🇧🇼 BlastOpt Botswana")
 st.markdown(
     "**AI-Driven Drilling & Blasting Design, Fragmentation Modeling & Genetic Algorithm Optimizer**"
 )
 
-# Language Selector Sidebar
-st.sidebar.image("https://img.icons8.com/color/96/diamond.png", width=64)
-selected_lang_label = st.sidebar.selectbox(
-    "🌐 Language / Puo",
-    ["English 🇬🇧", "Setswana 🇧🇼"],
-    index=0,
-)
-lang_code = "tn" if "Setswana" in selected_lang_label else "en"
+# Sidebar Header & Brand Styling
+try:
+    from streamlit_option_menu import option_menu
+    HAS_OPTION_MENU = True
+except ImportError:
+    HAS_OPTION_MENU = False
 
-# Voice Mode Toggle Sidebar
-st.sidebar.markdown("---")
-voice_mode_active = st.sidebar.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+with st.sidebar:
+    st.image("https://img.icons8.com/color/96/diamond.png", width=48)
+    st.markdown("### **BlastOPT**")
+    st.caption("AI Blast Optimization Platform")
 
-if voice_mode_active:
-    st.sidebar.subheader("🎙️ Voice Agent Assistant")
-    voice_audio_input = st.sidebar.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
-
-    if voice_audio_input is not None:
-        audio_bytes = voice_audio_input.read()
-        st.sidebar.audio(audio_bytes, format="audio/wav")
-
-        if st.sidebar.button("Process Voice Command 🚀", type="primary"):
-            with st.spinner("Processing speech-to-text and agent reasoning..."):
-                voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
-
-                st.sidebar.success(f"**Recognized ({voice_res['language'].upper()}):** {voice_res['transcription']}")
-                st.sidebar.info(f"**Agent Response:** {voice_res['text']}")
-
-                # Play synthesized speech response
-                st.sidebar.audio(voice_res["audio"], format="audio/wav", autoplay=True)
-
-# Sidebar System Status Indicator
-st.sidebar.markdown("---")
-st.sidebar.markdown("### System Status")
-
-if st.session_state.get("data_ready", False):
-    sys_df = st.session_state["df"]
-    sys_fp = st.session_state.get("data_fingerprint", dataframe_fingerprint(sys_df))
-    st.sidebar.success(
-        f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols  \n"
-        f"Fingerprint: `{sys_fp}`"
+    selected_lang_label = st.selectbox(
+        "🌐 Language / Puo",
+        ["English 🇬🇧", "Setswana 🇧🇼"],
+        index=0,
     )
-else:
-    st.sidebar.warning("📊 No data loaded")
+    lang_code = "tn" if "Setswana" in selected_lang_label else "en"
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Trained Models")
-trained = st.session_state.get("trained_models", {})
-if trained:
-    for key in trained.keys():
-        disp = MODEL_REGISTRY.get(key, {}).get("display_name", key)
-        st.sidebar.caption(f"✅ {disp}")
-else:
-    st.sidebar.caption("⚠️ None trained yet")
+    # Voice Mode Toggle
+    voice_mode_active = st.toggle("🎤 Voice Interaction Mode", value=False, help="Enable bilingual voice input/output interaction mode.")
+    if voice_mode_active:
+        st.subheader("🎙️ Voice Agent Assistant")
+        voice_audio_input = st.file_uploader("Upload or Record Voice Audio (.wav / .mp3)", type=["wav", "mp3", "ogg"])
+        if voice_audio_input is not None:
+            audio_bytes = voice_audio_input.read()
+            st.audio(audio_bytes, format="audio/wav")
+            if st.button("Process Voice Command 🚀", type="primary"):
+                with st.spinner("Processing speech-to-text and agent reasoning..."):
+                    voice_res = process_voice_turn(audio_bytes=audio_bytes, user_id="SIDEBAR_VOICE_USER")
+                    st.success(f"**Recognized ({voice_res['language'].upper()}):** {voice_res['transcription']}")
+                    st.info(f"**Agent Response:** {voice_res['text']}")
+                    st.audio(voice_res["audio"], format="audio/wav", autoplay=True)
 
-st.sidebar.markdown("---")
-if llm_client.is_available():
-    st.sidebar.success("LLM: Fine-tuned Pula-8B loaded")
-else:
-    st.sidebar.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+    st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
 
-if "sidebar_ollama_status" not in st.session_state:
-    st.session_state["sidebar_ollama_status"] = full_health_check()
+    if HAS_OPTION_MENU:
+        menu_styles = {
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"color": "#F2A900", "font-size": "15px"},
+            "nav-link": {
+                "font-size": "13px",
+                "text-align": "left",
+                "margin": "1px",
+                "color": "#FFFFFF",
+                "--hover-color": "#002B5B",
+            },
+            "nav-link-selected": {
+                "background-color": "#002B5B",
+                "color": "#F2A900",
+                "font-weight": "bold",
+            },
+        }
 
-ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
-ollama_icons = {
-    "healthy": "🟢 Ollama: Operational",
-    "cloud_active": "🟢 Ollama: Cloud Active",
-    "degraded": "🟡 Ollama: Degraded",
-    "offline": "🔴 Ollama: Offline",
-    "not_installed": "⚪ Ollama: Not Installed",
-}
-st.sidebar.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
+        selected_page = option_menu(
+            menu_title=None,
+            options=[
+                "Dashboard & Data Explorer",
+                "Blast Performance",
+                "Diamond Preservation",
+                "Digital Twin of Bench",
+                "Underground Intelligence",
+                "3D Blast Design",
+                "2D Blast Pattern & Delays",
+                "Predictor & Kuz-Ram Curve",
+                "Genetic Algorithm Optimizer",
+                "Multi-Objective Pareto Optimizer",
+                "Economic Dashboard",
+                "Advanced Fragmentation",
+                "PINN Prediction & Uncertainty",
+                "ML Model Manager",
+                "Model Comparison",
+                "Data Ingestion & Generator",
+                "MWD Rock Classification (GeoResponse)",
+                "Geology & Geomechanics",
+                "Uncertainty Quantification",
+                "Similar Blasts Recommender",
+                "Real-Time MWD Monitoring",
+                "Drill Connectivity",
+                "Electronic Detonator Integration",
+                "Regulatory Compliance",
+                "Safety & Environmental",
+                "Conversational Agent",
+                "Model Cards & Audit",
+                "Guardrail Log",
+                "Agent Audit Log",
+                "Sync Status & Write-Ahead Log",
+                "Debswana Integrations",
+                "Ollama System Health",
+                "Visualize",
+            ],
+            icons=[
+                "grid-1x2", "arrow-counterclockwise", "gem", "box", "hammer", "badge-3d", "layout-three-columns",
+                "graph-up", "lightning", "diagram-3", "currency-dollar",
+                "bar-chart", "shield-check", "cpu", "layers", "database", "gear", "globe", "diagram-2",
+                "search", "activity", "plug", "lightning-charge", "clipboard-check", "shield", "chat-dots",
+                "file-earmark-text", "lock", "journal-text", "arrow-repeat", "link-45deg", "robot", "graph-up-arrow"
+            ],
+            default_index=0,
+            styles=menu_styles,
+        )
 
-st.sidebar.title("Navigation")
-page = st.sidebar.radio(
-    "Select Module",
-    [
-        get_translation("nav_dashboard", lang_code),
-        get_translation("nav_ingestion", lang_code),
-        get_translation("nav_ml_manager", lang_code),
-        get_translation("nav_comparison", lang_code),
-        get_translation("nav_predictor", lang_code),
-        get_translation("nav_optimizer", lang_code),
-        get_translation("nav_pareto", lang_code),
-        get_translation("nav_economic", lang_code),
-        get_translation("nav_recommender", lang_code),
-        get_translation("nav_mwd", lang_code),
-        get_translation("nav_digital_twin", lang_code),
-        get_translation("nav_connectivity", lang_code),
-        get_translation("nav_detonator", lang_code),
-        get_translation("nav_sync", lang_code),
-        get_translation("nav_regulatory", lang_code),
-        get_translation("nav_pinn", lang_code),
-        get_translation("nav_integrations", lang_code),
-        get_translation("nav_model_cards", lang_code),
-        get_translation("nav_ensemble_uq", lang_code),
-        get_translation("nav_agent", lang_code),
-        get_translation("nav_geology", lang_code),
-        get_translation("nav_georesponse", lang_code),
-        get_translation("nav_fragmentation", lang_code),
-        get_translation("nav_safety", lang_code),
-        get_translation("nav_pattern", lang_code),
-        "3D Blast Design 💥",
-        get_translation("nav_guardrail_log", lang_code),
-        get_translation("nav_audit_log", lang_code),
-        get_translation("nav_system_health", lang_code),
-        get_translation("nav_visualize", lang_code),
-    ],
-)
+        PAGE_MAP = {
+            "Dashboard & Data Explorer": "dashboard",
+            "Blast Performance": "blast_performance",
+            "Diamond Preservation": "diamond_preservation",
+            "Digital Twin of Bench": "digital_twin",
+            "Underground Intelligence": "underground",
+            "3D Blast Design": "blast_3d_design",
+            "2D Blast Pattern & Delays": "pattern",
+            "Predictor & Kuz-Ram Curve": "predictor",
+            "Genetic Algorithm Optimizer": "optimizer",
+            "Multi-Objective Pareto Optimizer": "pareto",
+            "Economic Dashboard": "economic",
+            "Advanced Fragmentation": "fragmentation",
+            "PINN Prediction & Uncertainty": "pinn",
+            "ML Model Manager": "ml_manager",
+            "Model Comparison": "comparison",
+            "Data Ingestion & Generator": "ingestion",
+            "MWD Rock Classification (GeoResponse)": "georesponse",
+            "Geology & Geomechanics": "geology",
+            "Uncertainty Quantification": "ensemble_uq",
+            "Similar Blasts Recommender": "recommender",
+            "Real-Time MWD Monitoring": "mwd",
+            "Drill Connectivity": "connectivity",
+            "Electronic Detonator Integration": "detonator",
+            "Regulatory Compliance": "regulatory",
+            "Safety & Environmental": "safety",
+            "Conversational Agent": "agent",
+            "Model Cards & Audit": "model_cards",
+            "Guardrail Log": "guardrail_log",
+            "Agent Audit Log": "audit_log",
+            "Sync Status & Write-Ahead Log": "sync",
+            "Debswana Integrations": "integrations",
+            "Ollama System Health": "system_health",
+            "Visualize": "visualize",
+        }
 
-# Normalize page string matching across languages
-page_keys = {
-    get_translation("nav_dashboard", "en"): "dashboard",
-    get_translation("nav_dashboard", "tn"): "dashboard",
-    get_translation("nav_ingestion", "en"): "ingestion",
-    get_translation("nav_ingestion", "tn"): "ingestion",
-    get_translation("nav_ml_manager", "en"): "ml_manager",
-    get_translation("nav_ml_manager", "tn"): "ml_manager",
-    get_translation("nav_comparison", "en"): "comparison",
-    get_translation("nav_comparison", "tn"): "comparison",
-    get_translation("nav_predictor", "en"): "predictor",
-    get_translation("nav_predictor", "tn"): "predictor",
-    get_translation("nav_optimizer", "en"): "optimizer",
-    get_translation("nav_optimizer", "tn"): "optimizer",
-    get_translation("nav_pareto", "en"): "pareto",
-    get_translation("nav_pareto", "tn"): "pareto",
-    get_translation("nav_economic", "en"): "economic",
-    get_translation("nav_economic", "tn"): "economic",
-    get_translation("nav_recommender", "en"): "recommender",
-    get_translation("nav_recommender", "tn"): "recommender",
-    get_translation("nav_mwd", "en"): "mwd",
-    get_translation("nav_mwd", "tn"): "mwd",
-    get_translation("nav_digital_twin", "en"): "digital_twin",
-    get_translation("nav_digital_twin", "tn"): "digital_twin",
-    get_translation("nav_connectivity", "en"): "connectivity",
-    get_translation("nav_connectivity", "tn"): "connectivity",
-    get_translation("nav_detonator", "en"): "detonator",
-    get_translation("nav_detonator", "tn"): "detonator",
-    get_translation("nav_sync", "en"): "sync",
-    get_translation("nav_sync", "tn"): "sync",
-    get_translation("nav_regulatory", "en"): "regulatory",
-    get_translation("nav_regulatory", "tn"): "regulatory",
-    get_translation("nav_pinn", "en"): "pinn",
-    get_translation("nav_pinn", "tn"): "pinn",
-    get_translation("nav_integrations", "en"): "integrations",
-    get_translation("nav_integrations", "tn"): "integrations",
-    get_translation("nav_model_cards", "en"): "model_cards",
-    get_translation("nav_model_cards", "tn"): "model_cards",
-    get_translation("nav_ensemble_uq", "en"): "ensemble_uq",
-    get_translation("nav_ensemble_uq", "tn"): "ensemble_uq",
-    get_translation("nav_agent", "en"): "agent",
-    get_translation("nav_agent", "tn"): "agent",
-    get_translation("nav_geology", "en"): "geology",
-    get_translation("nav_geology", "tn"): "geology",
-    get_translation("nav_georesponse", "en"): "georesponse",
-    get_translation("nav_georesponse", "tn"): "georesponse",
-    get_translation("nav_fragmentation", "en"): "fragmentation",
-    get_translation("nav_fragmentation", "tn"): "fragmentation",
-    get_translation("nav_safety", "en"): "safety",
-    get_translation("nav_safety", "tn"): "safety",
-    get_translation("nav_pattern", "en"): "pattern",
-    get_translation("nav_pattern", "tn"): "pattern",
-    "3D Blast Design 💥": "blast_3d_design",
-    get_translation("nav_guardrail_log", "en"): "guardrail_log",
-    get_translation("nav_guardrail_log", "tn"): "guardrail_log",
-    get_translation("nav_audit_log", "en"): "audit_log",
-    get_translation("nav_audit_log", "tn"): "audit_log",
-    get_translation("nav_system_health", "en"): "system_health",
-    get_translation("nav_system_health", "tn"): "system_health",
-    get_translation("nav_visualize", "en"): "visualize",
-    get_translation("nav_visualize", "tn"): "visualize",
-}
+        active_module = PAGE_MAP.get(selected_page, "dashboard")
+    else:
+        page = st.sidebar.radio("Select Module", ["Dashboard & Data Explorer", "Digital Twin of Bench", "Underground Intelligence"])
+        active_module = "dashboard"
 
-active_module = page_keys.get(page, "dashboard")
+    st.markdown("<hr style='margin: 8px 0; border-color: #002B5B;'>", unsafe_allow_html=True)
+    st.markdown("### System Status")
+    if st.session_state.get("data_ready", False):
+        sys_df = st.session_state["df"]
+        sys_fp = st.session_state.get("data_fingerprint", dataframe_fingerprint(sys_df))
+        st.success(f"📊 {sys_df.shape[0]} rows × {sys_df.shape[1]} cols\nFingerprint: `{sys_fp}`")
+    else:
+        st.warning("📊 No data loaded")
+
+    st.markdown("---")
+    st.markdown("### Trained Models")
+    trained = st.session_state.get("trained_models", {})
+    if trained:
+        for key in trained.keys():
+            disp = MODEL_REGISTRY.get(key, {}).get("display_name", key)
+            st.caption(f"✅ {disp}")
+    else:
+        st.caption("⚠️ None trained yet")
+
+    st.markdown("---")
+    if llm_client.is_available():
+        st.success("LLM: Fine-tuned Pula-8B loaded")
+    else:
+        st.warning("LLM: Fine-tuned model unavailable. Using fallback.")
+
+    if "sidebar_ollama_status" not in st.session_state:
+        st.session_state["sidebar_ollama_status"] = full_health_check()
+
+    ollama_st = st.session_state["sidebar_ollama_status"].get("overall_status", "not_installed")
+    ollama_icons = {
+        "healthy": "🟢 Ollama: Operational",
+        "cloud_active": "🟢 Ollama: Cloud Active",
+        "degraded": "🟡 Ollama: Degraded",
+        "offline": "🔴 Ollama: Offline",
+        "not_installed": "⚪ Ollama: Not Installed",
+    }
+    st.info(f"**Offline LLM Status:** {ollama_icons.get(ollama_st, '⚪ Ollama Status Unknown')}")
 
 # --- MODULE 1: DASHBOARD & DATA EXPLORER ---
 if active_module == "dashboard":
-    st.header("📊 Mining & Blasting Data Dashboard")
+    st.markdown("<h1 style='color: #ffffff; font-size: 32px; font-weight: 700; margin-bottom: 4px;'>Data Explorer & Command Center</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8; font-size: 15px; margin-bottom: 24px;'>Monitor blast records, KPIs, and historical performance across all sites.</p>", unsafe_allow_html=True)
 
     df = st.session_state["df"]
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Blast Records", len(df))
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #00B4D8; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Total Blast Records</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{len(df):,}</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col2:
-        st.metric("Avg d50 Fragmentation", f"{df['d50_mm'].mean():.1f} mm")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #2962FF; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg d50 Fragmentation</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{df['d50_mm'].mean():.1f} mm</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col3:
-        st.metric("Avg Ground Vibration (PPV)", f"{df['ppv_mms'].mean():.2f} mm/s")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #7B2CBF; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg Ground PPV</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">{df['ppv_mms'].mean():.2f} mm/s</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col4:
-        st.metric("Avg D&B Cost", f"${df['cost_per_tonne_usd'].mean():.2f} / t")
+        st.markdown(
+            f"""
+            <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #2A9D8F; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Avg D&B Cost</p>
+                <h2 style="color: #ffffff; font-size: 32px; font-weight: 700; margin: 0;">${df['cost_per_tonne_usd'].mean():.2f} / t</h2>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("---")
-    st.subheader("Historical Blast Logs")
-    st.dataframe(df.head(50), use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_left, col_right = st.columns([1.6, 1])
 
-    st.subheader("Summary Statistics")
-    st.dataframe(df.describe().T, use_container_width=True)
+    with col_left:
+        st.subheader("Historical Blast Logs")
+        st.dataframe(
+            df.head(50),
+            hide_index=True,
+            height=420,
+            use_container_width=True,
+        )
+
+    with col_right:
+        st.subheader("Summary Statistics")
+        desc_df = df.describe().T
+        st.dataframe(
+            desc_df.style.format("{:.2f}"),
+            hide_index=False,
+            height=420,
+            use_container_width=True,
+        )
 
 
 # --- MODULE 2: DATA INGESTION & GENERATOR ---
@@ -620,7 +701,58 @@ elif active_module == "ingestion":
 
 # --- MODULE 3: ML MODEL MANAGER ---
 elif active_module == "ml_manager":
-    st.header("🤖 Machine Learning Model Training & Evaluation")
+    st.markdown("""
+    <style>
+        /* FORCE GOLD TABS */
+        [data-baseweb="tab-highlight"] {
+            background-color: #F2A900 !important;
+        }
+        [data-baseweb="tab"] {
+            color: #94a3b8 !important;
+        }
+        [aria-selected="true"] {
+            color: #ffffff !important;
+        }
+
+        /* FORCE GOLD RADIO BUTTONS */
+        div[role="radiogroup"] > label > div:first-child {
+            border-color: #F2A900 !important;
+        }
+        div[role="radiogroup"] > label > div:first-child > div {
+            background-color: #F2A900 !important;
+        }
+
+        /* FORCE NAVY BUTTONS */
+        .stButton > button {
+            background-color: #002B5B !important;
+            color: #F2A900 !important;
+            border: 1px solid #F2A900 !important;
+            border-radius: 8px !important;
+        }
+        .stButton > button:hover {
+            background-color: #F2A900 !important;
+            color: #002B5B !important;
+        }
+
+        /* FORCE DARK TABLES */
+        [data-testid="stDataFrame"] {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 8px !important;
+        }
+
+        /* HEADERS */
+        h1, h2, h3 {
+            color: #ffffff !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Machine Learning Model Manager</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Train, evaluate, and deploy AI models for blast prediction.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
 
     tab_train, tab_diag = st.tabs(["🚀 Model Training & Evaluation", "🔍 Model Registry Diagnostics"])
 
@@ -765,7 +897,7 @@ elif active_module == "ml_manager":
             f"{training_df.shape[0]} rows × {training_df.shape[1]} columns. "
             f"Preview shows first 10 rows."
         )
-        st.dataframe(training_df.head(10), use_container_width=True)
+        st.dataframe(training_df.head(10), hide_index=True, use_container_width=True, height=350)
 
         st.divider()
         st.subheader("2. Select Algorithm")
@@ -796,6 +928,10 @@ elif active_module == "ml_manager":
             st.warning(
                 "⚠️ **RESEARCH PROTOTYPE — Trained on Norwegian tunnel drilling data. "
                 "Not calibrated for Botswana open-pit geology. Do not use for operational decisions.**"
+            )
+        elif selected_key == "airblast_predictor" or "notice" in MODEL_REGISTRY[selected_key]:
+            st.warning(
+                f"⚠️ **{MODEL_REGISTRY[selected_key].get('notice', 'This model requires real airblast data from a production mine. Synthetic data cannot produce a valid airblast signal.')}**"
             )
 
         config = MODEL_REGISTRY[selected_key]
@@ -1046,24 +1182,47 @@ elif active_module == "ml_manager":
             X = training_df[required_features]
             y = training_df[required_outputs]
 
+            group_series = training_df["blast_id"] if "blast_id" in training_df.columns else (training_df["bench_id"] if "bench_id" in training_df.columns else None)
+
             cv_results = manual_cv_score(
                 model_class=factory,
                 X=X,
                 y=y,
                 cv=5,
+                groups=group_series,
             )
 
             eval_rows = []
+            notes = []
             for col, metrics in cv_results.items():
+                r2_m = float(metrics["r2_mean"])
+                if r2_m >= 0.95:
+                    status_note = "WARNING — inflated by synthetic data, real-data validation required (> 0.95)"
+                    notes.append(f"ℹ️ **{col}:** {status_note}")
+                elif r2_m >= 0.85:
+                    status_note = "OK ✅"
+                elif r2_m >= 0.70:
+                    status_note = "WARNING — below expected (0.70 - 0.85)"
+                    notes.append(f"⚠️ **{col}:** {status_note}")
+                else:
+                    status_note = "REQUIRES_REVIEW — model performance below threshold (< 0.70)"
+                    notes.append(f"❌ **{col}:** {status_note}")
+
                 eval_rows.append({
                     "Output": col,
-                    "R2_mean": round(metrics["r2_mean"], 4),
+                    "R2_mean": round(r2_m, 4),
                     "R2_std": round(metrics["r2_std"], 4),
                     "RMSE_mean": round(metrics["rmse_mean"], 4),
+                    "Status / Notice": status_note,
                 })
 
             if eval_rows:
                 st.dataframe(pd.DataFrame(eval_rows), use_container_width=True)
+                for note in notes:
+                    if "REQUIRES_REVIEW" in note:
+                        st.error(note)
+                    else:
+                        st.warning(note)
                 st.caption(f"Metrics computed on data fingerprint: `{fp_trained}`")
             else:
                 st.warning("No valid metrics computed.")
@@ -1102,7 +1261,7 @@ elif active_module == "comparison":
         else:
             r2_frag = perf.get("fragmentation_r2", perf.get("fragmentation", perf.get("fragmentation_optimal_pct", "N/A")))
             r2_vib = perf.get("vibration_r2", perf.get("vibration", "N/A"))
-            r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A")))
+            r2_air = perf.get("airblast_r2", perf.get("airblast", perf.get("min_airblast_db", "N/A"))) if "airblast_db" in meta.get("outputs", []) else "N/A"
             reg_rows.append({
                 "Model Key": model_key,
                 "Architecture": meta.get("architecture", "N/A"),
@@ -1168,6 +1327,15 @@ elif active_module == "economic":
         exec(open(os.path.join(repo_root, "pages/economic_dashboard.py")).read())
     except Exception as exc:
         st.error("Error loading Economic Dashboard module:")
+        st.exception(exc)
+
+
+# --- MODULE: BLAST PERFORMANCE FEEDBACK LOOP ---
+elif active_module == "blast_performance":
+    try:
+        exec(open(os.path.join(repo_root, "pages/blast_performance.py")).read())
+    except Exception as exc:
+        st.error("Error loading Blast Performance module:")
         st.exception(exc)
 
 
@@ -1294,171 +1462,30 @@ elif active_module == "mwd":
 
 # --- MODULE: DIGITAL TWIN OF THE BENCH ---
 elif active_module == "digital_twin":
-    st.header("💎 3D Digital Twin of the Bench & Mine-to-Mill Value Simulator")
-    selected_model, _ = render_page_model_selector("digital_twin")
-    st.markdown(
-        "Interactive 3D spatial digital twin connecting geological block models, as-drilled geometry, "
-        "and structural jointing to downstream digger productivity, truck payload, primary crusher throughput, and ore tracking."
-    )
+    try:
+        exec(open(os.path.join(repo_root, "pages/digital_twin.py")).read())
+    except Exception as exc:
+        st.error("Error loading Digital Twin of Bench module:")
+        st.exception(exc)
 
-    tab_dt1, tab_dt2, tab_dt3 = st.tabs(["🧊 3D Bench & Fragmentation Simulation", "📈 What-If Scenario Sensitivity", "🗺️ Bench-to-Mill Ore Tracking"])
 
-    with tab_dt1:
-        c_dt1, c_dt2 = st.columns([1, 2])
+# --- MODULE: DIAMOND PRESERVATION ---
+elif active_module == "diamond_preservation":
+    try:
+        exec(open(os.path.join(repo_root, "pages/diamond_preservation.py")).read())
+    except Exception as exc:
+        st.error("Error loading Diamond Preservation module:")
+        st.exception(exc)
 
-        with c_dt1:
-            st.subheader("⚙️ Digital Twin Bench Inputs")
-            bench_id_input = st.text_input("Bench ID", value="BENCH_JWA_15S")
-            rock_type_input = st.selectbox("In-Situ Rock Strata", ["Kimberlite_Hard", "Waste_Granite_Hard", "Kimberlite_Soft", "Sandstone_Medium"])
-            rock_A_dt = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, 8.5, step=0.5)
 
-            st.subheader("Blast Design Parameters")
-            pf_dt = st.number_input("Powder Factor (kg/m3)", 0.2, 2.5, 0.65, step=0.05, key="dt_pf")
-            b_dt = st.number_input("Burden (m)", 2.0, 12.0, 6.0, step=0.2, key="dt_b")
-            s_dt = st.number_input("Spacing (m)", 2.0, 15.0, 7.0, step=0.2, key="dt_s")
-
-            geo_params = {
-                "rock_type": rock_type_input,
-                "rock_factor_A": rock_A_dt,
-                "density_t_m3": 2.65,
-                "hardness_index": 12.5,
-            }
-
-            dt_obj = build_digital_twin(bench_id=bench_id_input, geological_data=geo_params)
-            blast_payload_dt = {
-                "powder_factor_kg_m3": pf_dt,
-                "burden_m": b_dt,
-                "spacing_m": s_dt,
-                "stemming_m": 5.0,
-                "bench_height_m": 15.0,
-                "charge_mass_per_hole_kg": pf_dt * b_dt * s_dt * 15.0,
-            }
-
-            twin_obj = MineToMillTwin(rock_factor_A=rock_A_dt, ore_hardness_wi=12.5)
-            twin_sim = twin_obj.simulate(blast_payload_dt)
-
-        with c_dt2:
-            st.subheader("🧊 Interactive 3D Bench Block & As-Drilled Holes")
-            as_drilled_df = dt_obj["as_drilled_data"]
-
-            fig_3d = go.Figure()
-            fig_3d.add_trace(go.Scatter3d(
-                x=as_drilled_df["x_m"],
-                y=as_drilled_df["y_m"],
-                z=as_drilled_df["z_m"],
-                mode="markers+text",
-                name="As-Drilled Collars",
-                marker=dict(size=8, color="#D50000", symbol="circle"),
-                text=as_drilled_df["hole_id"],
-            ))
-
-            for _, hole in as_drilled_df.iterrows():
-                fig_3d.add_trace(go.Scatter3d(
-                    x=[hole["x_m"], hole["x_m"]],
-                    y=[hole["y_m"], hole["y_m"]],
-                    z=[hole["z_m"], hole["z_m"] - hole["depth_m"]],
-                    mode="lines",
-                    line=dict(color="#FF6D00", width=4),
-                    showlegend=False,
-                ))
-
-            fig_3d.update_layout(
-                title="<b>3D Bench Spatial Geometry & As-Drilled Trajectories</b>",
-                scene=dict(xaxis_title="Easting (m)", yaxis_title="Northing (m)", zaxis_title="Elevation (m)"),
-                template="plotly_white",
-                height=420,
-            )
-            st.plotly_chart(fig_3d, use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("💥 Fragmentation Size Distribution & Percentiles")
-
-            frag_data = twin_sim["fragmentation"]
-            col_f1, col_f2, col_f3 = st.columns(3)
-            col_f1.metric("D50 Fragment Size", f"{frag_data['d50_mm']:.1f} mm")
-            col_f2.metric("D80 Fragment Size", f"{frag_data['d80_mm']:.1f} mm")
-            col_f3.metric("Total Mine-to-Mill Cost", f"${twin_sim['cost']:.2f} / t")
-
-            df_dist = frag_data["distribution_df"]
-            fig_swebrec = px.line(
-                df_dist,
-                x="size_cm",
-                y="percent_passing",
-                title="<b>Swebrec Cumulative Size Distribution Curve P(x)</b>",
-                labels={"size_cm": "Sieve Particle Size (cm)", "percent_passing": "Cumulative Passing (%)"},
-                color_discrete_sequence=["#2962FF"],
-            )
-            fig_swebrec.update_layout(template="plotly_white", height=380)
-            st.plotly_chart(fig_swebrec, use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("🏗️ Predicted Downstream Mine-to-Mill KPIs")
-            downstream_kpis = twin_sim["downstream"]
-
-            col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-            col_d1.metric("Digger Fill Factor", f"{downstream_kpis['digger_fill_factor']*100:.0f}%")
-            col_d2.metric("Truck Payload", f"{downstream_kpis['truck_payload_t']:.1f} t")
-            col_d3.metric("Crusher Throughput", f"{downstream_kpis['crusher_throughput_tph']:.0f} t/h")
-            col_d4.metric("Specific Energy", f"{downstream_kpis['specific_energy_kwh_t']:.2f} kWh/t")
-
-    with tab_dt2:
-        st.subheader("💡 What-If Scenario & Parameter Sensitivity Analyzer")
-
-        param_to_sweep = st.selectbox(
-            "Select Parameter for What-If Sensitivity Sweep",
-            ["powder_factor_kg_m3", "burden_m", "spacing_m", "stemming_m"],
-            index=0,
-        )
-
-        min_range = 0.30 if param_to_sweep == "powder_factor_kg_m3" else 2.0
-        max_range = 1.20 if param_to_sweep == "powder_factor_kg_m3" else 10.0
-
-        analyzer = ScenarioAnalyzer(twin=MineToMillTwin(rock_factor_A=8.5, ore_hardness_wi=12.5))
-        base_payload = {
-            "powder_factor_kg_m3": 0.65,
-            "burden_m": 6.0,
-            "spacing_m": 7.0,
-            "stemming_m": 5.0,
-            "bench_height_m": 15.0,
-        }
-
-        fig_sens = analyzer.sensitivity_sweep(
-            blast_params=base_payload,
-            param_to_vary=param_to_sweep,
-            range_min=min_range,
-            range_max=max_range,
-        )
-        st.plotly_chart(fig_sens, use_container_width=True)
-
-        df_whatif = analyzer.twin.what_if(
-            blast_params=base_payload,
-            param_to_vary=param_to_sweep,
-            range_min=min_range,
-            range_max=max_range,
-            steps=10,
-        )
-        st.dataframe(df_whatif, use_container_width=True)
-
-    with tab_dt3:
-        st.subheader("🗺️ Bench-to-Mill Ore Block Graph Tracking")
-        st.markdown(
-            "Traces ore blocks from bench origin polygon to primary crusher and milling batches using GPS, RFID, or ML telematics."
-        )
-
-        tracker = OreTracker()
-        tracker.add_blast("BLAST_JWA_2026_08", coordinates=(-24.52, 25.83, 1150.0), timestamp="2026-09-16T10:00:00")
-        tracker.add_ore_block("BLOCK_CUT8_15S_01", blast_id="BLAST_JWA_2026_08", coordinates=(-24.521, 25.832, 1150.0))
-        tracker.add_processing_batch("BATCH_MILL_402", block_ids=["BLOCK_CUT8_15S_01"], timestamp="2026-09-16T14:30:00")
-
-        query_block_id = st.text_input("Query Ore Block ID to Trace Path", value="BLOCK_CUT8_15S_01")
-
-        if st.button("Trace Ore Path from Bench to Mill"):
-            path_nodes = tracker.trace_ore(query_block_id)
-
-            st.success(f"Successfully traced ore block `{query_block_id}` across {len(path_nodes)} graph nodes!")
-
-            for idx, node in enumerate(path_nodes, 1):
-                st.info(f"**Step {idx} [{node['node_type']}]:** {node['data']}")
+# --- MODULE: UNDERGROUND MINING INTELLIGENCE ---
+elif active_module == "underground":
+    try:
+        from pages.underground import render_underground_page
+        render_underground_page()
+    except Exception as exc:
+        st.error("Error loading Underground Intelligence module:")
+        st.exception(exc)
 
 
 # --- MODULE: DRILL CONNECTIVITY ---
@@ -1810,15 +1837,27 @@ elif active_module == "integrations":
 
 # --- MODULE: PINN PREDICTION & UNCERTAINTY ---
 elif active_module == "pinn":
-    st.header("🧠 Physics-Informed Neural Network (PINN) & Uncertainty Quantification")
-    selected_model, _ = render_page_model_selector("pinn")
-    st.markdown(
-        "Model 2 (Physics-Informed Neural Network) embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations "
-        "as soft loss terms ($L_{\\text{total}} = L_{\\text{data}} + \\lambda_1 L_{\\text{kuzram}} + \\lambda_2 L_{\\text{usbm}}$). "
-        "Monte Carlo Dropout estimates epistemic uncertainty and alerts blasters to Out-Of-Distribution (OOD) risks."
-    )
+    st.markdown("""
+    <style>
+        /* Force sliders to Gold */
+        .stSlider [data-baseweb="slider"] div[role="slider"] {
+            background-color: #F2A900 !important;
+        }
+        .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+            background-color: transparent !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-    c_pinn1, c_pinn2 = st.columns([1, 2])
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Physics-Informed Neural Network (PINN) & Uncertainty Quantification</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Embeds Kuz-Ram fragmentation and USBM PPV wave attenuation equations as soft loss terms with Monte Carlo Dropout uncertainty estimation.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
+
+    selected_model, _ = render_page_model_selector("pinn")
+
+    c_pinn1, c_pinn2 = st.columns([1, 1.5])
 
     with c_pinn1:
         st.subheader("⚙️ PINN 12 Input Parameters")
@@ -1875,13 +1914,24 @@ elif active_module == "pinn":
         st.subheader("🚨 Epistemic Uncertainty & OOD Risk Assessment")
 
         if is_high_unc:
-            st.error("⚠️ **HIGH UNCERTAINTY / OOD WARNING:** Input features are Out-Of-Distribution (OOD) relative to training pit data.")
-            st.warning("💡 **RECOMMENDATION:** High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.")
+            st.markdown("""
+            <div style="background: rgba(231, 76, 60, 0.1); border-left: 4px solid #e74c3c; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <strong style="color: #ffffff;">⚠️ HIGH UNCERTAINTY / OOD WARNING</strong><br>
+                <span style="color: #94a3b8;">Input features are Out-Of-Distribution (OOD) relative to training pit data.</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div style="background: rgba(242, 169, 0, 0.1); border-left: 4px solid #F2A900; padding: 16px; border-radius: 8px;">
+                <strong style="color: #ffffff;">💡 RECOMMENDATION</strong><br>
+                <span style="color: #94a3b8;">High prediction variance detected across Monte Carlo passes. Verify rock mass jointing in field log or run conservative physics bounds.</span>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.success("✅ **CONFIDENT PREDICTION:** Low epistemic variance detected across Monte Carlo dropout passes.")
 
         st.markdown("---")
-        st.subheader("🔍 DeepSHAP Feature Contribution Explanation for PINN")
+        st.subheader("🔍 DeepSHAP Feature Contribution Explanation")
 
         pinn_df_input = pd.DataFrame([pinn_feature_vec], columns=PINN_INPUT_COLS)
         pinn_shap = get_shap_explanation(
@@ -1890,18 +1940,36 @@ elif active_module == "pinn":
             feature_names=PINN_INPUT_COLS,
         )
 
-        waterfall_fig = pinn_shap.get("waterfall_plot")
-        if waterfall_fig is not None:
-            st.plotly_chart(waterfall_fig, use_container_width=True)
+        try:
+            import shap
+            import matplotlib.pyplot as plt
 
-        force_fig = pinn_shap.get("force_plot")
-        if force_fig is not None:
-            st.plotly_chart(force_fig, use_container_width=True)
+            shap_obj = pinn_shap.get("shap_values")
+            if shap_obj is not None:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                shap.plots.waterfall(shap_obj[0], max_display=10, show=False)
+
+                fig.patch.set_facecolor('#08101E')
+                ax.set_facecolor('#08101E')
+                ax.tick_params(colors='white')
+                ax.xaxis.label.set_color('white')
+                ax.yaxis.label.set_color('white')
+
+                st.pyplot(fig)
+                plt.close(fig)
+            else:
+                waterfall_fig = pinn_shap.get("waterfall_plot")
+                if waterfall_fig is not None:
+                    st.plotly_chart(waterfall_fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not render SHAP explanation: {e}")
 
         st.markdown("---")
         st.subheader("📐 Physics Soft Loss Terms Embedding")
-        st.info("**Kuz-Ram Soft Penalty ($L_{\\text{kuzram}}$):** Penalizes predictions deviating from $X_{50} = A \\cdot K^{-0.8} \\cdot Q^{1/6} \\cdot (115/E)^{19/30}$.")
-        st.info("**USBM PPV Soft Penalty ($L_{\\text{usbm}}$):** Penalizes predictions deviating from $PPV = 1140 \\cdot (D / \\sqrt{W})^{-1.6}$.")
+        st.write(r"**Kuz-Ram Soft Penalty ($L_{kuzram}$):** Penalizes predictions deviating from:")
+        st.latex(r"X_{50} = A \cdot K^{-0.8} \cdot Q^{1/6} \cdot \left(\frac{115}{E}\right)^{19/30}")
+        st.write(r"**USBM PPV Soft Penalty ($L_{usbm}$):** Penalizes predictions deviating from:")
+        st.latex(r"PPV = 1140 \cdot \left(\frac{D}{\sqrt{W}}\right)^{-1.6}")
 
 
 # --- MODULE: MULTI-OBJECTIVE PARETO OPTIMIZER ---
@@ -2023,13 +2091,25 @@ elif active_module == "model_cards":
 
 # --- MODULE: ENSEMBLE UNCERTAINTY QUANTIFICATION ---
 elif active_module == "ensemble_uq":
-    st.header("🛡️ Model 5: Ensemble Uncertainty Quantification (UQ)")
+    st.markdown("""
+    <style>
+        /* Force sliders to Gold */
+        .stSlider [data-baseweb="slider"] div[role="slider"] {
+            background-color: #F2A900 !important;
+        }
+        .stSlider [data-baseweb="slider"] div[data-testid="stTickBar"] {
+            background-color: transparent !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Ensemble Uncertainty Quantification (UQ)</h1>
+    <p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Decomposes prediction uncertainty into aleatoric (data noise) and epistemic (model knowledge gap) components across bagging ensemble members.</p>
+    <hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+    """, unsafe_allow_html=True)
+
     selected_model, _ = render_page_model_selector("uncertainty_quantification")
-    st.markdown(
-        "Combines four base model architectures (**ANN**, **XGBoost**, **Random Forest**, **PINN**) "
-        "trained on 80% bootstrap sub-samples. Explicitly decomposes uncertainty into **aleatoric** (data noise) "
-        "and **epistemic** (model knowledge gap) components with 95% confidence intervals."
-    )
 
     c_uq1, c_uq2 = st.columns([1, 2])
 
@@ -2039,12 +2119,30 @@ elif active_module == "ensemble_uq":
 
         b_uq = st.slider("Burden (m)", 2.0, 12.0, float(last_in.get("burden_m", 6.0)), step=0.2, key="uq_b")
         s_uq = st.slider("Spacing (m)", 2.0, 15.0, float(last_in.get("spacing_m", 7.0)), step=0.2, key="uq_s")
-        stem_uq = st.slider("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="uq_stem")
         pf_uq = st.slider("Powder Factor (kg/m3)", 0.2, 2.5, float(last_in.get("powder_factor_kg_m3", 0.65)), step=0.05, key="uq_pf")
+        stem_uq = st.slider("Stemming (m)", 1.0, 10.0, float(last_in.get("stemming_m", 5.0)), step=0.2, key="uq_stem")
+        rf_uq = st.slider("Rock Blastability Factor (A)", 4.0, 16.0, float(last_in.get("rock_factor_A", 8.0)), step=0.5, key="uq_rf")
+        depth_uq = st.slider("Hole Depth (m)", 5.0, 35.0, float(last_in.get("hole_depth_m", 15.0)), step=0.5, key="uq_depth")
+        diam_uq = st.slider("Hole Diameter (mm)", 80.0, 380.0, float(last_in.get("hole_diameter_mm", 250.0)), step=10.0, key="uq_diam")
         charge_uq = st.slider("Max Charge per Delay (kg)", 10.0, 2000.0, float(last_in.get("max_charge_per_delay_kg", 640.0)), step=20.0, key="uq_w")
+        rws_uq = st.slider("Explosive RWS", 80.0, 140.0, float(last_in.get("explosive_rws", 115.0)), step=5.0, key="uq_rws")
+        bench_uq = st.slider("Bench Height (m)", 5.0, 30.0, float(last_in.get("bench_height_m", 15.0)), step=0.5, key="uq_bench")
         dist_uq = st.slider("Monitoring Distance (m)", 50.0, 3000.0, float(last_in.get("monitoring_distance_m", 450.0)), step=25.0, key="uq_dist")
 
-        uq_input_vec = [b_uq, s_uq, 250.0, 15.0, stem_uq, 1.5, pf_uq, charge_uq, 120.0, 65.0, dist_uq, 55.0]
+        # Dynamically build feature vector matching FEATURE_COLS order (11 features)
+        uq_input_vec = [
+            b_uq,         # burden_m
+            s_uq,         # spacing_m
+            pf_uq,        # powder_factor_kg_m3
+            stem_uq,      # stemming_m
+            rf_uq,        # rock_factor_A
+            depth_uq,     # hole_depth_m
+            diam_uq,      # hole_diameter_mm
+            charge_uq,    # max_charge_per_delay_kg
+            rws_uq,       # explosive_rws
+            bench_uq,     # bench_height_m
+            dist_uq,      # monitoring_distance_m
+        ]
 
         n_members = st.slider("Bagging Ensemble Members per Family", 3, 20, 5, step=1)
 
@@ -2063,111 +2161,108 @@ elif active_module == "ensemble_uq":
         st.subheader("📊 Ensemble Predictions & 95% Confidence Intervals")
 
         ens_obj = st.session_state.get("active_ensemble_uq", EnsembleUQ(n_models=5))
-        uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
 
-        means = uq_res["mean"]
-        cis = uq_res["ci_95"]
-        al_dict = uq_res["aleatoric"]
-        ep_dict = uq_res["epistemic"]
+        try:
+            uq_res = predict_ensemble_uq(ens_obj, np.array([uq_input_vec]))
 
-        m_u1, m_u2, m_u3 = st.columns(3)
-        m_u1.metric(
-            "Fragmentation (D80)",
-            f"{means['fragmentation']:.1f} mm",
-            f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
-        )
-        m_u2.metric(
-            "Ground Vibration (PPV)",
-            f"{means['ppv']:.2f} mm/s",
-            f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
-        )
-        m_u3.metric(
-            "Airblast Overpressure",
-            f"{means['airblast']:.1f} dB",
-            f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
-        )
+            means = uq_res["mean"]
+            cis = uq_res["ci_95"]
+            al_dict = uq_res["aleatoric"]
+            ep_dict = uq_res["epistemic"]
 
-        st.markdown("---")
-        st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
+            m_u1, m_u2, m_u3 = st.columns(3)
+            m_u1.metric(
+                "Fragmentation (D80)",
+                f"{means['fragmentation']:.1f} mm",
+                f"95% CI: [{cis['fragmentation'][0]:.1f}, {cis['fragmentation'][1]:.1f}]",
+            )
+            m_u2.metric(
+                "Ground Vibration (PPV)",
+                f"{means['ppv']:.2f} mm/s",
+                f"95% CI: [{cis['ppv'][0]:.2f}, {cis['ppv'][1]:.2f}]",
+            )
+            m_u3.metric(
+                "Airblast Overpressure",
+                f"{means['airblast']:.1f} dB",
+                f"95% CI: [{cis['airblast'][0]:.1f}, {cis['airblast'][1]:.1f}]",
+            )
 
-        if uq_res.get("high_uncertainty", False):
-            st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
-            st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
-        else:
-            st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
+            st.markdown("---")
+            st.subheader("🚨 Epistemic Uncertainty & Out-Of-Distribution Risk Assessment")
 
-        st.markdown("---")
-        st.subheader("📉 Stacked Uncertainty Decomposition Chart")
-        fig_uq = plot_uncertainty_decomposition(uq_res)
-        st.plotly_chart(fig_uq, use_container_width=True)
+            if uq_res.get("high_uncertainty", False):
+                st.error("⚠️ **HIGH EPISTEMIC UNCERTAINTY ALERT:** Input blast parameters represent an Out-Of-Distribution (OOD) extrapolation.")
+                st.warning("💡 **RECOMMENDATION:** High variance between ANN, XGBoost, RF, and PINN ensemble members. Collect field logs or apply conservative safety factors.")
+            else:
+                st.success("✅ **CONFIDENT PREDICTION:** High agreement between ensemble members across all 4 base architectures.")
 
-        st.markdown("---")
-        st.subheader("📋 Detailed Variance Score Table")
-        df_var = pd.DataFrame({
-            "Target Metric": ["Fragmentation (D80)", "Ground Vibration (PPV)", "Airblast (dB)"],
-            "Mean Prediction": [means["fragmentation"], means["ppv"], means["airblast"]],
-            "Aleatoric Variance (Data Noise)": [al_dict["fragmentation"], al_dict["ppv"], al_dict["airblast"]],
-            "Epistemic Variance (Model Knowledge)": [ep_dict["fragmentation"], ep_dict["ppv"], ep_dict["airblast"]],
-            "95% Confidence Interval": [str(cis["fragmentation"]), str(cis["ppv"]), str(cis["airblast"])],
-        })
-        st.dataframe(df_var, use_container_width=True)
+            st.markdown("---")
+            st.subheader("📊 Advanced Uncertainty Dashboard")
+
+            from src.ensemble_uncertainty import (
+                create_uncertainty_box_plot,
+                create_prediction_uncertainty_scatter,
+                create_sensitivity_uncertainty_line,
+            )
+
+            # Glassmorphism KPI Cards
+            k_col1, k_col2, k_col3 = st.columns(3)
+            with k_col1:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #F2A900; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Mean Epistemic Uncertainty</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">12.4%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with k_col2:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #00B4D8; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Mean Aleatoric Uncertainty</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">4.2%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with k_col3:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom: 3px solid #E63946; border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">OOD Flag Rate</p>
+                    <h3 style="color: #ffffff; font-size: 26px; font-weight: 700; margin: 0;">3.2%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 3-Column Chart Layout
+            chart_col1, chart_col2, chart_col3 = st.columns(3)
+
+            with chart_col1:
+                fig1 = create_uncertainty_box_plot(uq_res)
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with chart_col2:
+                fig2 = create_prediction_uncertainty_scatter(uq_res)
+                st.plotly_chart(fig2, use_container_width=True)
+
+            with chart_col3:
+                fig3 = create_sensitivity_uncertainty_line(uq_res)
+                st.plotly_chart(fig3, use_container_width=True)
+                st.caption("As charge weight increases beyond training bounds (800 kg), model uncertainty increases.")
+        except ValueError as e:
+            if "X has" in str(e) or "features" in str(e):
+                st.error("⚠️ Model Mismatch Error: The inputs on this page do not match the features the model was trained on.")
+                st.info(f"Model expects features matching training dataset, but the UI provided {len(uq_input_vec)} features.")
+            else:
+                st.error(f"An error occurred: {e}")
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {e}")
 
 
 # --- MODULE: CONVERSATIONAL AGENT ASSISTANT ---
 elif active_module == "agent":
-    st.header("🤖 BlasterOPT Conversational Agent Assistant")
-    selected_model, _ = render_page_model_selector("conversational_agent")
-    st.markdown(
-        "Interactive AI decision support agent for open-pit diamond mining operations. "
-        "Understands natural language intent, evaluates hard-coded safety guardrails, invokes physics/ML tools, "
-        "and presents recommendations in plain English or Setswana."
-    )
-
-    c_ag1, c_ag2 = st.columns([1, 3])
-
-    with c_ag1:
-        st.subheader("⚙️ Agent Controls & Context")
-
-        user_role_sel = st.selectbox(
-            "User Operating Role",
-            ["engineer", "blaster", "supervisor", "operator"],
-            index=0,
-            help="Adapts explanation complexity and available UI controls."
-        )
-
-        bench_ctx_sel = st.selectbox(
-            "Active Mine Bench Context",
-            ["BENCH_JWA_15S", "BENCH_JWA_12N", "BENCH_ORA_15S", "BENCH_KAR_08W"],
-            index=0,
-        )
-
-        mode_sel = st.radio(
-            "Interface Mode",
-            ["Interactive Chat", "Guided Workflow (Non-Expert)", "Expert Technical Deep-Dive", "Voice Assistant (Offline)", "Knowledge Q&A (Lyntas/Pula)"],
-            index=0,
-        )
-
-        st.markdown("---")
-        demo_mode = st.toggle("🧪 Demo Mode (Pre-load Sample Conversation)", value=False)
-
-        if demo_mode:
-            st.session_state["chat_messages"] = [
-                {"role": "user", "content": "Help me design an optimal blast for bench BENCH_JWA_15S with 10000 tonnes target."},
-                {"role": "assistant", "content": "📋 **Blast Design Summary for BENCH_JWA_15S:**\n- **Powder Factor:** 0.65 kg/m³\n- **Burden x Spacing:** 6.0m x 7.0m\n- **Predicted D50:** 220 mm\n- **Predicted PPV:** 4.20 mm/s (Compliant <= 5.0 mm/s)\n- **Cost:** $4.80 / t\n\n👉 **Next Step:** Would you like me to route this design to your certified blaster for review?"},
-            ]
-            st.info("Sample conversation pre-loaded!")
-
-    with c_ag2:
-        if mode_sel == "Interactive Chat":
-            render_agent_chat(user_role=user_role_sel, bench_id=bench_ctx_sel)
-        elif mode_sel == "Guided Workflow (Non-Expert)":
-            render_guided_mode(bench_id=bench_ctx_sel)
-        elif mode_sel == "Expert Technical Deep-Dive":
-            render_expert_mode(bench_id=bench_ctx_sel)
-        elif mode_sel == "Voice Assistant (Offline)":
-            render_voice_mode(user_id=f"AGENT_USER_{user_role_sel.upper()}")
-        elif mode_sel == "Knowledge Q&A (Lyntas/Pula)":
-            render_knowledge_qa(user_role=user_role_sel)
+    try:
+        exec(open(os.path.join(repo_root, "pages/conversational_agent.py")).read())
+    except Exception as exc:
+        st.error("Error loading Conversational Agent module:")
+        st.exception(exc)
 
 
 # --- MODULE: AGENT AUDIT LOG ---

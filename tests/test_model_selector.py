@@ -82,7 +82,6 @@ def test_all_pages_use_selector():
         "regulatory_compliance": "pages/regulatory_compliance.py",
         "pinn": "pages/pinn.py",
         "uncertainty_quantification": "pages/uncertainty_quantification.py",
-        "digital_twin": "pages/digital_twin.py",
         "conversational_agent": "pages/conversational_agent.py",
     }
     for page_key, path in pages.items():

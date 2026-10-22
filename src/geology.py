@@ -351,21 +351,162 @@ class OreBodyModel:
         }
 
 
+# Standard Rock Type Lithology categories
+ROCK_TYPE_CATEGORIES = [
+    "Kimberlite",
+    "Dolerite",
+    "Basalt",
+    "Granite",
+    "Sandstone",
+    "Limestone",
+    "Shale",
+    "Dolomite",
+    "Other",
+    "Unknown",
+]
+
+DEFAULT_ROCK_FACTOR_MAP = {
+    "Kimberlite": 8.0,
+    "Dolerite": 11.0,
+    "Basalt": 10.0,
+    "Granite": 10.5,
+    "Sandstone": 7.0,
+    "Limestone": 8.5,
+    "Shale": 6.0,
+    "Dolomite": 9.0,
+}
+
+
+def get_rock_factor_for_lithology(rock_type: str, custom_factor: Optional[float] = None) -> Optional[float]:
+    """Returns default blastability rock factor A for lithology or custom input if specified."""
+    if custom_factor is not None and custom_factor > 0:
+        return float(custom_factor)
+    return DEFAULT_ROCK_FACTOR_MAP.get(rock_type, None)
+
+
 def render_geology_page(lang_code: str = "en"):
     """Renders Geology & Geomechanics Streamlit dashboard."""
     st.header("🪨 Geology & Geomechanics Dashboard")
     st.markdown(
-        "Geotechnical rock mass characterization including **RMR89**, **Barton Q-system**, "
+        "Geotechnical rock mass characterization including **Rock Type & Lithology Classification**, **RMR89**, **Barton Q-system**, "
         "**joint set orientation analysis**, **3D structural faults**, and **ore dilution modeling**."
     )
 
-    tab_rmr, tab_q, tab_joint, tab_fault, tab_ore = st.tabs([
+    tab_lith, tab_rmr, tab_q, tab_joint, tab_fault, tab_ore = st.tabs([
+        "🪨 Rock Type & Lithology",
         "📊 Rock Mass Rating (RMR)",
         "🔍 Barton Q-System",
         "🧭 Joint Set Analyzer",
         "⚡ 3D Structural Faults",
         "💎 Ore Dilution Model",
     ])
+
+    with tab_lith:
+        st.subheader("🪨 Rock Type & Lithology Classification")
+        st.markdown(
+            "Configure site-specific geological lithology classifications and associate them with benches, domains, and blast designs. "
+            "Distinguishes **manual entry**, **imported**, **MWD classified**, and **ML predicted** classifications with explicit provenance badges."
+        )
+
+        c_l1, c_l2 = st.columns(2)
+
+        saved_geo = st.session_state.get("geological_context", {})
+
+        with c_l1:
+            st.markdown("#### Geological Identification")
+            site_name = st.selectbox("Site / Mine Name", ["Jwaneng", "Orapa", "Morupule", "Karowe", "Other Mine"], index=0, key="lith_site")
+            bench_id = st.text_input("Bench / Stope / Domain ID", value=saved_geo.get("bench_id", "BENCH_JWA_15S"), key="lith_bench")
+
+            sel_rock = st.selectbox(
+                "Rock Type / Lithology Category",
+                options=ROCK_TYPE_CATEGORIES,
+                index=ROCK_TYPE_CATEGORIES.index(saved_geo.get("rock_type", "Kimberlite")) if saved_geo.get("rock_type") in ROCK_TYPE_CATEGORIES else 0,
+                key="lith_rock_type",
+                help="Select standard rock category. Choose 'Unknown' if unclassified or 'Other' for custom site lithology.",
+            )
+
+            custom_lith = ""
+            if sel_rock == "Other":
+                custom_lith = st.text_input("Site-Specific Custom Lithology Name", value=saved_geo.get("custom_lithology", ""), key="lith_custom_name")
+
+            provenance = st.selectbox(
+                "Data Provenance / Source",
+                options=["manual_entry", "mwd_classified", "imported", "ml_predicted"],
+                index=0,
+                key="lith_prov",
+                help="Distinguishes human engineer input from MWD sensor logs or ML predictions.",
+            )
+
+            confidence_score = 1.0
+            if provenance in ["mwd_classified", "ml_predicted"]:
+                confidence_score = st.slider("Classification Confidence Score", 0.0, 1.0, float(saved_geo.get("confidence", 0.95)), step=0.05, key="lith_conf")
+
+            lith_notes = st.text_area("Geological Description & Discontinuity Notes", value=saved_geo.get("notes", "Competent jointed rock mass."), key="lith_notes")
+
+            if st.button("Save Geological Context", type="primary", key="btn_save_lith"):
+                effective_lith = custom_lith.strip() if sel_rock == "Other" and custom_lith.strip() else sel_rock
+
+                geo_ctx = {
+                    "site_id": site_name,
+                    "bench_id": bench_id,
+                    "rock_type": sel_rock,
+                    "effective_lithology": effective_lith,
+                    "custom_lithology": custom_lith if sel_rock == "Other" else None,
+                    "provenance": provenance,
+                    "confidence": confidence_score,
+                    "default_rock_factor_A": DEFAULT_ROCK_FACTOR_MAP.get(sel_rock),
+                    "notes": lith_notes,
+                }
+                st.session_state["geological_context"] = geo_ctx
+
+                # Persist to SQLite Blast Performance DB if available
+                try:
+                    import src.performance_feedback as pf
+                    b_rec = pf.get_blast_record(bench_id)
+                    if not b_rec:
+                        b_rec = pf.BlastRecord(
+                            blast_id=bench_id,
+                            site_id=site_name,
+                            location_identifier=bench_id,
+                            geological_context=geo_ctx,
+                            status="PLANNED",
+                        )
+                    else:
+                        b_rec = b_rec.update_snapshot(geological_context=geo_ctx)
+                    pf.save_blast_record(b_rec)
+                except Exception as p_exc:
+                    pass
+
+                st.success(f"✅ Geological context saved! Effective Lithology: **{effective_lith}** (Provenance: `{provenance}`)")
+                st.rerun()
+
+        with c_l2:
+            st.markdown("#### Active Geological Context Summary")
+
+            if "geological_context" in st.session_state:
+                curr_g = st.session_state["geological_context"]
+
+                prov_badge_colors = {
+                    "manual_entry": "🟢 Human Verified (Manual Entry)",
+                    "imported": "🔵 Historical File Import",
+                    "mwd_classified": "⚡ MWD Sensor Telemetry",
+                    "ml_predicted": "🤖 ML Model Prediction",
+                }
+
+                st.info(f"**Site:** {curr_g.get('site_id')} | **Location:** `{curr_g.get('bench_id')}`")
+                st.markdown(f"**Effective Lithology:** `{curr_g.get('effective_lithology')}`")
+                st.markdown(f"**Classification Provenance:** {prov_badge_colors.get(curr_g.get('provenance'), curr_g.get('provenance'))}")
+
+                if curr_g.get("rock_type") in DEFAULT_ROCK_FACTOR_MAP:
+                    st.success(f"**Default Blastability Factor (A):** `{DEFAULT_ROCK_FACTOR_MAP[curr_g.get('rock_type')]}`")
+                elif curr_g.get("rock_type") == "Unknown":
+                    st.warning("⚠️ **Rock Type Unknown:** Default blastability factor A requires manual entry or calibration.")
+                else:
+                    st.info("ℹ️ Custom lithology: Specify site blastability factor A in blast design inputs.")
+
+                st.json(curr_g)
+            else:
+                st.info("No geological context saved for active session yet. Select parameters and click 'Save Geological Context'.")
 
     with tab_rmr:
         st.subheader("Bieniawski (1989) RMR89 Rating")

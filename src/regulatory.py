@@ -17,47 +17,55 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG_PATH = "data/processed/regulatory_limits.json"
 
 
-def load_regulatory_limits(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, float]:
+def load_regulatory_limits(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
     """
-    Loads Botswana's mining regulatory limits (PPV, airblast dBL, flyrock range, stemming) from a JSON config file.
-
-    Botswana Regulatory Framework Context:
-    --------------------------------------
-    - Mines, Quarries, Works and Machinery Act (Cap. 44:02): Establishes legal duties for mine safety,
-      ground vibration control (PPV limits), airblast noise overpressure mitigation, and flyrock containment.
-    - Data Protection Act of Botswana: Mandates secure handling and anonymization of site-specific blasting telematics
-      and geological block model data.
-    - Typical Limits: Maximum PPV <= 10.0 mm/s (minimum detectable ~0.1 mm/s), airblast <= 120-125 dB,
-      maximum flyrock range <= 250 m.
-
-    Parameters:
-    -----------
-    config_path : str, default="data/processed/regulatory_limits.json"
-        Path to JSON regulatory limits configuration file.
-
-    Returns:
-    --------
-    Dict[str, float]
-        Dictionary of active regulatory threshold limits.
+    Loads site-specific mining regulatory limits using centralized ConfigService,
+    falling back to JSON config if provided.
     """
+    try:
+        from src.services.config_service import load_site_config
+        cfg = load_site_config(site_id="jwaneng")
+        limits = cfg.get("limits", {})
+        return {
+            "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) & Data Protection Act of Botswana",
+            "max_ppv_mms": float(limits.get("max_ppv_mm_s", {}).get("value", 5.0)),
+            "min_ppv_mms": 0.1,
+            "max_airblast_dbl": float(limits.get("max_airblast", {}).get("value", 120.0)),
+            "max_flyrock_m": float(limits.get("max_flyrock_distance_m", {}).get("value", 50.0)),
+            "min_stemming_m": 2.5,
+            "max_powder_factor_kg_m3": 1.20,
+            "d50_target_min_mm": 100.0,
+            "d50_target_max_mm": 350.0,
+            "is_verified": cfg.get("is_verified", False),
+            "config_version": cfg.get("config_version", "1.0.0"),
+            "unverified_warning": cfg.get("unverified_warning", ""),
+        }
+    except Exception as e:
+        logger.warning(f"Error loading YAML site config in load_regulatory_limits: {e}")
+
     if os.path.exists(config_path):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                res = json.load(f)
+                res["is_verified"] = False
+                res["unverified_warning"] = "⚠️ WARNING: This design was evaluated against unverified example limits. Do not use for operational decisions."
+                return res
         except Exception as e:
             logger.warning(f"Error reading regulatory config file ({config_path}): {e}")
 
-    # Default fallback regulatory limits
     return {
         "act": "Mines, Quarries, Works and Machinery Act (Cap. 44:02) & Data Protection Act of Botswana",
         "max_ppv_mms": 5.0,
         "min_ppv_mms": 0.1,
         "max_airblast_dbl": 120.0,
-        "max_flyrock_m": 250.0,
+        "max_flyrock_m": 50.0,
         "min_stemming_m": 2.5,
         "max_powder_factor_kg_m3": 1.20,
         "d50_target_min_mm": 100.0,
         "d50_target_max_mm": 350.0,
+        "is_verified": False,
+        "config_version": "1.0.0",
+        "unverified_warning": "⚠️ WARNING: This design was evaluated against unverified example limits. Do not use for operational decisions.",
     }
 
 

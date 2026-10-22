@@ -9,13 +9,67 @@ from datetime import datetime
 from src.models import MODEL_REGISTRY, FEATURE_COLS
 from src.data_ingestion import clean_and_preprocess, engineer_features, dataframe_fingerprint
 
-st.title("Machine Learning Model Manager")
+st.markdown("""
+<style>
+    /* FORCE GOLD TABS */
+    [data-baseweb="tab-highlight"] {
+        background-color: #F2A900 !important;
+    }
+    [data-baseweb="tab"] {
+        color: #94a3b8 !important;
+    }
+    [aria-selected="true"] {
+        color: #ffffff !important;
+    }
+
+    /* FORCE GOLD RADIO BUTTONS */
+    div[role="radiogroup"] > label > div:first-child {
+        border-color: #F2A900 !important;
+    }
+    div[role="radiogroup"] > label > div:first-child > div {
+        background-color: #F2A900 !important;
+    }
+
+    /* FORCE NAVY BUTTONS */
+    .stButton > button {
+        background-color: #002B5B !important;
+        color: #F2A900 !important;
+        border: 1px solid #F2A900 !important;
+        border-radius: 8px !important;
+    }
+    .stButton > button:hover {
+        background-color: #F2A900 !important;
+        color: #002B5B !important;
+    }
+
+    /* FORCE DARK TABLES */
+    [data-testid="stDataFrame"] {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+    }
+
+    /* HEADERS */
+    h1, h2, h3 {
+        color: #ffffff !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Machine Learning Model Manager</h1>
+<p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Train, evaluate, and deploy AI models for blast prediction.</p>
+<hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+""", unsafe_allow_html=True)
 
 if "df" not in st.session_state:
     st.warning("⚠️ Please generate or upload data in Data Ingestion first.")
     st.stop()
 
 df = st.session_state["df"]
+
+st.subheader("Data Preview")
+st.dataframe(df, hide_index=True, use_container_width=True, height=350)
 
 st.subheader("1. Select Algorithm")
 selected_key = st.selectbox(

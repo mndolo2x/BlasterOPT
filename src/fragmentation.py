@@ -11,40 +11,6 @@ Test 1 (PF = 0.65): d50 = 296.8 mm
 Test 2 (PF = 0.80): d50 = 260.3 mm
 ✅ MANUAL VERIFICATION SUCCESSFUL: Calculate Fragmentation button is fully functional!
 
-TASK 5 DILUTION MANUAL VERIFICATION LOG:
-=========================================
-Test 1 (Good conditions): Dilution = 2.00%
-Test 2 (Poor RMR=30): Dilution = 2.17%
-Test 3 (Faulted contact): Dilution = 3.91%
-✅ MANUAL VERIFICATION SUCCESSFUL: Dilution model responds dynamically to parameter changes.
-
-FAULT RISK MANUAL VERIFICATION LOG:
-===================================
-FAULT_JWA_01 (dip=70, dist=60): Risk = HIGH | Fault is steep (70°) and close to blast (60 m)
-FAULT_JWA_02 (dip=85, dist=120): Risk = MEDIUM | Fault is very steep (85°) and moderate distance (120 m)
-FAULT_JWA_01 Modified (dip=70, dist=300): Risk = LOW | Fault is steep (70°) and far from blast (300 m)
-✅ MANUAL VERIFICATION SUCCESSFUL: Fault risk analysis responds dynamically to edits.
-
-JOINT SET ANALYZER MANUAL VERIFICATION LOG:
-==========================================
-2 sets count: 2
-3 sets count: 3, Block Volume: 1.200 m3
-3 sets modified spacing (1.5 -> 0.5): Block Volume = 0.400 m3
-✅ MANUAL VERIFICATION SUCCESSFUL: Joint Set Analyzer responds dynamically to edits.
-
-Q-SYSTEM MANUAL VERIFICATION LOG:
-=================================
-Input Set A (RQD=85): Q = 9.35
-Input Set B (RQD=40): Q = 4.40
-✅ MANUAL VERIFICATION SUCCESSFUL: Calculate Q Value button is fully functional!
-
-TASK 6 MANUAL VERIFICATION LOG:
-===============================
-Initial result (UCS=120, Damp): RMR = 70
-After changing Groundwater to Flowing: RMR = 60 (diff: -10)
-After changing UCS to 30: RMR = 52 (diff: -8)
-✅ MANUAL VERIFICATION SUCCESSFUL: Button responds to input changes.
-
 Geology & Geomechanics Package for BlastOpt Botswana.
 """
 
@@ -188,11 +154,36 @@ class BlastDesignEngine:
 
 def render_fragmentation_page(lang_code: str = "en"):
     """Renders Advanced Fragmentation Streamlit dashboard."""
-    st.header("💥 Advanced Fragmentation Modeling & Calibration")
-    st.markdown(
-        "Particle size distribution modeling combining **Kuz-Ram**, **Swebrec**, "
-        "and **KCO** equations, optical WipFrag image import, and **RSM rock factor calibration**."
-    )
+    st.markdown("""
+<style>
+    /* Force Tabs to Gold */
+    [data-baseweb="tab-highlight"] { background-color: #F2A900 !important; }
+    [data-baseweb="tab"] { color: #94a3b8 !important; }
+    [aria-selected="true"] { color: #ffffff !important; }
+
+    /* Force Sliders to Gold */
+    .stSlider [data-baseweb="slider"] div[role="slider"] { background-color: #F2A900 !important; }
+
+    /* Force Buttons to Navy/Gold */
+    .stButton > button {
+        background-color: #002B5B !important;
+        color: #F2A900 !important;
+        border: 1px solid #F2A900 !important;
+        border-radius: 8px !important;
+    }
+    .stButton > button:hover { background-color: #F2A900 !important; color: #002B5B !important; }
+
+    /* Force Radio Buttons to Gold */
+    div[role="radiogroup"] > label > div:first-child { border-color: #F2A900 !important; }
+    div[role="radiogroup"] > label > div:first-child > div { background-color: #F2A900 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+    st.markdown("""
+<h1 style="color: #ffffff; font-weight: 700; margin-bottom: 0;">Fragmentation Modeling</h1>
+<p style="color: #94a3b8; font-size: 16px; margin-top: 4px;">Kuz-Ram, Swebrec, and KCO modeling with WipFrag calibration.</p>
+<hr style="border-color: #1e293b; margin: 16px 0 24px 0;">
+""", unsafe_allow_html=True)
 
     tab_kuz, tab_swe, tab_comp, tab_wip, tab_cal = st.tabs([
         "📊 Kuz-Ram Model",
@@ -203,11 +194,10 @@ def render_fragmentation_page(lang_code: str = "en"):
     ])
 
     with tab_kuz:
-        st.subheader("Blast Design Parameters")
-
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1, 1.2])
 
         with col1:
+            st.subheader("Blast Design Parameters")
             rock_factor = st.slider(
                 "Rock Factor (A)",
                 min_value=4.0, max_value=16.0, value=8.0, step=0.5,
@@ -223,8 +213,6 @@ def render_fragmentation_page(lang_code: str = "en"):
                 min_value=2.0, max_value=10.0, value=5.1, step=0.1,
                 key="af_spacing",
             )
-
-        with col2:
             hole_depth = st.slider(
                 "Hole Depth (m)",
                 min_value=5.0, max_value=30.0, value=16.5, step=0.5,
@@ -240,109 +228,132 @@ def render_fragmentation_page(lang_code: str = "en"):
                 min_value=80.0, max_value=130.0, value=115.0, step=1.0,
                 key="af_rws",
             )
-
-        charge_mass = st.slider(
-            "Charge Mass per Hole (kg)",
-            min_value=50.0, max_value=800.0, value=320.0, step=10.0,
-            key="af_charge_mass",
-        )
-
-        if st.button("Calculate Fragmentation", type="primary", key="af_calc_btn"):
-            x50_cm = kuznetsov_x50(
-                rock_factor_a=rock_factor,
-                burden_m=burden,
-                spacing_m=spacing,
-                hole_depth_m=hole_depth,
-                charge_mass_kg=charge_mass,
-                explosive_rws=explosive_rws,
-            )
-            n = cunningham_uniformity(
-                burden_m=burden,
-                spacing_m=spacing,
-                hole_diameter_mm=165.0,
-                bench_height_m=15.0,
-                charge_length_m=hole_depth - 3.0,
-            )
-            d80_cm = rosin_rammler_d80(x50_cm, n)
-
-            swebrec = SwebrecModel(
-                x_max=x50_cm * 3.0,
-                x_50=x50_cm,
-                b=0.5 * n,
+            charge_mass = st.slider(
+                "Charge Mass per Hole (kg)",
+                min_value=50.0, max_value=800.0, value=320.0, step=10.0,
+                key="af_charge_mass",
             )
 
-            kco = KCOModel(kuz_ram_model=None, swebrec_model=swebrec)
-            kco_result = kco.predict({
-                "rock_factor_a": rock_factor,
-                "burden_m": burden,
-                "spacing_m": spacing,
-                "hole_depth_m": hole_depth,
-                "charge_mass_kg": charge_mass,
-                "explosive_rws": explosive_rws,
-                "bench_height_m": 15.0,
-                "hole_diameter_mm": 165,
-                "powder_factor_kg_m3": powder_factor,
-            })
+        with col2:
+            st.subheader("Results & Fragmentation Curve")
+            if st.button("Calculate Fragmentation", type="primary", key="af_calc_btn"):
+                x50_cm = kuznetsov_x50(
+                    rock_factor_a=rock_factor,
+                    burden_m=burden,
+                    spacing_m=spacing,
+                    hole_depth_m=hole_depth,
+                    charge_mass_kg=charge_mass,
+                    explosive_rws=explosive_rws,
+                )
+                n = cunningham_uniformity(
+                    burden_m=burden,
+                    spacing_m=spacing,
+                    hole_diameter_mm=165.0,
+                    bench_height_m=15.0,
+                    charge_length_m=hole_depth - 3.0,
+                )
+                d80_cm = rosin_rammler_d80(x50_cm, n)
 
-            st.session_state["af_result"] = {
-                "kuz_ram": {
-                    "d50_mm": round(x50_cm * 10.0, 1),
-                    "d80_mm": round(d80_cm * 10.0, 1),
-                    "n": round(n, 2),
-                },
-                "swebrec": {
-                    "d50_mm": round(swebrec.x_50 * 10.0, 1),
-                    "x_max_mm": round(swebrec.x_max * 10.0, 1),
-                },
-                "kco": kco_result,
-            }
+                swebrec = SwebrecModel(
+                    x_max=x50_cm * 3.0,
+                    x_50=x50_cm,
+                    b=0.5 * n,
+                )
 
-        if "af_result" in st.session_state:
-            r = st.session_state["af_result"]
+                kco = KCOModel(kuz_ram_model=None, swebrec_model=swebrec)
+                kco_result = kco.predict({
+                    "rock_factor_a": rock_factor,
+                    "burden_m": burden,
+                    "spacing_m": spacing,
+                    "hole_depth_m": hole_depth,
+                    "charge_mass_kg": charge_mass,
+                    "explosive_rws": explosive_rws,
+                    "bench_height_m": 15.0,
+                    "hole_diameter_mm": 165,
+                    "powder_factor_kg_m3": powder_factor,
+                })
 
-            st.divider()
-            st.subheader("Fragmentation Percentiles")
+                st.session_state["af_result"] = {
+                    "kuz_ram": {
+                        "d50_mm": round(x50_cm * 10.0, 1),
+                        "d80_mm": round(d80_cm * 10.0, 1),
+                        "n": round(n, 2),
+                    },
+                    "swebrec": {
+                        "d50_mm": round(swebrec.x_50 * 10.0, 1),
+                        "x_max_mm": round(swebrec.x_max * 10.0, 1),
+                    },
+                    "kco": kco_result,
+                }
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Kuz-Ram d50", f"{r['kuz_ram']['d50_mm']} mm")
-            col2.metric("Kuz-Ram d80", f"{r['kuz_ram']['d80_mm']} mm")
-            col3.metric("Uniformity Index n", r["kuz_ram"]["n"])
+            if "af_result" in st.session_state:
+                r = st.session_state["af_result"]
 
-            col4, col5 = st.columns(2)
-            col4.metric("Swebrec d50", f"{r['swebrec']['d50_mm']} mm")
-            col5.metric("Swebrec x_max", f"{r['swebrec']['x_max_mm']} mm")
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_m1, col_m2, col_m3 = st.columns(3)
+                with col_m1:
+                    st.markdown(f"""
+                    <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                        <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Kuz-Ram d50</p>
+                        <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{r['kuz_ram']['d50_mm']} mm</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_m2:
+                    st.markdown(f"""
+                    <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                        <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Kuz-Ram d80</p>
+                        <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{r['kuz_ram']['d80_mm']} mm</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_m3:
+                    st.markdown(f"""
+                    <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                        <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Uniformity n</p>
+                        <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{r['kuz_ram']['n']}</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            st.caption(
-                "These values were computed from the input parameters at the time "
-                "the Calculate button was clicked. Change any input and click again."
-            )
+                st.markdown("<br>", unsafe_allow_html=True)
 
-            x_cm = np.linspace(1.0, 200.0, 500)
-            x50 = r["kuz_ram"]["d50_mm"] / 10.0
-            n_val = r["kuz_ram"]["n"]
-            percent_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_cm / x50) ** n_val))
+                x_cm = np.linspace(1.0, 200.0, 500)
+                x50 = r["kuz_ram"]["d50_mm"] / 10.0
+                n_val = r["kuz_ram"]["n"]
+                percent_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_cm / x50) ** n_val))
 
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=x_cm, y=percent_passing, name="Kuz-Ram"))
-            fig.update_xaxes(title_text="Size (cm)", type="log")
-            fig.update_yaxes(title_text="Percent Passing (%)")
-            fig.update_layout(title="Kuz-Ram Fragmentation Curve")
-            st.plotly_chart(fig, use_container_width=True)
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=x_cm, y=percent_passing, name="Kuz-Ram", line=dict(color="#00B4D8", width=2.5)))
+                fig.update_xaxes(title_text="Size (cm)", type="log", gridcolor='#1e293b', zerolinecolor='#1e293b')
+                fig.update_yaxes(title_text="Percent Passing (%)", gridcolor='#1e293b', zerolinecolor='#1e293b')
+                fig.update_layout(
+                    title="<b>Kuz-Ram Fragmentation Curve</b>",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#ffffff'),
+                    height=380,
+                    margin=dict(l=40, r=40, t=40, b=40)
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
-            if st.button("Clear result", key="af_clear_btn"):
-                del st.session_state["af_result"]
-                st.rerun()
+                if st.button("Clear result", key="af_clear_btn"):
+                    del st.session_state["af_result"]
+                    st.rerun()
+            else:
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 40px; text-align: center; margin-top: 20px;">
+                    <p style="color: #94a3b8; margin: 0;">Click <strong>Calculate Fragmentation</strong> above to view the fragmentation curve.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
     with tab_swe:
         st.subheader("Swebrec Cumulative Size Distribution")
-        st.caption(
-            "This tab uses the same blast design parameters as the Kuz-Ram tab. "
-            "To change them, return to the Kuz-Ram tab, adjust the sliders, and "
-            "click Calculate Fragmentation again."
-        )
 
         if "af_result" not in st.session_state:
-            st.info("Calculate the fragmentation on the Kuz-Ram tab first.")
+            st.markdown("""
+            <div style="background: rgba(255, 255, 255, 0.03); border-left: 4px solid #00b4d8; border-radius: 8px; padding: 20px; text-align: center; margin-top: 20px;">
+                <h4 style="color: #ffffff; margin: 0;">Awaiting Input</h4>
+                <p style="color: #94a3b8; margin: 8px 0 0 0;">Calculate the fragmentation on the Kuz-Ram tab first. The comparison uses the same blast design parameters.</p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             r = st.session_state["af_result"]
             x_max_cm = r["swebrec"]["x_max_mm"] / 10.0
@@ -362,20 +373,20 @@ def render_fragmentation_page(lang_code: str = "en"):
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=x_cm, y=percent_passing, mode="lines",
-                name="Swebrec", line=dict(color="green", width=2),
+                name="Swebrec", line=dict(color="#2A9D8F", width=2.5),
             ))
 
             fig.add_vline(
-                x=x_max_cm, line_dash="dash", line_color="red",
+                x=x_max_cm, line_dash="dash", line_color="#E63946",
                 annotation_text=f"x_max = {x_max_cm:.1f} cm",
                 annotation_position="top right",
             )
 
             fig.add_hline(
-                y=50.0, line_dash="dot", line_color="gray",
+                y=50.0, line_dash="dot", line_color="#94a3b8",
             )
             fig.add_vline(
-                x=x_50_cm, line_dash="dot", line_color="gray",
+                x=x_50_cm, line_dash="dot", line_color="#94a3b8",
                 annotation_text=f"d50 = {x_50_cm:.1f} cm",
                 annotation_position="bottom right",
             )
@@ -384,14 +395,20 @@ def render_fragmentation_page(lang_code: str = "en"):
                 title_text="Size (cm)",
                 type="log",
                 range=[np.log10(0.5), np.log10(x_max_cm * 1.05)],
+                gridcolor='#1e293b', zerolinecolor='#1e293b'
             )
             fig.update_yaxes(
                 title_text="Percent Passing (%)",
                 range=[0, 102],
+                gridcolor='#1e293b', zerolinecolor='#1e293b'
             )
             fig.update_layout(
-                title="Swebrec Cumulative Size Distribution",
-                height=500,
+                title="<b>Swebrec Cumulative Size Distribution</b>",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#ffffff'),
+                height=450,
+                margin=dict(l=40, r=40, t=40, b=40)
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -405,79 +422,78 @@ def render_fragmentation_page(lang_code: str = "en"):
         st.subheader("Kuz-Ram vs Swebrec vs KCO Model Comparison")
 
         if "af_result" not in st.session_state:
-            st.info(
-                "Calculate the fragmentation on the Kuz-Ram tab first. "
-                "The comparison uses the same blast design parameters."
-            )
+            st.markdown("""
+            <div style="background: rgba(255, 255, 255, 0.03); border-left: 4px solid #00b4d8; border-radius: 8px; padding: 20px; text-align: center; margin-top: 20px;">
+                <h4 style="color: #ffffff; margin: 0;">Awaiting Input</h4>
+                <p style="color: #94a3b8; margin: 8px 0 0 0;">Calculate the fragmentation on the Kuz-Ram tab first. The comparison uses the same blast design parameters.</p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             r = st.session_state["af_result"]
 
-            # Kuz-Ram parameters
             x50_cm = r["kuz_ram"]["d50_mm"] / 10.0
             n = r["kuz_ram"]["n"]
 
-            # Swebrec parameters
             x_max_cm = r["swebrec"]["x_max_mm"] / 10.0
             b = n * 0.5
 
-            # X ranges
             x_kuz = np.linspace(0.5, x_max_cm * 1.05, 500)
             x_sw = np.linspace(0.5, x_max_cm * 0.99, 500)
 
-            # Kuz-Ram (Rosin-Rammler)
             kuz_ram_passing = 100.0 * (1.0 - np.exp(-0.693 * (x_kuz / x50_cm) ** n))
 
-            # Swebrec
             numerator = np.log(x_max_cm / x_sw)
             denominator = np.log(x_max_cm / x50_cm)
             sw_passing = 100.0 / (1.0 + (numerator / denominator) ** b)
             x_sw = np.append(x_sw, x_max_cm)
             sw_passing = np.append(sw_passing, 100.0)
 
-            # KCO — approximate as Swebrec with same x50 but extended x_max
             x_kco = np.linspace(0.5, x_max_cm * 1.1, 500)
             kco_passing = 100.0 / (1.0 + (
                 np.log(x_max_cm * 1.1 / x_kco) /
                 np.log(x_max_cm * 1.1 / x50_cm)
             ) ** (b * 0.9))
 
-            # Build figure
             fig = go.Figure()
 
             fig.add_trace(go.Scatter(
                 x=x_kuz, y=kuz_ram_passing,
                 mode="lines", name="Kuz-Ram (Rosin-Rammler)",
-                line=dict(color="blue", width=2),
+                line=dict(color="#00B4D8", width=2.5),
             ))
 
             fig.add_trace(go.Scatter(
                 x=x_sw, y=sw_passing,
                 mode="lines", name="Swebrec",
-                line=dict(color="green", width=2),
+                line=dict(color="#2A9D8F", width=2.5),
             ))
 
             fig.add_trace(go.Scatter(
                 x=x_kco, y=kco_passing,
                 mode="lines", name="KCO",
-                line=dict(color="orange", width=2, dash="dash"),
+                line=dict(color="#F2A900", width=2.5, dash="dash"),
             ))
 
-            # Reference lines
-            fig.add_hline(y=50, line_dash="dot", line_color="gray", opacity=0.5)
-            fig.add_hline(y=80, line_dash="dot", line_color="gray", opacity=0.5)
+            fig.add_hline(y=50, line_dash="dot", line_color="#94a3b8", opacity=0.5)
+            fig.add_hline(y=80, line_dash="dot", line_color="#94a3b8", opacity=0.5)
 
             fig.update_xaxes(
                 title_text="Size (cm)",
                 type="log",
                 range=[np.log10(0.5), np.log10(x_max_cm * 1.15)],
+                gridcolor='#1e293b', zerolinecolor='#1e293b'
             )
             fig.update_yaxes(
                 title_text="Percent Passing (%)",
                 range=[0, 102],
+                gridcolor='#1e293b', zerolinecolor='#1e293b'
             )
             fig.update_layout(
-                title="Kuz-Ram vs Swebrec vs KCO Model Comparison",
-                height=550,
+                title="<b>Kuz-Ram vs Swebrec vs KCO Model Comparison</b>",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#ffffff'),
+                height=480,
                 legend=dict(
                     orientation="h",
                     yanchor="bottom",
@@ -485,6 +501,7 @@ def render_fragmentation_page(lang_code: str = "en"):
                     xanchor="right",
                     x=1,
                 ),
+                margin=dict(l=40, r=40, t=40, b=40)
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -495,11 +512,9 @@ def render_fragmentation_page(lang_code: str = "en"):
                 f"the Kuz-Ram tab."
             )
 
-            # Task 2: Numeric comparison table
             st.subheader("Percentile Comparison")
 
             def find_d_percentile(x_values, passing_values, target_pct):
-                """Find the size at which passing equals target_pct."""
                 idx = np.argmin(np.abs(passing_values - target_pct))
                 return round(float(x_values[idx]), 1)
 
@@ -530,20 +545,9 @@ def render_fragmentation_page(lang_code: str = "en"):
                 hide_index=True,
             )
 
-            st.caption(
-                "The three models give different predictions, especially at the coarse end. "
-                "The choice of model depends on the specific rock type and blasting conditions."
-            )
-
     with tab_wip:
         st.subheader("WipFrag Measured Fragmentation")
 
-        st.caption(
-            "Upload a WipFrag CSV export, or enter the measured percentiles manually. "
-            "The values will be compared against the Kuz-Ram prediction from the current blast design."
-        )
-
-        # Two input methods: CSV upload or manual entry
         input_method = st.radio(
             "Input method",
             ["Upload WipFrag CSV", "Enter values manually"],
@@ -566,7 +570,12 @@ def render_fragmentation_page(lang_code: str = "en"):
                     st.error(f"Failed to load CSV: {e}")
                     st.stop()
             else:
-                st.info("Upload a CSV file to proceed.")
+                st.markdown("""
+                <div style="background: rgba(255, 255, 255, 0.03); border-left: 4px solid #00b4d8; border-radius: 8px; padding: 20px; text-align: center; margin-top: 20px;">
+                    <h4 style="color: #ffffff; margin: 0;">Awaiting Input</h4>
+                    <p style="color: #94a3b8; margin: 8px 0 0 0;">Upload a WipFrag CSV file above or switch to manual entry to proceed.</p>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.write("**Measured percentiles (mm)**")
             col1, col2, col3 = st.columns(3)
@@ -584,7 +593,6 @@ def render_fragmentation_page(lang_code: str = "en"):
                 boulders = st.number_input("Boulders % (> 800mm)", min_value=0.0, max_value=100.0, value=4.2, step=0.5, key="wip_boulders")
 
             if st.button("Analyze WipFrag Data", type="primary", key="wip_calc_btn"):
-                # Build a simple 5-point distribution from the percentiles
                 measured_data = {
                     "size_mm": [10, d20, d50, d80, 800],
                     "percent_passing": [fines, 20, 50, 80, 100 - boulders],
@@ -608,11 +616,9 @@ def render_fragmentation_page(lang_code: str = "en"):
             x50_pred_cm = r["kuz_ram"]["d50_mm"] / 10.0
             n_pred = r["kuz_ram"]["n"]
 
-            # Predicted curve
             x_pred_cm = np.linspace(0.5, 100, 500)
             predicted_passing = 100 * (1 - np.exp(-0.693 * (x_pred_cm / x50_pred_cm) ** n_pred))
 
-            # Measured curve
             x_meas_cm = measured_df["size_mm"].values / 10.0
             y_meas = measured_df["percent_passing"].values
 
@@ -621,23 +627,29 @@ def render_fragmentation_page(lang_code: str = "en"):
             fig.add_trace(go.Scatter(
                 x=x_pred_cm, y=predicted_passing,
                 mode="lines", name="Kuz-Ram Predicted",
-                line=dict(color="blue", width=2),
+                line=dict(color="#00B4D8", width=2.5),
             ))
 
             fig.add_trace(go.Scatter(
                 x=x_meas_cm, y=y_meas,
                 mode="lines+markers", name="WipFrag Measured",
-                line=dict(color="orange", width=2),
+                line=dict(color="#F2A900", width=2.5),
                 marker=dict(size=8),
             ))
 
-            fig.update_xaxes(title_text="Size (cm)", type="log")
-            fig.update_yaxes(title_text="Percent Passing (%)", range=[0, 102])
-            fig.update_layout(title="Measured vs Predicted Fragmentation", height=500)
+            fig.update_xaxes(title_text="Size (cm)", type="log", gridcolor='#1e293b', zerolinecolor='#1e293b')
+            fig.update_yaxes(title_text="Percent Passing (%)", range=[0, 102], gridcolor='#1e293b', zerolinecolor='#1e293b')
+            fig.update_layout(
+                title="<b>Measured vs Predicted Fragmentation</b>",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#ffffff'),
+                height=450,
+                margin=dict(l=40, r=40, t=40, b=40)
+            )
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # Compute error metrics
             from scipy.interpolate import interp1d
 
             pred_interp = interp1d(x_pred_cm, predicted_passing, bounds_error=False, fill_value="extrapolate")
@@ -649,10 +661,29 @@ def render_fragmentation_page(lang_code: str = "en"):
             bias = float(np.mean(residuals))
 
             col1, col2, col3 = st.columns(3)
-            col1.metric("RMSE", f"{rmse:.1f}%")
-            col2.metric("MAE", f"{mae:.1f}%")
-            col3.metric("Bias", f"{bias:+.1f}%")
+            with col1:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">RMSE</p>
+                    <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{rmse:.1f}%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">MAE</p>
+                    <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{mae:.1f}%</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Bias</p>
+                    <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{bias:+.1f}%</h3>
+                </div>
+                """, unsafe_allow_html=True)
 
+            st.markdown("<br>", unsafe_allow_html=True)
             if abs(bias) < 5:
                 st.success("Kuz-Ram prediction matches WipFrag measurement well (|bias| < 5%).")
             elif bias > 0:
@@ -668,11 +699,22 @@ def render_fragmentation_page(lang_code: str = "en"):
 
     with tab_cal:
         st.subheader("Saubi & Suglo (2026) RSM Rock Factor Calibrator")
-        meas_d50 = st.number_input("Measured Muckpile d50 (mm)", 50.0, 800.0, 240.0)
-        pred_d50 = st.number_input("Model Predicted d50 (mm)", 50.0, 800.0, 200.0)
-        curr_a = st.number_input("Current Site Rock Factor A", 4.0, 16.0, 8.0)
 
-        if st.button("Calibrate Site Rock Factor"):
+        st.markdown("""
+        <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            meas_d50 = st.number_input("Measured Muckpile d50 (mm)", 50.0, 800.0, 240.0)
+        with col2:
+            pred_d50 = st.number_input("Model Predicted d50 (mm)", 50.0, 800.0, 200.0)
+        with col3:
+            curr_a = st.number_input("Current Site Rock Factor A", 4.0, 16.0, 8.0)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if st.button("Calibrate Site Rock Factor", type="primary"):
             cal_a = RockFactorCalibrator.calibrate_rock_factor(meas_d50, pred_d50, curr_a)
             ratio = meas_d50 / max(pred_d50, 10.0)
             adjustment_pct = ((ratio ** 0.8) - 1.0) * 100.0
@@ -693,20 +735,29 @@ def render_fragmentation_page(lang_code: str = "en"):
             st.subheader("Calibration Result")
 
             col1, col2, col3 = st.columns(3)
-            col1.metric(
-                "Current Rock Factor A",
-                f"{r['current_A']:.2f}",
-            )
-            col2.metric(
-                "Calibrated Rock Factor A",
-                f"{r['A_calibrated']:.2f}",
-                delta=f"{r['A_calibrated'] - r['current_A']:+.2f}",
-            )
-            col3.metric(
-                "Adjustment",
-                f"{r['adjustment_pct']:+.1f}%",
-            )
+            with col1:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Current Rock Factor A</p>
+                    <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{r['current_A']:.2f}</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Calibrated Rock Factor A</p>
+                    <h3 style="color: #F2A900; font-size: 24px; font-weight: 700; margin: 0;">{r['A_calibrated']:.2f} ({r['A_calibrated'] - r['current_A']:+.2f})</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 4px 0;">Adjustment</p>
+                    <h3 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0;">{r['adjustment_pct']:+.1f}%</h3>
+                </div>
+                """, unsafe_allow_html=True)
 
+            st.markdown("<br>", unsafe_allow_html=True)
             st.caption(
                 f"Calibration ratio (measured / predicted): "
                 f"{r['measured_d50']:.0f} / {r['predicted_d50']:.0f} = **{r['ratio']:.3f}**"

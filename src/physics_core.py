@@ -113,7 +113,7 @@ def rosin_rammler_d80(x50_cm: float, n: float) -> float:
 def usbm_ppv(
     max_charge_per_delay_kg: float,
     distance_m: float,
-    site_constant_k: float = 500.0,
+    site_constant_k: float = 1140.0,
     attenuation_b: float = 1.6,
 ) -> float:
     """

@@ -2,9 +2,23 @@
 Configuration constants, schemas, and licensing notices for BlastOPT GeoResponse v0.1.
 """
 
-# Core Telemetry Ingestion Column Aliases
+import re
+
+def normalize_header_name(header: str) -> str:
+    """
+    Normalizes header string by lowercasing, stripping whitespace,
+    and replacing spaces, hyphens, and multiple separators with a single underscore.
+    """
+    s = str(header).strip().lower()
+    s = re.sub(r'[\s\-_]+', '_', s)
+    return s.strip('_')
+
+# Core Telemetry Ingestion Column Aliases (Unambiguous / Explicitly Approved)
 COLUMN_ALIASES = {
-    "penetration_rate_m_hr": ["penetration_rate_m_hr", "rop_m_hr", "penetration_rate_m_h"],
+    "penetration_rate_m_hr": [
+        "penetration_rate_m_hr", "rop_m_hr", "penetration_rate_m_h",
+        "penetration_rate", "rop"
+    ],
     "penetration_rate_m_min": ["penetration_rate_m_min", "rop_m_min"],
     "torque_nm": ["torque_nm", "rotation_torque_nm", "torque"],
     "weight_on_bit_kg": ["weight_on_bit_kg", "wob_kg", "weight_on_bit"],
@@ -14,7 +28,12 @@ COLUMN_ALIASES = {
     "flushing_pressure_bar": ["flushing_pressure_bar", "water_pressure_bar"],
     "rotation_speed_rpm": ["rotation_speed_rpm", "rpm"],
     "depth_m": ["depth_m", "measured_depth_m", "depth"],
-    "rock_type_label": ["rock_type_label", "rock_class", "rock_type", "strata_label"],
+    "rock_type_label": ["rock_type_label", "rock_type_class"],
+}
+
+# Ambiguous headers that trigger suggested mappings requiring user confirmation
+SUGGESTED_ALIASES = {
+    "rock_type_label": ["rock_type", "rock_class", "lithology", "ground_response_class", "strata_label", "rock_label", "target_class"],
 }
 
 # Base required sensors for minimal MWD feature engineering and model training

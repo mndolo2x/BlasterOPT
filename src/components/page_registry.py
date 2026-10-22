@@ -16,7 +16,6 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "required_outputs": [
             "fragmentation_d80_cm",
             "vibration_ppv_mms",
-            "airblast_db",
         ],
         "description": "Predict fragmentation, vibration, and airblast from sliders",
     },
@@ -41,8 +40,8 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "regulatory_compliance": {
         "display_name": "Regulatory Compliance",
-        "required_outputs": ["vibration_ppv_mms", "airblast_db"],
-        "description": "PPV and airblast check against Botswana limits",
+        "required_outputs": ["vibration_ppv_mms"],
+        "description": "PPV check against Botswana limits",
     },
     "pinn": {
         "display_name": "PINN Prediction & Uncertainty",
@@ -66,12 +65,13 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "digital_twin": {
         "display_name": "Digital Twin of Bench",
-        "required_outputs": [
-            "fragmentation_d80_cm",
-            "vibration_ppv_mms",
-            "airblast_db",
-        ],
+        "required_outputs": [],
         "description": "3D what-if scenario analysis",
+    },
+    "underground": {
+        "display_name": "Underground Intelligence ⛏️",
+        "required_outputs": [],
+        "description": "Research prototype suite for underground hard-rock stoping operations",
     },
     "conversational_agent": {
         "display_name": "Conversational Agent",
@@ -91,6 +91,11 @@ PAGE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "display_name": "GeoResponse (MWD Rock Classifier)",
         "required_outputs": [],
         "description": "Research-only MWD data ingestion and rock-type classification benchmark",
+    },
+    "diamond_preservation": {
+        "display_name": "Diamond Preservation 💎",
+        "required_outputs": [],
+        "description": "Investigate diamond breakage, preserve value, and evaluate scenario lab outcomes",
     },
 }
 

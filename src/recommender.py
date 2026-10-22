@@ -82,8 +82,17 @@ def find_similar_blasts(
 
     # Build results from the actual matched rows
     results = []
+    query_rock = str(query_design.get("rock_type", query_design.get("effective_lithology", ""))).strip().lower()
+
     for rank, (dist, idx) in enumerate(zip(distances[0], indices[0])):
         row = df.iloc[idx]
+
+        row_rock = str(row.get("rock_type", row.get("geological_domain", "Kimberlite"))).strip()
+
+        # Adjust distance bonus if rock type matches query
+        effective_dist = float(dist)
+        if query_rock and query_rock == row_rock.lower():
+            effective_dist *= 0.8  # 20% distance bonus for matching rock type
 
         # Extract outcomes, handling both new and legacy column names
         d80_cm = row.get("fragmentation_d80_cm", None)
@@ -97,7 +106,8 @@ def find_similar_blasts(
         results.append({
             "rank": rank + 1,
             "blast_id": row.get("blast_id", f"row_{idx}"),
-            "distance": round(float(dist), 4),
+            "rock_type": row_rock,
+            "distance": round(effective_dist, 4),
             "burden_m": round(float(row["burden_m"]), 2),
             "spacing_m": round(float(row["spacing_m"]), 2),
             "powder_factor_kg_m3": round(float(row["powder_factor_kg_m3"]), 3),

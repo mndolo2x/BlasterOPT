@@ -108,6 +108,41 @@ with col_p1:
         st.session_state["last_model_key"] = model_key
         st.session_state["predict_done"] = True
 
+        # Automatically record original prediction snapshot in Blast Performance database
+        try:
+            import src.performance_feedback as pf
+            active_blast_id = f"BLAST_PRED_{int(pd.Timestamp.now().timestamp())}"
+            # Ensure blast record exists
+            b_rec = pf.get_blast_record(active_blast_id)
+            if not b_rec:
+                b_rec = pf.BlastRecord(
+                    blast_id=active_blast_id,
+                    site_id="Jwaneng",
+                    operation_type="open_pit",
+                    location_identifier="BENCH_PREDICTOR",
+                    planned_params=input_payload,
+                    status="PLANNED",
+                )
+                pf.save_blast_record(b_rec)
+
+            for target_k in ["d50_mm", "fragmentation_d80_cm", "vibration_ppv_mms", "airblast_db", "flyrock_m", "cost_per_tonne_usd"]:
+                if target_k in predictions:
+                    val = float(predictions[target_k])
+                    unit_map = {"d50_mm": "mm", "fragmentation_d80_cm": "cm", "vibration_ppv_mms": "mm/s", "airblast_db": "dB", "flyrock_m": "m", "cost_per_tonne_usd": "$/t"}
+                    snap = pf.PredictionSnapshot(
+                        prediction_run_id=f"PRED_{active_blast_id}_{target_k}",
+                        blast_id=active_blast_id,
+                        model_name=str(model_key),
+                        model_version="v1.0",
+                        target_metric=target_k,
+                        predicted_value=val,
+                        unit=unit_map.get(target_k, "unit"),
+                        input_features_snapshot=input_payload,
+                    )
+                    pf.save_prediction_snapshot(snap)
+        except Exception as snap_exc:
+            pass
+
 with col_p2:
     if st.session_state.get("predict_done", False):
         predictions = st.session_state["last_predictions"]
@@ -225,7 +260,12 @@ with col_p2:
 
             top5_rows = []
             for fn, sv in sorted_feats:
-                direction = "Pushes Higher ⬆️" if sv >= 0 else "Pushes Lower ⬇️"
+                if sv > 0.01:
+                    direction = "Pushes Higher 🔺"
+                elif sv < -0.01:
+                    direction = "Pushes Lower 🔻"
+                else:
+                    direction = "Neutral"
                 top5_rows.append({
                     "Feature Name": fn,
                     "SHAP Impact Value": f"{sv:+.2f}",
@@ -245,7 +285,32 @@ with col_p2:
 
             st.subheader("🍋 LIME Local Explanation Weights")
             lime_weights = exp_panel.get("lime", {}).get("feature_weights", {})
-            st.json(lime_weights)
+            if lime_weights:
+                sorted_lime = sorted(lime_weights.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+                lime_rows = []
+                for fn, w in sorted_lime:
+                    if w > 0.01:
+                        direction = f"+{w:.2f} (Pushes Higher 🔺)"
+                    elif w < -0.01:
+                        direction = f"{w:.2f} (Pushes Lower 🔻)"
+                    else:
+                        direction = f"{w:.2f} (Neutral)"
+                    lime_rows.append({
+                        "Feature": fn,
+                        "LIME Weight": f"{w:+.2f}",
+                        "Direction": direction,
+                    })
+                lime_df = pd.DataFrame(lime_rows)
+                st.dataframe(lime_df, use_container_width=True)
+
+                # Horizontal bar chart for LIME weights
+                chart_df = pd.DataFrame({
+                    "Feature": [r["Feature"] for r in lime_rows],
+                    "Weight": [lime_weights[r["Feature"]] for r in lime_rows]
+                }).set_index("Feature")
+                st.bar_chart(chart_df, horizontal=True)
+            else:
+                st.info("No LIME weights calculated.")
 
         st.markdown("---")
         fig_kuz = plot_kuz_ram_curve(d50_mm, n_uniformity=1.2)
@@ -256,6 +321,7 @@ with col_p2:
             max_ppv=saved_input.get("max_ppv", 5.0),
             receptor_distance=saved_input.get("monitoring_distance_m", 450.0),
             receptor_label="Village",
+            ppv_value=ppv,
         )
         st.plotly_chart(fig_ppv, use_container_width=True)
     else:

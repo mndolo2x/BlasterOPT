@@ -1,0 +1,5 @@
+procps
+libgl1
+libosmesa6
+libegl1
+xvfb

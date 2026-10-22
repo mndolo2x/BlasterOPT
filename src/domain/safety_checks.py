@@ -192,13 +192,26 @@ def evaluate_safety(
     Evaluates blast design predictions against limits incorporating 95% uncertainty bounds.
     """
     if limits is None:
-        limits = {
-            "max_ppv_mms": 5.0,
-            "max_airblast_dbl": 120.0,
-            "max_flyrock_m": 250.0,
-            "min_stemming_m": 2.5,
-            "max_powder_factor_kg_m3": 1.20,
-        }
+        try:
+            from src.services.config_service import get_limit, load_site_config
+            cfg = load_site_config(site_id="jwaneng")
+            limits = {
+                "max_ppv_mms": get_limit("max_ppv_mm_s", "jwaneng"),
+                "max_airblast_dbl": get_limit("max_airblast", "jwaneng"),
+                "max_flyrock_m": get_limit("max_flyrock_distance_m", "jwaneng"),
+                "min_stemming_m": 2.5,
+                "max_powder_factor_kg_m3": 1.20,
+                "is_verified": cfg.get("is_verified", False),
+            }
+        except Exception:
+            limits = {
+                "max_ppv_mms": 5.0,
+                "max_airblast_dbl": 120.0,
+                "max_flyrock_m": 50.0,
+                "min_stemming_m": 2.5,
+                "max_powder_factor_kg_m3": 1.20,
+                "is_verified": False,
+            }
 
     confidence_intervals = confidence_intervals or {}
     blast_params = blast_params or {}

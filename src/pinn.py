@@ -159,8 +159,8 @@ def train_pinn(
     y_val: Optional[Union[np.ndarray, torch.Tensor]] = None,
     epochs: int = 500,
     lr: float = 0.001,
-    lambda_1: float = 0.1,
-    lambda_2: float = 0.1,
+    lambda_1: float = 0.01,
+    lambda_2: float = 0.01,
     patience: int = 50,
 ) -> Tuple[Any, Dict[str, List[float]]]:
     """

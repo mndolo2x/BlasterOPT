@@ -24,11 +24,10 @@ def test_cv_loop_uses_registry_outputs():
     """Verify multi-output training targets match registry outputs."""
     config = MODEL_REGISTRY["ga_ann_jwaneng"]
     outputs = config["outputs"]
-    assert len(outputs) == 3
+    assert len(outputs) == 2
     assert outputs == [
         "fragmentation_d80_cm",
         "vibration_ppv_mms",
-        "airblast_db",
     ]
 
 
@@ -37,8 +36,8 @@ def test_feature_cols_matches_model_input_size():
     assert len(FEATURE_COLS) == 11
     model = GAANNModel(input_size=len(FEATURE_COLS))
     assert model.hidden1.in_features == 11
-    assert model.output.out_features == 3
-    expected_arch = f"{len(FEATURE_COLS)}-70-25-3"
+    assert model.output.out_features == 2
+    expected_arch = f"{len(FEATURE_COLS)}-70-25-2"
     assert MODEL_REGISTRY["ga_ann_jwaneng"]["architecture"] == expected_arch
 
 

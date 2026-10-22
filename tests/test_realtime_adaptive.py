@@ -82,7 +82,7 @@ def test_risk_controller_safe_design():
     safe_design = {
         "predicted_ppv_mms": 4.2,
         "predicted_airblast_dbl": 114.0,
-        "predicted_flyrock_m": 120.0,
+        "predicted_flyrock_m": 40.0,
     }
 
     res = risk_controller(safe_design)

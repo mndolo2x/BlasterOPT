@@ -7,10 +7,13 @@ explanation panels for Streamlit UI to help certified blasters understand and tr
 (d50, PPV, flyrock, cost).
 """
 
+import logging
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from typing import Dict, Any, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 try:
     import shap
@@ -172,10 +175,25 @@ def plot_feature_contributions_waterfall(
         )
     )
 
+    # Calculate cumulative bounds for y-axis zoom
+    all_points = [baseline]
+    running_total = baseline
+    for v in contributions.values():
+        running_total += v
+        all_points.append(running_total)
+    all_points.append(predicted)
+
+    min_val = min(all_points)
+    max_val = max(all_points)
+    margin = (max_val - min_val) * 0.1
+    if margin == 0:
+        margin = 1.0
+
     fig.update_layout(
         title=f"<b>{title}</b>",
         xaxis_title="Blast Parameter / Feature",
         yaxis_title=f"Impact on {contribution_data.get('target', 'Target')}",
+        yaxis=dict(range=[min_val - margin, max_val + margin]),
         template="plotly_white",
         height=450,
     )
@@ -287,18 +305,47 @@ def get_shap_explanation(
         try:
             is_torch_model = HAS_TORCH and isinstance(target_model, torch.nn.Module)
 
-            if is_torch_model:
-                bg = background_data
-                if bg is None:
-                    bg = torch.zeros((10, X_arr.shape[1]), dtype=torch.float32)
-                elif isinstance(bg, pd.DataFrame):
-                    bg = torch.tensor(bg.values, dtype=torch.float32)
-                elif isinstance(bg, np.ndarray):
-                    bg = torch.tensor(bg, dtype=torch.float32)
+            # Ensure background dataset has multiple rows for valid variance expectation
+            if isinstance(background_data, pd.DataFrame):
+                bg_np = background_data.values
+            elif isinstance(background_data, np.ndarray):
+                bg_np = background_data
+            elif HAS_TORCH and isinstance(background_data, torch.Tensor):
+                bg_np = background_data.detach().cpu().numpy()
+            else:
+                # Synthesize 50 background samples around input row with 10% standard deviation
+                np.random.seed(42)
+                noise = np.random.normal(1.0, 0.1, size=(50, X_arr.shape[1]))
+                bg_np = X_arr * noise
 
+            if len(bg_np) < 5:
+                np.random.seed(42)
+                noise = np.random.normal(1.0, 0.1, size=(50, X_arr.shape[1]))
+                bg_np = X_arr * noise
+
+            if hasattr(target_model, "predict"):
+                def model_predict_fn(x_numpy):
+                    df_in = pd.DataFrame(x_numpy, columns=feature_names)
+                    out = target_model.predict(df_in)
+                    out = np.asarray(out)
+                    if out.ndim == 1:
+                        return out
+                    elif out.ndim == 2:
+                        return out[:, 0]
+                    return out.ravel()
+
+                try:
+                    explainer = shap.TreeExplainer(target_model)
+                    shap_vals = explainer.shap_values(X_arr)
+                except Exception:
+                    explainer = shap.KernelExplainer(model_predict_fn, bg_np[:20])
+                    shap_vals = explainer.shap_values(X_arr)
+
+            elif is_torch_model:
+                bg_tensor = torch.tensor(bg_np[:20], dtype=torch.float32)
                 inp_tensor = torch.tensor(X_arr, dtype=torch.float32)
                 try:
-                    explainer = shap.DeepExplainer(target_model, bg)
+                    explainer = shap.DeepExplainer(target_model, bg_tensor)
                     shap_vals = explainer.shap_values(inp_tensor)
                 except Exception:
                     def py_predict(x):
@@ -307,8 +354,7 @@ def get_shap_explanation(
                             t = torch.tensor(x, dtype=torch.float32)
                             out = target_model(t).detach().cpu().numpy()
                             return out.ravel()
-                    bg_np = bg.detach().cpu().numpy() if isinstance(bg, torch.Tensor) else np.array(bg)
-                    explainer = shap.KernelExplainer(py_predict, bg_np[:10])
+                    explainer = shap.KernelExplainer(py_predict, bg_np[:20])
                     shap_vals = explainer.shap_values(X_arr)
 
             else:
@@ -316,22 +362,50 @@ def get_shap_explanation(
                     explainer = shap.TreeExplainer(target_model)
                     shap_vals = explainer.shap_values(X_arr)
                 except Exception:
-                    bg_np = background_data.values if isinstance(background_data, pd.DataFrame) else (background_data if background_data is not None else X_arr)
-                    explainer = shap.KernelExplainer(target_model.predict, bg_np)
+                    explainer = shap.KernelExplainer(target_model.predict, bg_np[:20])
                     shap_vals = explainer.shap_values(X_arr)
 
             if hasattr(explainer, "expected_value"):
                 bv = explainer.expected_value
                 base_value = float(bv[0]) if isinstance(bv, (list, np.ndarray)) else float(bv)
             else:
-                base_value = 0.0
+                base_value = float(np.mean(model_predict_fn(bg_np[:10]))) if 'model_predict_fn' in locals() else 0.0
 
             if isinstance(shap_vals, list):
                 shap_vec = np.array(shap_vals[0]).flatten()
             else:
                 shap_vec = np.array(shap_vals).flatten()
 
-        except Exception:
+            # Safeguard: if shap_vec is all zeros, compute feature perturbation differences
+            if np.all(np.abs(shap_vec) < 1e-6):
+                def _get_pred_val(m, x_arr):
+                    df_p = pd.DataFrame(x_arr, columns=feature_names)
+                    if hasattr(m, "predict"):
+                        p = m.predict(df_p)
+                    elif HAS_TORCH and isinstance(m, torch.nn.Module):
+                        m.eval()
+                        with torch.no_grad():
+                            t = torch.tensor(x_arr, dtype=torch.float32)
+                            p = m(t).detach().cpu().numpy()
+                    else:
+                        return 0.0
+
+                    if isinstance(p, (pd.DataFrame, pd.Series)):
+                        p = p.values
+                    p = np.asarray(p).ravel()
+                    return float(p[0]) if len(p) > 0 else 0.0
+
+                baseline_pred = _get_pred_val(target_model, X_arr)
+                perturbed_shap = []
+                for idx_f, col_f in enumerate(feature_names):
+                    X_pert = X_arr.copy()
+                    X_pert[0, idx_f] *= 1.10  # 10% perturbation
+                    pert_pred = _get_pred_val(target_model, X_pert)
+                    perturbed_shap.append(pert_pred - baseline_pred)
+                shap_vec = np.array(perturbed_shap)
+
+        except Exception as e:
+            logger.warning(f"Error computing SHAP values: {e}")
             shap_vec = np.zeros(len(feature_names))
             base_value = 0.0
     else:
@@ -424,7 +498,17 @@ def get_lime_explanation(
     # Predict wrapper function
     is_torch_model = HAS_TORCH and isinstance(model, torch.nn.Module)
 
-    if is_torch_model:
+    if hasattr(model, "predict"):
+        def predict_fn(x_numpy):
+            df_in = pd.DataFrame(x_numpy, columns=feature_names)
+            out = model.predict(df_in)
+            out = np.array(out)
+            if out.ndim == 1:
+                out = out.reshape(-1, 1)
+            elif out.ndim == 2 and out.shape[1] > 1:
+                out = out[:, 0].reshape(-1, 1)
+            return out
+    elif is_torch_model:
         def predict_fn(x_numpy):
             model.eval()
             with torch.no_grad():
@@ -432,14 +516,9 @@ def get_lime_explanation(
                 out = model(tensor_in).detach().cpu().numpy()
                 if out.ndim == 1:
                     out = out.reshape(-1, 1)
+                elif out.ndim == 2 and out.shape[1] > 1:
+                    out = out[:, 0].reshape(-1, 1)
                 return out
-    elif hasattr(model, "predict"):
-        def predict_fn(x_numpy):
-            out = model.predict(x_numpy)
-            out = np.array(out)
-            if out.ndim == 1:
-                out = out.reshape(-1, 1)
-            return out
     else:
         def predict_fn(x_numpy):
             return np.zeros((len(x_numpy), 1))

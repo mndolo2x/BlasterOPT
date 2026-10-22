@@ -228,9 +228,23 @@ def check_regulatory_compliance(
     """
     Validates a BlastDesign object against environmental limits and max cost bounds.
     """
-    limits = load_regulatory_limits()
-    max_ppv = float(limits.get("max_ppv_mms", 5.0))
-    max_airblast = float(limits.get("max_airblast_dbl", 120.0))
+    try:
+        from src.services.config_service import get_limit, load_site_config
+        max_ppv = get_limit("max_ppv_mm_s")
+        max_airblast = get_limit("max_airblast")
+        cfg = load_site_config()
+        is_verified = cfg.get("is_verified", False)
+    except Exception:
+        limits = load_regulatory_limits()
+        max_ppv = float(limits.get("max_ppv_mms", 5.0))
+        max_airblast = float(limits.get("max_airblast_dbl", 120.0))
+        is_verified = False
+
+    predicted_ppv = design.predicted_vibration.ppv_mm_s
+    predicted_airblast = design.predicted_airblast.airblast_db
+    predicted_cost = design.predicted_downstream.total_cost_per_tonne
+
+    unverified_suffix = "\n\n⚠️ WARNING: This design was evaluated against unverified example limits. Do not use for operational decisions." if not is_verified else ""
 
     predicted_ppv = design.predicted_vibration.ppv_mm_s
     predicted_airblast = design.predicted_airblast.airblast_db
@@ -251,6 +265,7 @@ def check_regulatory_compliance(
         safe_resp = (
             f"The proposed design '{design.design_id}' violates safety or cost constraints: {reason_str} "
             f"Recommendation: Reduce maximum charge per delay or increase stemming length to bring metrics within limits."
+            f"{unverified_suffix}"
         )
 
         log_guardrail_trip(
@@ -268,6 +283,6 @@ def check_regulatory_compliance(
 
     return GuardrailResult(
         is_allowed=True,
-        reason=f"Design '{design.design_id}' complies with all regulatory limits (PPV <= {max_ppv} mm/s, Airblast <= {max_airblast} dB).",
-        safe_response="",
+        reason=f"Design '{design.design_id}' complies with all regulatory limits (PPV <= {max_ppv} mm/s, Airblast <= {max_airblast} dB).{unverified_suffix}",
+        safe_response=unverified_suffix.strip(),
     )

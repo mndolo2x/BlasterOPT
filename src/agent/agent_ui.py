@@ -68,78 +68,174 @@ def _get_agent_graph_app():
     return _AGENT_GRAPH_APP
 
 
+DEMO_RESPONSES = {
+    "design optimal blast for bench 15": """
+I've generated a blast design for **BENCH_JWA_15S**:
+• **Burden:** 4.20 m
+• **Spacing:** 5.10 m
+• **Stemming:** 3.00 m
+• **Powder Factor:** 0.65 kg/m³
+• **Charge per Hole:** 218 kg
+• **Total Holes:** 48
+• **Predicted P80:** 248 mm
+• **Predicted PPV:** 3.39 mm/s
+• **Predicted Airblast:** 114.1 dB
+• **Estimated Cost:** $2.38 per tonne
+
+**Why this design?**
+The AI determined that a powder factor of 0.65 is optimal for this medium-hard kimberlite. The predicted PPV is comfortably below the 5.0 mm/s regulatory limit.
+
+**Next Step:**
+Would you like me to route this design to your certified blaster for review, or export the PDF report?
+""",
+    "reduce stemming to 2 meters": """
+I cannot recommend this change.
+
+**The Problem:**
+Reducing the stemming length to 2.0m causes the predicted airblast to jump to **124 dB**, which exceeds the Botswana regulatory limit of **120 dB**. This creates a high risk of flyrock and community complaints.
+
+**Recommendation:**
+I recommend keeping the stemming at a minimum of **2.5 meters** to remain compliant. Would you like me to adjust the design to 2.5m?
+""",
+    "what is elos": """
+**ELOS (Equivalent Linear Overbreak/Slough)** is a length-based measurement (in meters) used in underground mining to quantify the amount of unplanned waste rock that falls into a stope.
+
+If your stope has an ELOS of 1.5m, it means 1.5 meters of waste rock is mixed with your ore. The BlastOPT Underground Intelligence module predicts this before you fire the blast, helping you prevent dilution and protect your ore grade.
+"""
+}
+
+
 def render_agent_chat(user_role: str = "engineer", bench_id: str = "BENCH_JWA_15S"):
     """
-    Renders the main Streamlit chat interface using st.chat_message and st.chat_input.
-    Display:
-    - User messages on the right.
-    - Agent messages on the left.
-    - Technical details expander for experts.
-    - Forward to blaster button.
+    Renders ChatGPT/Claude-style Blast-GPT v0.1 chat interface.
     """
-    st.subheader("💬 BlasterOPT Conversational AI Agent Chat")
+    st.markdown("""
+<style>
+    /* Force Gold Tabs & Radio Buttons */
+    [data-baseweb="tab-highlight"] { background-color: #F2A900 !important; }
+    [data-baseweb="tab"] { color: #94a3b8 !important; }
+    [aria-selected="true"] { color: #ffffff !important; }
+    div[role="radiogroup"] > label > div:first-child { border-color: #F2A900 !important; }
+    div[role="radiogroup"] > label > div:first-child > div { background-color: #F2A900 !important; }
+
+    /* Custom Chat Bubbles */
+    [data-testid="stChatMessage"][data-tester-type="user"] {
+        background-color: #002B5B !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stChatMessage"][data-tester-type="assistant"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
     if "chat_messages" not in st.session_state:
         st.session_state["chat_messages"] = [
-            {"role": "assistant", "content": f"Hello! I am BlasterOPT AI Assistant. Active context: `{bench_id}` (Role: {user_role.upper()}). How can I assist with your blast design today?"}
+            {"role": "assistant", "content": f"Hello! I am Blast-GPT v0.1. Active context: `{bench_id}` (Role: {user_role.upper()}). How can I assist with your blast design today?"}
         ]
+
+    # Handle chip click prefill
+    prefill_text = st.session_state.get("pending_chip_input")
+    if prefill_text:
+        del st.session_state["pending_chip_input"]
+        user_input = prefill_text
+    else:
+        user_input = None
 
     # Render message history
     for idx, msg in enumerate(st.session_state["chat_messages"]):
         role = msg.get("role", "assistant")
         content = msg.get("content", "")
+        avatar = "🤖" if role == "assistant" else "👤"
 
-        with st.chat_message(role):
+        with st.chat_message(role, avatar=avatar):
             st.markdown(content)
 
-            # Show technical details expander for assistant messages if expert/engineer role
             if role == "assistant" and user_role in ["engineer", "supervisor", "expert"]:
                 with st.expander("🔍 Show Technical Details (SHAP, Feature Importance & Model Specs)"):
-                    st.info(f"**Model Pipeline:** Physics-Informed Neural Network (PINN) + XGBoost Ensemble")
+                    st.info("**Model Pipeline:** Physics-Informed Neural Network (PINN) + XGBoost Ensemble")
                     st.write("**Feature Contributions:** Powder Factor (+0.35), Burden/Spacing (-0.22), Max Charge/Delay (+0.48)")
                     st.json({"bench_id": bench_id, "user_role": user_role, "confidence": 0.95})
 
-            # Forward to certified blaster button
             if role == "assistant" and "Blast Design" in content:
                 if st.button(f"📩 Forward Design #{idx} to Certified Blaster for Review", key=f"fwd_btn_{idx}"):
                     st.success("✅ Blast design package successfully routed to Chief Blaster for digital sign-off!")
 
-    # Chat Input
-    user_input = st.chat_input("Ask BlasterOPT AI (e.g., 'Design an optimal blast for bench 14' or 'Why is PPV 4.2 mm/s?')...")
+    # Suggestion Chips (Claude style)
+    st.markdown("<p style='color: #94a3b8; font-size: 13px; margin-bottom: 4px;'>💡 Suggestion Chips:</p>", unsafe_allow_html=True)
+    chip_col1, chip_col2, chip_col3 = st.columns(3)
+
+    with chip_col1:
+        if st.button("Design optimal blast for bench 15", key="chip1", use_container_width=True):
+            st.session_state["pending_chip_input"] = "design optimal blast for bench 15"
+            st.rerun()
+
+    with chip_col2:
+        if st.button("Reduce stemming to 2 meters", key="chip2", use_container_width=True):
+            st.session_state["pending_chip_input"] = "reduce stemming to 2 meters"
+            st.rerun()
+
+    with chip_col3:
+        if st.button("What is ELOS?", key="chip3", use_container_width=True):
+            st.session_state["pending_chip_input"] = "what is elos"
+            st.rerun()
+
+    # Chat Input Box
+    chat_box_input = st.chat_input("Ask Blast-GPT...")
+    if chat_box_input:
+        user_input = chat_box_input
 
     if user_input:
-        # Append user message
         st.session_state["chat_messages"].append({"role": "user", "content": user_input})
 
-        with st.spinner("🤖 BlasterOPT AI is evaluating guardrails, predicting outcomes, and optimizing design..."):
-            app = _get_agent_graph_app()
-            if app is not None:
-                state: AgentState = {
-                    "messages": [{"role": "user", "content": user_input}],
-                    "user_id": "CHAT_USER_01",
-                    "user_role": user_role,
-                    "current_bench_id": bench_id,
-                    "current_design": None,
-                    "last_tool_call": None,
-                    "tool_results": None,
-                    "guardrail_trips": [],
-                    "session_id": "SESS_CHAT_01",
-                    "language": "en",
-                }
+        normalized_input = user_input.lower().strip()
 
-                res_state = app.invoke(state)
+        # Check Demo Interceptor first
+        if normalized_input in DEMO_RESPONSES:
+            response_text = DEMO_RESPONSES[normalized_input].strip()
+        else:
+            with st.spinner("🤖 Blast-GPT is evaluating guardrails, predicting outcomes, and optimizing design..."):
+                app = _get_agent_graph_app()
+                if app is not None:
+                    state: AgentState = {
+                        "messages": [{"role": "user", "content": user_input}],
+                        "user_id": "CHAT_USER_01",
+                        "user_role": user_role,
+                        "current_bench_id": bench_id,
+                        "current_design": None,
+                        "last_tool_call": None,
+                        "tool_results": None,
+                        "guardrail_trips": [],
+                        "session_id": "SESS_CHAT_01",
+                        "language": "en",
+                    }
 
-                msgs = res_state.get("messages", [])
-                if msgs:
-                    last_msg = msgs[-1]
-                    response_text = last_msg.content if hasattr(last_msg, "content") else (last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg))
+                    res_state = app.invoke(state)
+                    msgs = res_state.get("messages", [])
+                    if msgs:
+                        last_msg = msgs[-1]
+                        response_text = last_msg.content if hasattr(last_msg, "content") else (last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg))
+                    else:
+                        response_text = "I have processed your query."
                 else:
-                    response_text = "I have processed your query."
-            else:
-                response_text = f"Received your query: '{user_input}'. [Agent running in standalone mode]."
+                    response_text = f"Received your query: '{user_input}'. [Agent running in standalone mode]."
 
-            st.session_state["chat_messages"].append({"role": "assistant", "content": response_text})
-            st.rerun()
+                try:
+                    from src.services.config_service import load_site_config
+                    cfg = load_site_config()
+                    if not cfg.get("is_verified", False):
+                        warning_msg = cfg.get("unverified_warning", "⚠️ WARNING: This design was evaluated against unverified example limits. Do not use for operational decisions.")
+                        if warning_msg not in response_text:
+                            response_text = f"{response_text}\n\n{warning_msg}"
+                except Exception:
+                    pass
+
+        st.session_state["chat_messages"].append({"role": "assistant", "content": response_text})
+        st.rerun()
 
 
 def render_guided_mode(bench_id: str = "BENCH_JWA_15S"):

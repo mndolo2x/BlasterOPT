@@ -10,6 +10,59 @@ from src.georesponse.models import GeoResponseClassifier, MajorityClassBaseline
 from models.custom.geo_response_model import GeoResponseModel
 
 
+def test_mwd_headers_with_spaces_and_hyphens():
+    df = pd.DataFrame({
+        " Penetration Rate M Hr ": [30.0, 45.0],
+        "ROCK-TYPE-LABEL": ["Granite", "Gneiss"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is True
+    assert "penetration_rate_m_hr" in df_norm.columns
+    assert "rock_type_label" in df_norm.columns
+    assert df_norm["penetration_rate_m_hr"].iloc[0] == 30.0
+
+
+def test_mwd_ambiguous_semantic_aliases_require_confirmation():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "Rock Type": ["Granite", "Gneiss"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    # Ambiguous "Rock Type" should be suggested, not mapped silently
+    assert "rock_type_label" not in df_norm.columns
+    assert report["suggested_mappings"]["Rock Type"] == "rock_type_label"
+    assert report["is_eligible_for_training"] is False
+
+    # Confirmed mapping
+    df_confirmed, report_confirmed = normalize_mwd_schema(df, user_confirmed_mappings={"Rock Type": "rock_type_label"})
+    assert "rock_type_label" in df_confirmed.columns
+    assert report_confirmed["is_eligible_for_training"] is True
+
+
+def test_mwd_duplicate_conflicting_mappings_detected():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "rock_type_label": ["Granite", "Gneiss"],
+        "Rock Type Label": ["Gneiss", "Granite"]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is False
+    assert len(report["duplicate_mappings"]) > 0
+    assert report["duplicate_mappings"][0]["is_identical"] is False
+
+
+def test_mwd_unknown_columns_preserved_and_reported():
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": [30.0, 45.0],
+        "rock_type_label": ["Granite", "Gneiss"],
+        "random_extra_sensor": [1.23, 4.56]
+    })
+    df_norm, report = normalize_mwd_schema(df)
+    assert report["is_eligible_for_training"] is True
+    assert "random_extra_sensor" in df_norm.columns
+    assert "random_extra_sensor" in report["unknown_columns"]
+
+
 def test_mwd_penetration_rate_m_hr_ingestion():
     df = pd.DataFrame({
         "penetration_rate_m_hr": [30.0, 45.0],
@@ -121,6 +174,169 @@ def test_mwd_missing_numerical_values():
 
     X, feat_cols, _ = prepare_feature_matrix(df)
     assert not X.isnull().any().any()
+
+
+def test_clearly_separable_six_class_dataset():
+    """1. Clearly separable 6-class dataset testing non-zero diagonal and high scores."""
+    np.random.seed(42)
+    n_per_class = 20
+    classes = ["Soft_Sandstone", "Medium_Basalt", "Hard_Granite", "Fractured_Gneiss", "Kimberlite", "Shale"]
+
+    dfs = []
+    for i, cls in enumerate(classes):
+        # Create strong separable feature signal
+        dfs.append(pd.DataFrame({
+            "penetration_rate_m_hr": np.random.normal((i + 1) * 15.0, 1.0, n_per_class),
+            "percussion_pressure_bar": np.random.normal((i + 1) * 25.0, 1.0, n_per_class),
+            "rock_type_label": [cls] * n_per_class
+        }))
+    df_sep = pd.concat(dfs, ignore_index=True)
+
+    eval_res = evaluate_rock_type_classifier(
+        df=df_sep,
+        feature_cols=["penetration_rate_m_hr", "percussion_pressure_bar"],
+        target_col="rock_type_label",
+        group_col=None,
+        n_splits=5
+    )
+
+    rf_res = eval_res["random_forest"]
+    assert rf_res["macro_f1"] > 0.85
+    cm = np.array(rf_res["confusion_matrix"])
+    # Verify non-zero diagonal
+    assert np.all(np.diag(cm) > 0)
+
+
+def test_target_label_permutation():
+    """2. Permuted target label test verifying alignment checks/poor metrics."""
+    np.random.seed(42)
+    n = 60
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": np.linspace(10, 80, n),
+        "rock_type_label": np.repeat(["A", "B", "C"], 20)
+    })
+
+    # Permute target labels randomly
+    df["permuted_label"] = np.random.permutation(df["rock_type_label"].values)
+
+    eval_res = evaluate_rock_type_classifier(
+        df=df,
+        feature_cols=["penetration_rate_m_hr"],
+        target_col="permuted_label",
+        group_col=None,
+        n_splits=3
+    )
+    # Permuted labels should have near-random Macro-F1 (~0.33)
+    assert eval_res["random_forest"]["macro_f1"] < 0.50
+
+
+def test_label_encoder_and_class_index_consistency():
+    """3. Label encoder and class-to-index consistency test."""
+    model = GeoResponseClassifier(model_type="random_forest")
+    df_train = pd.DataFrame({
+        "penetration_rate_m_hr": [10.0, 20.0, 30.0, 40.0],
+        "rock_type_label": ["Soft", "Medium", "Hard", "Soft"]
+    })
+    model.fit(df_train, df_train["rock_type_label"])
+    assert list(model.classes_) == ["Hard", "Medium", "Soft"]
+
+    preds = model.predict(df_train)
+    assert set(preds).issubset(set(["Hard", "Medium", "Soft"]))
+
+
+def test_out_of_fold_predictions_alignment():
+    """4. Out-of-fold prediction alignment and single-sample evaluation."""
+    np.random.seed(42)
+    n = 100
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": np.random.uniform(10, 80, n),
+        "rock_type_label": np.random.choice(["Class1", "Class2"], size=n)
+    })
+    eval_res = evaluate_rock_type_classifier(
+        df=df,
+        feature_cols=["penetration_rate_m_hr"],
+        target_col="rock_type_label",
+        group_col=None,
+        n_splits=5
+    )
+    diag = eval_res["diagnostics"]
+    assert diag["evaluated_rows"] == n
+    assert diag["confusion_matrix_total"] == n
+
+
+def test_confusion_matrix_diagonal_equals_correct_predictions():
+    """5. Confusion matrix diagonal sum equals total correct predictions."""
+    np.random.seed(42)
+    n = 120
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": np.random.uniform(10, 80, n),
+        "rock_type_label": np.repeat(["A", "B", "C", "D", "E", "F"], 20)
+    })
+    eval_res = evaluate_rock_type_classifier(
+        df=df,
+        feature_cols=["penetration_rate_m_hr"],
+        target_col="rock_type_label",
+        group_col=None,
+        n_splits=5
+    )
+    cm = np.array(eval_res["random_forest"]["confusion_matrix"])
+    diag = eval_res["diagnostics"]
+    assert int(np.trace(cm)) == diag["total_correct_predictions"]
+    assert int(np.sum(cm)) == diag["confusion_matrix_total"] == n
+
+
+def test_negative_f1_delta_formatting():
+    """6. Negative F1 delta formatting test."""
+    f1_rf = 0.0000
+    f1_base = 0.0476
+    delta = round(f1_rf - f1_base, 4)
+    delta_str = f"+{delta:.4f}" if delta >= 0 else f"{delta:.4f}"
+    assert delta_str == "-0.0476"
+
+
+def test_balanced_six_class_majority_baseline():
+    """7. Balanced six-class constant majority classifier produces Macro-F1 of ~0.0476."""
+    np.random.seed(42)
+    n = 120
+    classes = ["C1", "C2", "C3", "C4", "C5", "C6"]
+    df = pd.DataFrame({
+        "penetration_rate_m_hr": np.random.uniform(10, 80, n),
+        "rock_type_label": np.repeat(classes, 20)
+    })
+    eval_res = evaluate_rock_type_classifier(
+        df=df,
+        feature_cols=["penetration_rate_m_hr"],
+        target_col="rock_type_label",
+        group_col=None,
+        n_splits=5
+    )
+    base_f1 = eval_res["majority_baseline"]["macro_f1"]
+    # For balanced 6 classes, constant majority classifier has precision 1/6 for 1 class (0 else), recall 1.0 for 1 class (0 else)
+    # F1 for majority class = 2*(1/6*1)/(1/6+1) = 2/7 = 0.2857. Macro F1 = (2/7)/6 = 1/21 ~ 0.0476.
+    assert pytest.approx(base_f1, abs=0.01) == 0.0476
+
+
+def test_regression_with_120_row_uninformative_fixture():
+    """8. Regression test with 120-row fixture reporting genuine uninformative data limitation."""
+    np.random.seed(42)
+    n = 120
+    classes = ["Class_1", "Class_2", "Class_3", "Class_4", "Class_5", "Class_6"]
+    # Pure random noise features vs rock labels
+    df_uninformative = pd.DataFrame({
+        "penetration_rate_m_hr": np.random.uniform(10, 80, n),
+        "percussion_pressure_bar": np.random.uniform(100, 250, n),
+        "rock_type_label": np.repeat(classes, 20)
+    })
+    eval_res = evaluate_rock_type_classifier(
+        df=df_uninformative,
+        feature_cols=["penetration_rate_m_hr", "percussion_pressure_bar"],
+        target_col="rock_type_label",
+        group_col=None,
+        n_splits=5
+    )
+    assert eval_res["n_samples"] == 120
+    assert eval_res["n_classes"] == 6
+    assert eval_res["diagnostics"]["scoring_arrays_aligned"] is True
 
 
 def test_successful_end_to_end_mwd_training_and_evaluation():

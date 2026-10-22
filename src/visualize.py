@@ -129,6 +129,7 @@ def plot_ppv_attenuation(
     max_ppv: float = 5.0,
     receptor_distance: Optional[float] = None,
     receptor_label: str = "Village",
+    ppv_value: Optional[float] = None,
 ) -> go.Figure:
     """
     Plots USBM scale distance ground vibration attenuation curve (PPV vs Distance).
@@ -147,6 +148,8 @@ def plot_ppv_attenuation(
         Distance to receptor/structure (m) for vertical marker and intersection point.
     receptor_label : str, default="Village"
         Label for the receptor structure.
+    ppv_value : float, optional
+        Newly predicted/calculated PPV value at receptor. If provided, overrides the theoretical USBM attenuation calculation at receptor distance.
     """
     distances = np.linspace(50, 1500, 300)  # meters
     scaled_distances = distances / np.sqrt(max_charge_kg)
@@ -175,11 +178,18 @@ def plot_ppv_attenuation(
         annotation_position="top right",
     )
 
+    max_y_val = max(max_ppv, np.max(ppv))
+
     # Vertical line and intersection point at receptor distance if provided
     if receptor_distance is not None and receptor_distance > 0:
         rec_dist = float(receptor_distance)
         scaled_rec_dist = rec_dist / np.sqrt(max_charge_kg)
-        ppv_at_receptor = k_vib * (scaled_rec_dist ** (-beta))
+        if ppv_value is not None and ppv_value > 0:
+            ppv_at_receptor = float(ppv_value)
+        else:
+            ppv_at_receptor = k_vib * (scaled_rec_dist ** (-beta))
+
+        max_y_val = max(max_y_val, ppv_at_receptor)
 
         rec_annotation = f"{receptor_label} ({rec_dist:.0f} m)"
         fig.add_vline(
@@ -204,11 +214,14 @@ def plot_ppv_attenuation(
             )
         )
 
+    # Dynamic y-axis scaling to accommodate high PPV values (e.g., 17.09 mm/s)
+    upper_y = max(20.0, max_y_val * 1.5)
+
     fig.update_layout(
         title="<b>Ground Vibration Attenuation (PPV vs Distance)</b>",
         xaxis_title="Distance to Target (m)",
         yaxis_title="Peak Particle Velocity (PPV) [mm/s]",
-        yaxis=dict(type="log", range=[np.log10(0.1), np.log10(20.0)]),
+        yaxis=dict(type="log", range=[np.log10(0.1), np.log10(upper_y)]),
         template="plotly_white",
         height=450,
     )
