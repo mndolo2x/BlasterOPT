@@ -351,35 +351,68 @@ with tab_lab:
         c_charge = st.number_input("Candidate Max Charge / Delay (kg)", 10.0, 2000.0, round(b_charge * 0.85, 1), step=20.0, key="cand_ch_inp")
 
     st.markdown("---")
-    st.subheader("📊 Scenario Parameter Deltas & Constraint Validation")
+    st.subheader("📊 Scenario Parameter Deltas & Recalculated Outputs")
 
+    # Evaluate candidate scenario deltas and derived powder factor
+    b_bench = float(base_params.get("bench_height_m", 15.0))
     scen_eval = dp.evaluate_scenario_deltas(
-        baseline_params={"burden_m": b_burden, "spacing_m": b_spacing, "powder_factor_kg_m3": b_pf, "max_charge_per_delay_kg": b_charge},
-        candidate_params={"burden_m": c_burden, "spacing_m": c_spacing, "powder_factor_kg_m3": c_pf, "max_charge_per_delay_kg": c_charge},
+        baseline_params={
+            "burden_m": b_burden,
+            "spacing_m": b_spacing,
+            "bench_height_m": b_bench,
+            "target_powder_factor_kg_m3": b_pf,
+            "charge_mass_per_hole_kg": b_charge,
+            "max_charge_per_delay_kg": b_charge,
+        },
+        candidate_params={
+            "burden_m": c_burden,
+            "spacing_m": c_spacing,
+            "bench_height_m": b_bench,
+            "target_powder_factor_kg_m3": c_pf,
+            "charge_mass_per_hole_kg": c_charge,
+            "max_charge_per_delay_kg": c_charge,
+        },
     )
 
     deltas_map = scen_eval["deltas"]
     delta_rows = []
     for k, v in deltas_map.items():
+        if v.get("status") == "not_calculated":
+            delta_str = "Not calculated"
+            c_val_str = "Not calculated"
+        else:
+            delta_str = f"{v['delta']:+} ({v['percentage_change']:+.1f}%)" if v.get("delta") is not None else "N/A"
+            c_val_str = f"{v['candidate']}"
+
         delta_rows.append({
-            "Parameter": k.replace("_", " ").title(),
-            "Baseline Value": v["baseline"],
-            "Candidate Value": v["candidate"],
-            "Delta (Change)": f"{v['delta']:+} ({v['percentage_change']:+_.1f}%)",
+            "Parameter": v.get("label", k.replace("_", " ").title()),
+            "Baseline Value": v.get("baseline", "N/A"),
+            "Candidate Value": c_val_str,
+            "Absolute & % Delta": delta_str,
+            "Parameter Type": v.get("parameter_type", "User Input"),
+            "Unit": v.get("unit", ""),
         })
 
     st.dataframe(pd.DataFrame(delta_rows), use_container_width=True, hide_index=True)
 
-    feas_status = scen_eval["feasibility_status"]
-    if feas_status == "Rejected":
-        st.error("🚨 **SCENARIO REJECTED:** Candidate parameters violate physical or geometric blast constraints.")
-    else:
-        st.warning("⚠️ **Feasibility Unverified:** Approved diamond-breakage safety threshold data is unverified. Candidate scenario is NOT an automated blast recommendation.")
+    st.markdown("---")
+    st.subheader("🛡️ Engineering Constraint Validation Summary")
 
-    if scen_eval["warnings"]:
-        st.subheader("Validation Warnings & Rejection Reasons")
-        for w in scen_eval["warnings"]:
-            st.write(f"- ⚠️ {w}")
+    v_sum = scen_eval["validation_summary"]
+    vc1, vc2, vc3, vc4 = st.columns(4)
+    vc1.metric("Passed Checks", v_sum["passed"])
+    vc2.metric("Failed Checks", v_sum["failed"])
+    vc3.metric("Unverified Checks", v_sum["unverified"])
+    vc4.metric("Overall Feasibility", v_sum["overall_feasibility"])
+
+    st.markdown("#### Detailed Constraint Checks")
+    checks_df = pd.DataFrame(scen_eval["constraint_checks"])
+    st.dataframe(checks_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.subheader("🤖 Diamond-Breakage Model Status")
+    st.error(f"🚨 **{scen_eval['model_prediction_status']}**")
+    st.warning("⚠️ **Feasibility Unverified:** Candidate scenario comparison is for engineering evaluation only and is NOT an automated blast recommendation.")
 
     if st.button("Save Scenario Comparison 🚀", type="primary", key="btn_save_scen"):
         scen_obj = dp.DiamondScenario(

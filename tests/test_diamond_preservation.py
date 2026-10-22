@@ -265,14 +265,73 @@ def test_14_grouped_training_split_prevents_leakage():
     assert len(train_blasts.intersection(test_blasts)) == 0
 
 
-def test_15_constrained_scenario_evaluator_deltas():
-    base_p = {"burden_m": 6.0, "spacing_m": 7.0, "powder_factor_kg_m3": 0.65}
-    cand_p = {"burden_m": 6.0, "spacing_m": 7.5, "powder_factor_kg_m3": 0.55}
+def test_15_scenario_evaluator_6x7_to_3x35_shrinkage_recalculation():
+    base_p = {
+        "burden_m": 6.0,
+        "spacing_m": 7.0,
+        "bench_height_m": 15.0,
+        "charge_mass_per_hole_kg": 320.0,
+        "target_powder_factor_kg_m3": 0.65,
+    }
+    cand_p = {
+        "burden_m": 3.0,
+        "spacing_m": 3.5,
+        "bench_height_m": 15.0,
+        "charge_mass_per_hole_kg": 320.0,
+        "target_powder_factor_kg_m3": 0.65,
+    }
 
     eval_res = dp.evaluate_scenario_deltas(base_p, cand_p)
-    assert "spacing_m" in eval_res["deltas"]
-    assert eval_res["deltas"]["spacing_m"]["delta"] == 0.5
-    assert eval_res["deltas"]["powder_factor_kg_m3"]["delta"] == -0.1
+    deltas = eval_res["deltas"]
+
+    # Target powder factor remains 0.65 (delta 0)
+    assert deltas["target_powder_factor_kg_m3"]["delta"] == 0.0
+
+    # Derived powder factor increases 4x from 0.508 to 2.032 kg/m^3
+    dpf = deltas["derived_powder_factor_kg_m3"]
+    assert dpf["baseline"] == 0.508
+    assert dpf["candidate"] == 2.032
+    assert dpf["delta"] == 1.524
+
+    # Validation summary detects failed powder factor limit
+    v_sum = eval_res["validation_summary"]
+    assert v_sum["failed"] >= 1
+    assert v_sum["overall_feasibility"] == "Rejected"
+
+
+def test_18_scenario_evaluator_missing_inputs():
+    base_p = {"burden_m": 6.0, "spacing_m": 7.0}
+    cand_p = {"burden_m": 3.0, "spacing_m": 3.5}  # Missing charge mass & bench height
+
+    eval_res = dp.evaluate_scenario_deltas(base_p, cand_p)
+    dpf = eval_res["deltas"]["derived_powder_factor_kg_m3"]
+
+    assert dpf["status"] == "not_calculated"
+    assert "Not calculated — required inputs unavailable" in dpf["message"]
+
+
+def test_19_baseline_record_immutability():
+    b_rec = pf.BlastRecord(
+        blast_id="BLAST_IMMUTABLE",
+        site_id="Jwaneng",
+        location_identifier="BENCH_01",
+        planned_params={"burden_m": 6.0, "spacing_m": 7.0},
+    )
+    pf.save_blast_record(b_rec, db_path=TEST_DB)
+
+    # Evaluate and save candidate scenario
+    scen = dp.DiamondScenario(
+        scenario_id="SCEN_IMMUTABLE",
+        scenario_name="Test Scenario",
+        baseline_blast_id="BLAST_IMMUTABLE",
+        candidate_params={"burden_m": 3.0, "spacing_m": 3.5},
+    )
+    dp.save_diamond_scenario(scen, db_path=TEST_DB)
+
+    # Baseline record in DB must remain unchanged
+    fetched_b = pf.get_blast_record("BLAST_IMMUTABLE", db_path=TEST_DB)
+    assert fetched_b.planned_params["burden_m"] == 6.0
+    assert fetched_b.planned_params["spacing_m"] == 7.0
 
 
 def test_16_observation_stages_and_constants_exported():
