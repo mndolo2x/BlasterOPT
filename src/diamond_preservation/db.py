@@ -5,10 +5,11 @@ Manages durable storage in data/processed/diamond_preservation.db for observatio
 breakage assessments, scenarios, valuation schedules, and audit records.
 """
 
-import os
+from contextlib import closing
 import json
 import sqlite3
 import logging
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from src.diamond_preservation.models import (
     DiamondObservation,
@@ -17,14 +18,16 @@ from src.diamond_preservation.models import (
     DiamondValuationSchedule,
 )
 
+from src.storage_paths import DIAMOND_DB_PATH
+
 logger = logging.getLogger(__name__)
 
-DB_PATH = "data/processed/diamond_preservation.db"
+DB_PATH = str(DIAMOND_DB_PATH)
 
 
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     """Returns SQLite connection with row factory configured."""
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -32,7 +35,7 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
 
 def init_db(db_path: str = DB_PATH) -> None:
     """Initializes diamond preservation database tables if not present."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
 
         # 1. Observations Table
@@ -117,7 +120,7 @@ init_db()
 # --- CRUD FUNCTIONS ---
 
 def save_diamond_observation(obs: DiamondObservation, db_path: str = DB_PATH) -> DiamondObservation:
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO diamond_observations (
@@ -158,7 +161,7 @@ def list_diamond_observations(blast_id: Optional[str] = None, stage: Optional[st
     query += " ORDER BY observation_date DESC"
 
     res = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -183,7 +186,7 @@ def list_diamond_observations(blast_id: Optional[str] = None, stage: Optional[st
 
 
 def save_diamond_assessment(ass: DiamondAssessment, db_path: str = DB_PATH) -> DiamondAssessment:
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO diamond_assessments (
@@ -220,7 +223,7 @@ def list_diamond_assessments(blast_id: Optional[str] = None, db_path: str = DB_P
     query += " ORDER BY assessment_timestamp DESC"
 
     res = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -244,7 +247,7 @@ def list_diamond_assessments(blast_id: Optional[str] = None, db_path: str = DB_P
 
 
 def save_diamond_scenario(scen: DiamondScenario, db_path: str = DB_PATH) -> DiamondScenario:
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO diamond_scenarios (
@@ -278,7 +281,7 @@ def list_diamond_scenarios(baseline_blast_id: Optional[str] = None, db_path: str
     query += " ORDER BY created_at DESC"
 
     res = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -297,7 +300,7 @@ def list_diamond_scenarios(baseline_blast_id: Optional[str] = None, db_path: str
 
 
 def save_valuation_schedule(sched: DiamondValuationSchedule, db_path: str = DB_PATH) -> DiamondValuationSchedule:
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO valuation_schedules (
@@ -316,7 +319,7 @@ def save_valuation_schedule(sched: DiamondValuationSchedule, db_path: str = DB_P
 
 
 def get_latest_valuation_schedule(db_path: str = DB_PATH) -> DiamondValuationSchedule:
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM valuation_schedules ORDER BY effective_date DESC LIMIT 1")
         row = cursor.fetchone()

@@ -6,10 +6,11 @@ original prediction snapshots, actual field measurements, comparison results,
 dataset review records, and export manifests.
 """
 
-import os
+from contextlib import closing
 import json
 import sqlite3
 import logging
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from src.performance_feedback.models import (
     BlastRecord,
@@ -20,14 +21,16 @@ from src.performance_feedback.models import (
     ExportManifest,
 )
 
+from src.storage_paths import PERFORMANCE_DB_PATH
+
 logger = logging.getLogger(__name__)
 
-DB_PATH = "data/processed/blast_performance.db"
+DB_PATH = str(PERFORMANCE_DB_PATH)
 
 
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     """Returns SQLite connection with row factory configured."""
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -35,7 +38,7 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
 
 def init_db(db_path: str = DB_PATH) -> None:
     """Initializes performance feedback database tables and indices if not present."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
 
         # 1. Blast Records Table
@@ -169,7 +172,7 @@ init_db()
 
 def save_blast_record(record: BlastRecord, db_path: str = DB_PATH) -> BlastRecord:
     """Inserts or updates a BlastRecord in SQLite."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO blast_records (
@@ -210,7 +213,7 @@ def save_blast_record(record: BlastRecord, db_path: str = DB_PATH) -> BlastRecor
 
 def get_blast_record(blast_id: str, db_path: str = DB_PATH) -> Optional[BlastRecord]:
     """Retrieves BlastRecord by ID."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM blast_records WHERE blast_id = ?", (blast_id,))
         row = cursor.fetchone()
@@ -258,7 +261,7 @@ def list_blast_records(
     params.append(limit)
 
     records = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -284,7 +287,7 @@ def list_blast_records(
 
 def save_prediction_snapshot(snapshot: PredictionSnapshot, db_path: str = DB_PATH) -> PredictionSnapshot:
     """Saves an immutable PredictionSnapshot in SQLite."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT OR IGNORE INTO prediction_snapshots (
@@ -325,7 +328,7 @@ def get_prediction_snapshots_for_blast(
     query += " ORDER BY prediction_timestamp DESC"
 
     snapshots = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -352,7 +355,7 @@ def get_prediction_snapshots_for_blast(
 
 def save_actual_measurement(meas: ActualMeasurement, db_path: str = DB_PATH) -> ActualMeasurement:
     """Inserts or updates an ActualMeasurement in SQLite."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO actual_measurements (
@@ -400,7 +403,7 @@ def get_actual_measurements_for_blast(
     query += " ORDER BY measurement_timestamp DESC"
 
     measurements = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -424,7 +427,7 @@ def get_actual_measurements_for_blast(
 
 def save_comparison_result(comp: ComparisonResult, db_path: str = DB_PATH) -> ComparisonResult:
     """Inserts or updates a ComparisonResult."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO comparison_results (
@@ -490,7 +493,7 @@ def list_comparison_results(
     query += " ORDER BY c.compared_at DESC"
 
     results = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -517,7 +520,7 @@ def list_comparison_results(
 
 def save_dataset_review(review: DatasetReviewRecord, db_path: str = DB_PATH) -> DatasetReviewRecord:
     """Inserts or updates a DatasetReviewRecord."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO dataset_reviews (
@@ -561,7 +564,7 @@ def list_dataset_reviews(
         params.append(status)
 
     reviews = []
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         for row in cursor.fetchall():
@@ -583,7 +586,7 @@ def list_dataset_reviews(
 
 def save_export_manifest(manifest: ExportManifest, db_path: str = DB_PATH) -> ExportManifest:
     """Saves an ExportManifest record."""
-    with get_connection(db_path) as conn:
+    with closing(get_connection(db_path)) as conn, conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO export_manifests (

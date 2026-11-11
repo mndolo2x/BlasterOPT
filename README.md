@@ -76,6 +76,32 @@ Field app for pit operators, drillers, and blasters in remote bench locations wi
 
 ---
 
+## Local historical records in VS Code
+
+Open the BlasterOPT repository folder in VS Code and run the following from its terminal. Use Python 3.11 or 3.12.
+
+**Windows PowerShell**
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-local.txt
+.venv\Scripts\python.exe local_app.py
+```
+
+**macOS or Linux**
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-local.txt
+.venv/bin/python local_app.py
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Press Ctrl+C in the terminal to stop the server. The local page uses FastAPI and Uvicorn. It opens historical measurements and diamond observations read-only from `data/processed/blast_performance.db` and `data/processed/diamond_preservation.db`. If you already have records in another installation, copy its backed-up SQLite files into this folder. A fresh checkout displays empty-state messages. The server binds to your computer's loopback address and is intended for individual use.
+
+To run the local workspace tests, install `pandas` and `httpx` in the same virtual environment and run `python -m unittest discover -s local_tests -v` with that environment's Python.
+
+---
+
 ## 🚀 Installation & Setup
 
 ### Prerequisites
