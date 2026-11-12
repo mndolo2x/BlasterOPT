@@ -29,7 +29,25 @@ class LocalHistoricalRecordsTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text.count("Database missing"), 2)
+        self.assertNotIn("Fictional records", response.text)
         self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_demo_displays_fictional_records_without_using_databases(self):
+        self.performance.write_bytes(b"preserve existing file")
+        with TestClient(
+            create_app(self.performance, self.diamonds, demo=True),
+            base_url="http://127.0.0.1",
+        ) as demo_client:
+            response = demo_client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Demo mode · Fictional records", response.text)
+        self.assertIn("DEMO-001", response.text)
+        self.assertIn("DEMO-LOT-02", response.text)
+        self.assertNotIn("Database missing", response.text)
+        self.assertNotIn("The database could not be read", response.text)
+        self.assertEqual(self.performance.read_bytes(), b"preserve existing file")
+        self.assertFalse(self.diamonds.exists())
 
     def test_reads_existing_records_and_escapes_html(self):
         performance_db.init_db(self.performance)

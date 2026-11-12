@@ -1,5 +1,6 @@
 """Local, read-only browser view for BlasterOPT's historical records."""
 
+import argparse
 import logging
 import sqlite3
 from contextlib import closing
@@ -34,6 +35,22 @@ OBSERVATIONS = """
     LIMIT 100
 """
 
+DEMO_MEASUREMENTS = (
+    ("Blast ID", "Site", "Recorded", "Metric", "Measured value", "Unit"),
+    [
+        ("DEMO-002", "Example mine", "2026-01-15", "Fragment size (D80)", 310, "mm"),
+        ("DEMO-001", "Example mine", "2026-01-12", "Fragment size (D80)", 285, "mm"),
+    ],
+)
+
+DEMO_OBSERVATIONS = (
+    ("Blast ID", "Sample lot", "Recorded", "Stage", "Size class", "Stones", "Carats", "Recorded damage"),
+    [
+        ("DEMO-002", "DEMO-LOT-02", "2026-01-16", "Recovery", "Large", 4, 5.60, "Chipping"),
+        ("DEMO-001", "DEMO-LOT-01", "2026-01-13", "Recovery", "Medium", 7, 4.25, "None observed"),
+    ],
+)
+
 
 def render_records(database: Path, query: str) -> str:
     if not database.is_file():
@@ -51,6 +68,10 @@ def render_records(database: Path, query: str) -> str:
     if not rows:
         return "<p>No records have been saved in this database.</p>"
 
+    return render_table(headers, rows)
+
+
+def render_table(headers, rows) -> str:
     heading = "".join(f'<th scope="col">{escape(header)}</th>' for header in headers)
     body = "".join(
         "<tr>" + "".join(f"<td>{escape(str(value)) if value is not None else '—'}</td>" for value in row) + "</tr>"
@@ -62,14 +83,22 @@ def render_records(database: Path, query: str) -> str:
 def create_app(
     performance_db: Path = PERFORMANCE_DB_PATH,
     diamond_db: Path = DIAMOND_DB_PATH,
+    *,
+    demo: bool = False,
 ) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
 
     @app.get("/", response_class=HTMLResponse)
     def historical_records() -> HTMLResponse:
-        measurements = render_records(performance_db, MEASUREMENTS)
-        observations = render_records(diamond_db, OBSERVATIONS)
+        if demo:
+            description = '<p class="demo">Demo mode · Fictional records</p>'
+            measurements = render_table(*DEMO_MEASUREMENTS)
+            observations = render_table(*DEMO_OBSERVATIONS)
+        else:
+            description = "<p>Historical records · Latest 100 entries per register</p>"
+            measurements = render_records(performance_db, MEASUREMENTS)
+            observations = render_records(diamond_db, OBSERVATIONS)
         return HTMLResponse(
             f"""<!doctype html>
 <html lang="en">
@@ -82,6 +111,7 @@ def create_app(
     main {{ max-width: 76rem; margin: auto; padding: 2.5rem 1rem; }}
     h1, h2 {{ line-height: 1.2; }}
     h1 {{ color: #ffc966; }}
+    .demo {{ color: #ffc966; font-weight: 600; }}
     section {{ margin-top: 2rem; padding: 1rem; border: 1px solid #394759; border-radius: .5rem; }}
     .table-wrap {{ overflow-x: auto; }}
     table {{ border-collapse: collapse; width: 100%; text-align: left; }}
@@ -91,7 +121,7 @@ def create_app(
 </style>
 <main>
     <h1>BlasterOPT</h1>
-    <p>Historical records · Latest 100 entries per register</p>
+    {description}
     <section><h2>Post-blast measurements</h2>{measurements}</section>
     <section><h2>Diamond observations</h2>{observations}</section>
 </main>
@@ -108,4 +138,7 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    parser = argparse.ArgumentParser(description="Serve the BlasterOPT historical records dashboard.")
+    parser.add_argument("--demo", action="store_true", help="Display fictional records without opening databases.")
+    args = parser.parse_args()
+    uvicorn.run(create_app(demo=True) if args.demo else app, host="127.0.0.1", port=8000)
