@@ -96,11 +96,18 @@ python3 -m venv .venv
 .venv/bin/python local_app.py
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Press Ctrl+C in the terminal to stop the server. The local page uses FastAPI and Uvicorn. It opens historical measurements and diamond observations read-only from `data/processed/blast_performance.db` and `data/processed/diamond_preservation.db`. If you already have records in another installation, copy its backed-up SQLite files into this folder. A fresh checkout displays empty-state messages. The server binds to your computer's loopback address and is intended for individual use.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Press Ctrl+C in the terminal to stop the server. The local page uses FastAPI and Uvicorn. It stores historical measurements and diamond observations in `data/processed/blast_performance.db` and `data/processed/diamond_preservation.db`. If you already have records in another installation, you can copy its backed-up SQLite files into this folder. A fresh checkout can create these files when you save an import. The server binds to your computer's loopback address and is intended for individual use.
+
+**Import real records**
+
+1. Start the app without `--demo` and download the CSV template from the register you want to populate.
+2. Fill in the template and save it as UTF-8 CSV or Excel `.xlsx`. Keep the column names and place the headers on the first row of the first worksheet. Use a stable, unique ID from your source for each measurement or observation. Keep IDs with leading zeros as text in Excel. Dates can be ISO dates such as `2026-11-12` or ISO timestamps. For measurements, the site, operation type, location, and blast date describe the historical blast, and the measurement timestamp describes the observation.
+3. Choose the file and select **Preview import**. Fix any errors before uploading again. A file can contain up to 1,000 data rows and be up to 2 MiB.
+4. Select **Save import** within 15 minutes of previewing. Existing measurement and observation IDs are skipped, including on re-upload. A conflicting existing blast location, site, or operation type cancels the batch.
 
 To see the dashboard with fictional records, stop the server and add `--demo` to the startup command. On Windows, run `.\.venv\Scripts\python.exe local_app.py --demo`. Demo mode displays both sample tables without opening or creating SQLite files. Start the app without the flag to view your own records.
 
-To run the local workspace tests, install `pandas` and `httpx` in the same virtual environment and run `python -m unittest discover -s local_tests -v` with that environment's Python.
+To run the local workspace tests, install `httpx` in the same virtual environment and run `python -m unittest discover -s local_tests -v` with that environment's Python.
 
 ---
 
