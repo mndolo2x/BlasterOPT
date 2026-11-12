@@ -98,6 +98,13 @@ python3 -m venv .venv
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. Press Ctrl+C in the terminal to stop the server. The local page uses FastAPI and Uvicorn. It stores historical measurements and diamond observations in `data/processed/blast_performance.db` and `data/processed/diamond_preservation.db`. If you already have records in another installation, you can copy its backed-up SQLite files into this folder. A fresh checkout can create these files when you save an import. The server binds to your computer's loopback address and is intended for individual use.
 
+**Digital Twin of Bench** is available from the local navigation or at `/digital-twin`.
+The interactive demo includes terraced terrain, geological layer colours, mobile equipment,
+four clickable simulated monitoring stations, camera presets, daylight and vertical exaggeration
+controls, a wireframe layer, and PNG export. All geometry and observations are fictional.
+The viewer includes Three.js r128 and OrbitControls locally under their MIT license in
+`static/bench/vendor/LICENSE`, so viewing requires no external graphics downloads.
+
 **Import real records**
 
 1. Start the app without `--demo` and download the CSV template from the register you want to populate.

@@ -11,7 +11,8 @@ from threading import Lock
 from time import monotonic
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -127,6 +128,12 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
+    bench_assets = Path(__file__).resolve().parent / "static" / "bench"
+    app.mount("/bench-assets", StaticFiles(directory=bench_assets), name="bench-assets")
+
+    @app.get("/digital-twin", response_class=FileResponse)
+    def digital_twin():
+        return FileResponse(bench_assets / "index.html")
     databases = {"measurements": performance_db, "diamonds": diamond_db}
     pending = {}
     pending_lock = Lock()
@@ -255,6 +262,7 @@ def render_page(content: str, status: int = 200) -> HTMLResponse:
 </style>
 <main>
     <h1>BlasterOPT</h1>
+    <nav aria-label="Main navigation"><a href="/">Historical records</a> · <a href="/digital-twin">Digital Twin of Bench</a></nav>
     {content}
 </main>
 </html>""",

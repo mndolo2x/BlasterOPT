@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Twin of Bench · BlasterOPT</title>
+<link rel="stylesheet" href="/bench-assets/bench.css">
+<script defer src="/bench-assets/vendor/three.min.js"></script>
+<script defer src="/bench-assets/vendor/OrbitControls.js"></script>
+<script defer src="/bench-assets/bench.js"></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">BlasterOPT<span>MINING INTELLIGENCE</span></a>
+  <nav><a href="/">Historical records</a><a class="active" href="/digital-twin">Digital Twin of Bench</a></nav>
+  <span class="demo"><i></i> SIMULATED DEMO</span>
+</header>
+<main>
+  <aside>
+    <div class="eyebrow">SURFACE OPERATIONS</div>
+    <h1>Digital Twin<br>of Bench</h1>
+    <p class="intro">Explore the terrain, geological layers and equipment of an illustrative open-pit bench.</p>
+    <div class="site"><span class="dot"></span><div><strong>Demonstration quarry</strong><small>South bench · Local scene</small></div></div>
+    <section>
+      <h2>View</h2>
+      <div class="views"><button data-view="overview" class="selected">Overview</button><button data-view="plan">Plan</button><button data-view="face">Bench face</button><button data-view="detail">Equipment</button></div>
+    </section>
+    <section>
+      <h2>Scene layers</h2>
+      <label><span><b class="swatch rock"></b>Geological layers</span><input id="geology" type="checkbox" checked></label>
+      <label><span><b class="swatch mesh"></b>Surface mesh</span><input id="mesh" type="checkbox"></label>
+      <label><span><b class="swatch cyan"></b>Monitoring stations</span><input id="sensors" type="checkbox" checked></label>
+      <label><span><b class="swatch gold"></b>Mobile equipment</span><input id="equipment" type="checkbox" checked></label>
+    </section>
+    <section>
+      <h2>Display</h2>
+      <label for="height">Vertical exaggeration <output id="height-value">1.0×</output></label>
+      <input id="height" type="range" min="1" max="2" step=".1" value="1">
+      <label for="sun">Sun position <output id="sun-value">Afternoon</output></label>
+      <input id="sun" type="range" min="0" max="100" value="62">
+      <button id="motion" class="wide">Pause equipment motion</button>
+    </section>
+    <p class="notice">Fictional terrain, geology and station readings. This demo has no live mine connection.</p>
+  </aside>
+  <div class="workspace">
+    <div class="scene-top"><div><strong>South bench</strong><span>Illustrative terrain model</span></div><button id="capture">Save image</button></div>
+    <div id="viewport" aria-label="Interactive three-dimensional mining bench">
+      <div id="loading">Preparing the bench scene…</div>
+      <div id="selection" hidden><button id="close-selection" aria-label="Close station details">×</button><span class="eyebrow">SIMULATED STATION</span><h3 id="station-name"></h3><dl><dt>Elevation</dt><dd id="station-elevation"></dd><dt>Temperature</dt><dd id="station-temperature"></dd><dt>Connection</dt><dd>Demo snapshot</dd></dl></div>
+      <div class="legend"><span><b style="background:#c6a275"></b>Weathered cover</span><span><b style="background:#987656"></b>Host rock</span><span><b style="background:#648c8a"></b>Illustrative ore zone</span></div>
+      <div class="compass"><strong>N</strong><span>↑</span><small>MODEL NORTH</small></div>
+      <div class="help">Drag to orbit · Scroll to zoom · Right-drag to pan · Click a station</div>
+    </div>
+    <div class="metrics"><div><span>MODEL FOOTPRINT</span><strong>200 × 140 <small>m</small></strong></div><div><span>TERRACE LEVELS</span><strong>4 <small>levels</small></strong></div><div><span>MODEL RELIEF</span><strong>39 <small>m</small></strong></div><div><span>OBSERVATION POINTS</span><strong>4 <small>simulated</small></strong></div></div>
+  </div>
+</main>
+</body>
+</html>
